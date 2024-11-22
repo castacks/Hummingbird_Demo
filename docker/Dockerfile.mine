@@ -5,7 +5,6 @@ FROM ${IMAGE_NAME}
 
 ARG ROS2_DIST=humble
 
-# FROM nvcr.io/nvidia/l4t-base:r35.4.1
 
 #This environment variable is needed to use the streaming features on Jetson inside a container
 ENV LOGNAME root
