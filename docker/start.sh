@@ -29,7 +29,7 @@ if [ -z "$SOURCE_DIR" ]; then
     exit 1
 fi
 
-CONTAINER_NAME=zed_ros2_l4t_image
+CONTAINER_NAME="zed_ros2_l4t_image"
 
 # Check if the container is already running
 if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
@@ -53,5 +53,5 @@ docker run --runtime nvidia -it --privileged --ipc=host --pid=host -e NVIDIA_DRI
   -v /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/ \
   -v /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service \
   -v ${HOME}/zed_docker_ai/:/usr/local/zed/resources/ \
-  -v ${SOURCE_DIR}:/root/ros2_ws/ \
+  -v ${pwd}/../ros_ws/src/:/root/ros2_ws/src/ \
   $CONTAINER_NAME
