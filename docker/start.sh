@@ -1,33 +1,6 @@
 #!/bin/bash
 
-usage() {
-    echo "Usage: $0 -n <container_name> -s <source_dir>"
-    echo "  -t <container_name> : Name of the container"
-    exit 1
-}
-
-while getopts "n:" opt; do
-    case $opt in
-        n)
-            CONTAINER_NAME=$OPTARG
-            ;;
-        *)
-            usage
-            ;;
-    
-    case $opt in
-        s)
-            SOURCE_DIR=$OPTARG
-            ;;
-        *)
-            usage
-            ;;
-    esac
-done
-
-if [ -z "$CONTAINER_NAME" ]; then
-    usage
-fi
+CONTAINER_NAME=zed_ros2_l4t_image
 
 # Check if the container is already running
 if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
