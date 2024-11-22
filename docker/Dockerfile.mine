@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update || true ; apt-get install --no-install-recommends lsb-release wget less udev zstd sudo apt-transport-https build-essential cmake -y&& \
     echo "# R35 (release), REVISION: 4.1" > /etc/nv_tegra_release ; \
     wget -q --no-check-certificate -O ZED_SDK_Linux.run https://download.stereolabs.com/zedsdk/4.1/l4t35.4/jetsons && \
-    chmod +x ZED_SDK_Linux.run ; ./ZED_SDK_Linux.run silent skip_tools skip_drivers && \
+    chmod +x ZED_SDK_Linux.run ; ./ZED_SDK_Linux.run silent skip_tools && \
     rm -rf /usr/local/zed/resources/* \
     rm -rf ZED_SDK_Linux.run && \
     rm -rf /var/lib/apt/lists/*
@@ -30,10 +30,10 @@ RUN python3 -m pip install --upgrade cython
 
 WORKDIR /root/ros2_ws
 
-# Setup environment variables 
-COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh
-RUN sudo chmod 755 /sbin/ros_entrypoint.sh
+# # Setup environment variables 
+# COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh
+# RUN sudo chmod 755 /sbin/ros_entrypoint.sh
 
-ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
-CMD ["bash"]
+# ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
+# CMD ["bash"]
 
