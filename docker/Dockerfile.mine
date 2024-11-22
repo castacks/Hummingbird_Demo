@@ -1,6 +1,11 @@
+ARG L4T_VERSION=l4t-r35.4.1
+ARG IMAGE_NAME=dustynv/ros:humble-ros-base-${L4T_VERSION}
+
+FROM ${IMAGE_NAME}
+
 ARG ROS2_DIST=humble
 
-FROM nvcr.io/nvidia/l4t-base:r35.4.1
+# FROM nvcr.io/nvidia/l4t-base:r35.4.1
 
 #This environment variable is needed to use the streaming features on Jetson inside a container
 ENV LOGNAME root
