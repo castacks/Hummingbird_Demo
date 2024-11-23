@@ -28,7 +28,13 @@ ENV ROS_DISTRO ${ROS2_DIST}
 # Install cython
 RUN python3 -m pip install --upgrade cython
 
-WORKDIR /root/ros2_ws
+WORKDIR /root/ros_ws
+
+# add bash aliases
+RUN echo "alias setup='sudo apt update && rosdep update && rosdep install --from-paths src --ignore-src -r -y # install dependencies && \
+          colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --parallel-workers $(nproc) # build the workspace && \
+          echo source $(pwd)/install/local_setup.bash >> ~/.bashrc # automatically source the installation in every new bash (optional) && source ~/.bashrc'" >> ~/.bashrc
+
 
 # # Setup environment variables 
 # COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh

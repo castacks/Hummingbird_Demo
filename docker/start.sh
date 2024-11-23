@@ -1,34 +1,4 @@
 #!/bin/bash
-
-usage()
-{
-    echo "Usage: $0 [options]"
-    echo "Options:"
-    echo "  -s, --source-dir <path>  Path to the ROS 2 workspace"
-}
-
-# Parse command line arguments
-while [ "$1" != "" ]; do
-    case $1 in
-        -s | --source-dir )     shift
-                                SOURCE_DIR=$1
-                                ;;
-        -h | --help )           usage
-                                exit
-                                ;;
-        * )                     usage
-                                exit 1
-    esac
-    shift
-done
-
-# Check if the source directory is set
-if [ -z "$SOURCE_DIR" ]; then
-    echo "Error: Source directory is not set"
-    usage
-    exit 1
-fi
-
 CONTAINER_NAME="zed_ros2_l4t_image"
 
 # Check if the container is already running
@@ -53,5 +23,5 @@ docker run --runtime nvidia -it --privileged --ipc=host --pid=host -e NVIDIA_DRI
   -v /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/ \
   -v /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service \
   -v ${HOME}/zed_docker_ai/:/usr/local/zed/resources/ \
-  -v ${pwd}/../ros_ws/src/:/root/ros2_ws/src/ \
+  -v ${pwd}/../ros_ws/:/root/ros_ws/ \
   $CONTAINER_NAME
