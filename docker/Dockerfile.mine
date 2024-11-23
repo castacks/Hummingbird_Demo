@@ -1,9 +1,9 @@
 ARG L4T_VERSION=l4t-r35.4.1
-ARG IMAGE_NAME=dustynv/ros:foxy-ros-base-${L4T_VERSION}
+ARG IMAGE_NAME=dustynv/ros:humble-ros-base-${L4T_VERSION}
 
 FROM ${IMAGE_NAME}
 
-ARG ROS2_DIST=foxy
+ARG ROS2_DIST=humble
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
   apt-get update || true && apt-get install -y --no-install-recommends apt-utils dialog && \
@@ -53,10 +53,10 @@ RUN echo "alias dependencies='cd ~/ros_ws/src && wget https://github.com/ros/xac
   cp -r geographic-info/geographic_msgs/ . && \
   rm -rf geographic-info && \
   git clone https://github.com/ros-drivers/nmea_msgs.git --branch ros2 && \  
-  git clone https://github.com/ros/angles.git --branch foxy-devel && \
-  git clone https://github.com/ros-perception/point_cloud_transport.git --branch foxy && \
+  git clone https://github.com/ros/angles.git --branch humble-devel && \
+  git clone https://github.com/ros-perception/point_cloud_transport.git --branch humble && \
   sudo apt-get update && sudo apt-get install libgeographic-dev geographiclib-tools && \
-  cd .. && rosdep install --from-paths src --ignore-src -r -y" >> ~/.bashrc
+  cd .. && rosdep install --from-paths src --ignore-src -r -y'" >> ~/.bashrc
 
 # # Setup environment variables 
 # COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh
