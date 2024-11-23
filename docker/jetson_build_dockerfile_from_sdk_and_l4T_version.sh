@@ -48,4 +48,4 @@ docker build -t zed_ros2_l4t_image \
 --build-arg L4T_VERSION=$1 \
 --build-arg L4T_MAJOR=$l4t_major \
 --build-arg L4T_MINOR=$l4t_minor \
--f ./Dockerfile.l4t-humble .
+-f ./Dockerfile.zed-test .

@@ -1,5 +1,5 @@
 ARG L4T_VERSION=l4t-r35.4.1
-ARG IMAGE_NAME=dustynv/ros:humble-ros-base-${L4T_VERSION}
+ARG IMAGE_NAME=dustynv/ros:humble-desktop-${L4T_VERSION}
 
 FROM ${IMAGE_NAME}
 
