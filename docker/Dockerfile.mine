@@ -1,9 +1,9 @@
 ARG L4T_VERSION=l4t-r35.4.1
-ARG IMAGE_NAME=dustynv/ros:humble-ros-base-${L4T_VERSION}
+ARG IMAGE_NAME=dustynv/ros:foxy-ros-desktop-${L4T_VERSION}
 
 FROM ${IMAGE_NAME}
 
-ARG ROS2_DIST=humble
+ARG ROS2_DIST=foxy
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
   apt-get update || true && apt-get install -y --no-install-recommends apt-utils dialog && \
@@ -21,7 +21,7 @@ ENV LOGNAME root
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update || true ; apt-get install --no-install-recommends lsb-release wget less udev zstd sudo apt-transport-https build-essential cmake vim -y && \
     echo "# R35 (release), REVISION: 4.1" > /etc/nv_tegra_release ; \
-    wget -q --no-check-certificate -O ZED_SDK_Linux.run https://download.stereolabs.com/zedsdk/4.1/l4t35.4/jetsons && \
+    wget -q --no-check-certificate -O ZED_SDK_Linux.run https://download.stereolabs.com/zedsdk/4.2/l4t35.4/jetsons && \
     chmod +x ZED_SDK_Linux.run ; ./ZED_SDK_Linux.run silent skip_tools && \
     rm -rf /usr/local/zed/resources/* \
     rm -rf ZED_SDK_Linux.run && \
@@ -45,18 +45,18 @@ RUN echo "alias setup='cd ~/ros_ws/ && sudo apt update && rosdep update && rosde
           colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --parallel-workers $(nproc) # build the workspace && \
           echo source $(pwd)/install/local_setup.bash >> ~/.bashrc # automatically source the installation in every new bash (optional) && source ~/.bashrc'" >> ~/.bashrc
 
-RUN echo "alias dependencies='cd ~/ros_ws/src && wget https://github.com/ros/xacro/archive/refs/tags/2.0.8.tar.gz -O - | tar -xvz && mv xacro-2.0.8 xacro && \
-  wget https://github.com/ros/diagnostics/archive/refs/tags/3.0.0.tar.gz -O - | tar -xvz && mv diagnostics-3.0.0 diagnostics && \
-  wget https://github.com/ament/ament_lint/archive/refs/tags/0.12.4.tar.gz -O - | tar -xvz && mv ament_lint-0.12.4 ament-lint && \
-  wget https://github.com/cra-ros-pkg/robot_localization/archive/refs/tags/3.4.2.tar.gz -O - | tar -xvz && mv robot_localization-3.4.2 robot-localization && \
-  wget https://github.com/ros-geographic-info/geographic_info/archive/refs/tags/1.0.4.tar.gz -O - | tar -xvz && mv geographic_info-1.0.4 geographic-info && \
-  cp -r geographic-info/geographic_msgs/ . && \
-  rm -rf geographic-info && \
-  git clone https://github.com/ros-drivers/nmea_msgs.git --branch ros2 && \  
-  git clone https://github.com/ros/angles.git --branch humble-devel && \
-  git clone https://github.com/ros-perception/point_cloud_transport.git --branch humble && \
-  sudo apt-get update && sudo apt-get install libgeographic-dev geographiclib-tools && \
-  cd .. && rosdep install --from-paths src --ignore-src -r -y'" >> ~/.bashrc
+# RUN echo "alias dependencies='cd ~/ros_ws/src && wget https://github.com/ros/xacro/archive/refs/tags/2.0.8.tar.gz -O - | tar -xvz && mv xacro-2.0.8 xacro && \
+#   wget https://github.com/ros/diagnostics/archive/refs/tags/3.0.0.tar.gz -O - | tar -xvz && mv diagnostics-3.0.0 diagnostics && \
+#   wget https://github.com/ament/ament_lint/archive/refs/tags/0.12.4.tar.gz -O - | tar -xvz && mv ament_lint-0.12.4 ament-lint && \
+#   wget https://github.com/cra-ros-pkg/robot_localization/archive/refs/tags/3.4.2.tar.gz -O - | tar -xvz && mv robot_localization-3.4.2 robot-localization && \
+#   wget https://github.com/ros-geographic-info/geographic_info/archive/refs/tags/1.0.4.tar.gz -O - | tar -xvz && mv geographic_info-1.0.4 geographic-info && \
+#   cp -r geographic-info/geographic_msgs/ . && \
+#   rm -rf geographic-info && \
+#   git clone https://github.com/ros-drivers/nmea_msgs.git --branch ros2 && \  
+#   git clone https://github.com/ros/angles.git --branch foxy-devel && \
+#   git clone https://github.com/ros-perception/point_cloud_transport.git --branch foxy && \
+#   sudo apt-get update && sudo apt-get install libgeographic-dev geographiclib-tools -y && \
+#   cd .. && rosdep install --from-paths src --ignore-src -r -y'" >> ~/.bashrc
 
 # # Setup environment variables 
 # COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh
