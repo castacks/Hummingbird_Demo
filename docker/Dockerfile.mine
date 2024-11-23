@@ -27,18 +27,6 @@ RUN apt-get update || true ; apt-get install --no-install-recommends lsb-release
     rm -rf ZED_SDK_Linux.run && \
     rm -rf /var/lib/apt/lists/*
 
-
-WORKDIR /root/ros2_ws/src/dependencies
-RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
-  wget https://github.com/ros/diagnostics/archive/refs/tags/${DIAGNOSTICS_VERSION}.tar.gz -O - | tar -xvz && mv diagnostics-${DIAGNOSTICS_VERSION} diagnostics && \
-  wget https://github.com/ament/ament_lint/archive/refs/tags/${AMENT_LINT_VERSION}.tar.gz -O - | tar -xvz && mv ament_lint-${AMENT_LINT_VERSION} ament-lint && \
-  wget https://github.com/cra-ros-pkg/robot_localization/archive/refs/tags/${ROBOT_LOCALIZATION_VERSION}.tar.gz -O - | tar -xvz && mv robot_localization-${ROBOT_LOCALIZATION_VERSION} robot-localization && \
-  wget https://github.com/ros-geographic-info/geographic_info/archive/refs/tags/${GEOGRAPHIC_INFO_VERSION}.tar.gz -O - | tar -xvz && mv geographic_info-${GEOGRAPHIC_INFO_VERSION} geographic-info && \
-  cp -r geographic-info/geographic_msgs/ . && \
-  rm -rf geographic-info && \
-  git clone https://github.com/ros-drivers/nmea_msgs.git --branch ros2 && \  
-  git clone https://github.com/ros/angles.git --branch humble-devel
-
 #This symbolic link is needed to use the streaming features on Jetson inside a container
 RUN ln -sf /usr/lib/aarch64-linux-gnu/tegra/libv4l2.so.0 /usr/lib/aarch64-linux-gnu/libv4l2.so
 
@@ -56,6 +44,16 @@ WORKDIR /root/ros_ws
 RUN echo "alias setup='cd ~/ros_ws/ && sudo apt update && rosdep update && rosdep install --from-paths src --ignore-src -r -y # install dependencies && \
           colcon build --symlink-install --cmake-args=-DCMAKE_BUILD_TYPE=Release --parallel-workers $(nproc) # build the workspace && \
           echo source $(pwd)/install/local_setup.bash >> ~/.bashrc # automatically source the installation in every new bash (optional) && source ~/.bashrc'" >> ~/.bashrc
+
+RUN echo "alias dependencies='cd ~/ros_ws/src && wget https://github.com/ros/xacro/archive/refs/tags/2.0.8.tar.gz -O - | tar -xvz && mv xacro-2.0.8 xacro && \
+  wget https://github.com/ros/diagnostics/archive/refs/tags/3.0.0.tar.gz -O - | tar -xvz && mv diagnostics-3.0.0 diagnostics && \
+  wget https://github.com/ament/ament_lint/archive/refs/tags/0.12.4.tar.gz -O - | tar -xvz && mv ament_lint-0.12.4 ament-lint && \
+  wget https://github.com/cra-ros-pkg/robot_localization/archive/refs/tags/3.4.2.tar.gz -O - | tar -xvz && mv robot_localization-3.4.2 robot-localization && \
+  wget https://github.com/ros-geographic-info/geographic_info/archive/refs/tags/1.0.4.tar.gz -O - | tar -xvz && mv geographic_info-1.0.4 geographic-info && \
+  cp -r geographic-info/geographic_msgs/ . && \
+  rm -rf geographic-info && \
+  git clone https://github.com/ros-drivers/nmea_msgs.git --branch ros2 && \  
+  git clone https://github.com/ros/angles.git --branch humble-devel'" >> ~/.bashrc
 
 # # Setup environment variables 
 # COPY ros_entrypoint_jetson.sh /sbin/ros_entrypoint.sh
