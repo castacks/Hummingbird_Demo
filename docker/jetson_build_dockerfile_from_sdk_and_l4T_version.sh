@@ -3,7 +3,7 @@ cd $(dirname $0)
 
 if [ "$#" -lt 2 ]; then
     echo "Give L4T version then ZED SDK version has parameters, like this:"
-    echo "./jetson_build_dockerfile_from_sdk_and_l4T_version.sh l4t-r35.4.1 zedsdk4.1.2"
+    echo "./jetson_build_dockerfile_from_sdk_and_l4T_version.sh l4t-r35.4.1 zedsdk4.1.4"
     exit 1
 fi
 
