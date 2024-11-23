@@ -31,7 +31,7 @@ zed_sdk_version_number="${ZED_SDK_version#zedsdk}"
 # copy the wrapper content
 rm -r ./tmp_sources
 mkdir -p ./tmp_sources
-cp -r ../zed* ./tmp_sources
+cp -r ../zed_src/zed* ./tmp_sources
 
 # Split the string and assign to variables
 IFS='.' read -r l4t_major l4t_minor l4t_patch <<< "$l4t_version_number"
@@ -41,7 +41,7 @@ IFS='.' read -r l4t_major l4t_minor l4t_patch <<< "$l4t_version_number"
 IFS='.' read -r major minor patch <<< "$zed_sdk_version_number"
 
 echo "Building dockerfile for $1 and ZED SDK $2"
-docker build -t zed_ros2_l4t_image \
+docker build -t zed_test \
 --build-arg ZED_SDK_MAJOR=$major \
 --build-arg ZED_SDK_MINOR=$minor \
 --build-arg ZED_SDK_PATCH=$patch \
