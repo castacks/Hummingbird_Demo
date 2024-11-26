@@ -1,0 +1,9 @@
+<launch>
+  <node 
+    pkg="wire_detection" 
+    exec="wire_detection_node" 
+    name="wire_detection_node">
+    <param 
+      from="$(find-pkg-share wire_detection)/config/wire_detection_config.yaml" />
+  </node>
+</launch>

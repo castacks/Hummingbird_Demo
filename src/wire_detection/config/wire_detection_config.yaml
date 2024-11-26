@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    # subscribers
+    rgb_image_sub_topic: "/zed/zed_node/rgb/image_rect_color"
+    # publishers
+    visualization_pub_topic: "/detection_vis"
