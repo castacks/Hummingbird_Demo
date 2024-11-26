@@ -1,0 +1,9 @@
+<launch>
+  <node 
+    pkg="visual_servoing_python" 
+    exec="visual_servo_node" 
+    name="visual_servo_node">
+    <param 
+      from="$(find-pkg-share visual_servoing_python)/config/visual_servo_config.yaml" />
+  </node>
+</launch>

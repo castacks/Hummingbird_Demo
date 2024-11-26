@@ -1,0 +1,30 @@
+/**:
+  ros__parameters:
+    
+    # subscribers
+    camera_info_sub_topic: "/robot_1/sensors/gripper_cam/camera_info"
+    rgb_image_sub_topic: "/robot_1/sensors/gripper_cam/image_rect"
+    depth_image_sub_topic: "/robot_1/sensors/gripper_cam/depth"
+    semantics_sub_topic: "/robot_1/sensors/gripper_cam/segmentation"
+
+    # services
+    activate_srv_topic: "/robot_1/behavior/toggle_visual_servo_command"
+
+    # publishers
+    velocity_pub_topic: "/robot_1/interface/mavros/setpoint_velocity/cmd_vel"
+    position_pub_topic: "/robot_1/interface/mavros/setpoint_position/local"
+    img_debug_pub_topic: "/robot_1/sensors/gripper_cam/detection_debug"
+    line_location_vis_pub_topic: "/robot_1/visual_servo/line_location_visualization"
+
+    # tf params
+    world_frame_id: "world"
+    camera_frame_id: "gripper_camera"
+    tf_update_rate: 0.1
+
+    #wire detection params:
+    use_segmentation: False
+
+    # KF params
+    max_distance_threshold: 1.0 # wires are normally around more than 4.0 distance from eachother in sim
+    min_valid_kf_count_threshold: 20
+    iteration_start_threshold: 30
