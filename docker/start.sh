@@ -23,5 +23,6 @@ docker run --runtime nvidia -it --privileged --ipc=host --pid=host -e NVIDIA_DRI
   -v /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/ \
   -v /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service \
   -v ${HOME}/zed_docker_ai/:/usr/local/zed/resources/ \
-  -v $(pwd)/../src/:/root/ros_ws/src/autonomy_src/ \
+  -v $(pwd)/../src/:/root/ros2_ws/src/autonomy_src/ \
+  -v /media/airlab/T7/wire_detection_bags/:/root/storage \
   $CONTAINER_NAME
