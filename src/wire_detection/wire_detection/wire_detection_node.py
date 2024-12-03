@@ -34,8 +34,6 @@ class WireDetectorNode(Node):
 
 
     def image_callback(self, rgb_msg):
-        if self.line_length is None:
-            self.line_length = max(rgb_msg.width, rgb_msg.height) * 2
         try:
             # Convert the ROS image messages to OpenCV images
             bgr = CvBridge().imgmsg_to_cv2(rgb_msg, "bgr8")
@@ -58,8 +56,8 @@ class WireDetectorNode(Node):
         dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
         seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
         seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
-
-        if np.any(seg_mask) and self.received_first_tf:
+        debug_img = image.copy()
+        if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
             return debug_img
@@ -74,7 +72,7 @@ class WireDetectorNode(Node):
         img_processed_msg.height = image.shape[0]
         img_processed_msg.width = image.shape[1]                
         img_processed_msg.step = image.shape[1] * image.shape[2]
-        self.img_debug_pub.publish(img_processed_msg)    
+        self.visualization_pub.publish(img_processed_msg)    
     
     def draw_wire_lines(self, img, wire_lines, wire_midpoints, center_line=None, center_line_midpoint=None):
         for i, (x, y) in enumerate(wire_midpoints):
@@ -89,20 +87,11 @@ class WireDetectorNode(Node):
         
     def set_params(self):
         try:
-            self.declare_parameters(
-                        namespace='',
-                        parameters=[
-                            # Subscribers
-                            ('rgb_image_sub_topic', '/robot_1/sensors/gripper_cam/image_rect'),
-                            # Publishers
-                            ('visualization_pub_topic', '/robot_1/sensors/gripper_cam/detection_debug'),
-
-                        ]
-                    )
-
+            self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('visualization_pub_topic', rclpy.Parameter.Type.STRING)
             # Access parameters
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
-            self.visualization_pub_topic = self.get_parameter('img_debug_pub_topic').get_parameter_value().string_value
+            self.visualization_pub_topic = self.get_parameter('visualization_pub_topic').get_parameter_value().string_value
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
     

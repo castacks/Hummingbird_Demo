@@ -3,7 +3,7 @@
 <package format="3">
   <name>wire_detection</name>
   <version>0.1.0</version>
-  <description>wire_detection</description>
+  <description>wire detection package</description>
   
   <maintainer email="your_email@example.com">Your Name</maintainer>
   <license>MIT</license>
