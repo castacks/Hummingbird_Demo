@@ -15,6 +15,8 @@ if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
     exit 0
 fi
 
+xhost +
+
 # Start the container
 echo "Starting container $CONTAINER_NAME"
 docker run --runtime nvidia -it --privileged --ipc=host --pid=host -e NVIDIA_DRIVER_CAPABILITIES=all -e DISPLAY \
@@ -23,6 +25,6 @@ docker run --runtime nvidia -it --privileged --ipc=host --pid=host -e NVIDIA_DRI
   -v /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/ \
   -v /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service \
   -v ${HOME}/zed_docker_ai/:/usr/local/zed/resources/ \
-  -v $(pwd)/../src/:/root/ros2_ws/src/ \
+  -v $(pwd)/../src/:/root/ros2_ws/src/autonomy_src/ \
   -v /media/airlab/T7/wire_detection_bags/:/root/storage \
   $CONTAINER_NAME
