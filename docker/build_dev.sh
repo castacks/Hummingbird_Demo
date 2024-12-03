@@ -3,7 +3,7 @@ cd $(dirname $0)
 
 if [ "$#" -lt 1 ]; then
     echo "Give L4T version then ZED SDK version has parameters, like this:"
-    echo "./build.sh l4t-r35.4.1"
+    echo "./build_dev.sh l4t-r35.4.1"
     exit 1
 fi
 
