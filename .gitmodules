@@ -5,6 +5,3 @@
 [submodule "ros_ws/src/zed-ros2-interfaces"]
 	path = zed_src/zed-ros2-interfaces
 	url = https://github.com/stereolabs/zed-ros2-interfaces.git
-[submodule "zed_src/ros-gst-bridge"]
-	path = zed_src/ros-gst-bridge
-	url = https://github.com/BrettRD/ros-gst-bridge.git
