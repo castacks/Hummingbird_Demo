@@ -5,6 +5,3 @@
 [submodule "ros_ws/src/zed-ros2-interfaces"]
 	path = zed_src/zed-ros2-interfaces
 	url = https://github.com/stereolabs/zed-ros2-interfaces.git
-[submodule "zed_src/image2rtsp"]
-	path = src/image2rtsp
-	url = https://github.com/maladzenkau/image2rtsp.git
