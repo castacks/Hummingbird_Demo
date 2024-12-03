@@ -19,4 +19,6 @@
     <arg name="camera_model" value="zedx" />
   </include>
 
+  <include file="$(find-pkg-share image2rtsp)/launch/image2rtsp.launch.py"/>
+
 </launch>
