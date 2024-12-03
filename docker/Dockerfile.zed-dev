@@ -89,6 +89,7 @@ RUN apt-get update -y || true && rosdep update && \
 
 # Install cython
 RUN python3 -m pip install --upgrade cython
+RUN python3 -m pip install opencv-python
 
 # Build the rcpputils and point_cloud_transport dependencies
 RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
@@ -112,6 +113,8 @@ WORKDIR /root/ros2_ws
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
 RUN echo "alias start_zed='source /opt/ros/$ROS_DISTRO/install/setup.bash && source install/local_setup.bash && ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx''" >> ~/.bashrc
+RUN echo "alias sws='source /opt/ros/$ROS_DISTRO/install/setup.bash && source install/local_setup.bash'" >> ~/.bashrc
+RUN echo "alias bws='colcon build --parallel-workers $(nproc) --symlink-install --event-handlers console_direct+ --base-paths src --cmake-args ' -DCMAKE_BUILD_TYPE=Release' ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' ' -DCMAKE_CXX_FLAGS=\"-Wl,--allow-shlib-undefined\"' ' --no-warn-unused-cli' " >> ~/.bashrc
 
 # Setup environment variables 
 COPY ros_entrypoint.sh /sbin/ros_entrypoint.sh
