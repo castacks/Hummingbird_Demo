@@ -63,10 +63,8 @@ ENV ROS_DISTRO ${ROS2_DIST}
 # Copy the sources in the Docker image
 WORKDIR /root/ros2_ws/src/
 COPY zed_wrapper/ ./
-RUN echo $(ls /root/ros2_ws/src/)
 
 # Install missing dependencies
-WORKDIR /root/ros2_ws/src/
 RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
   wget https://github.com/ros/diagnostics/archive/refs/tags/${DIAGNOSTICS_VERSION}.tar.gz -O - | tar -xvz && mv diagnostics-${DIAGNOSTICS_VERSION} diagnostics && \
   wget https://github.com/ament/ament_lint/archive/refs/tags/${AMENT_LINT_VERSION}.tar.gz -O - | tar -xvz && mv ament_lint-${AMENT_LINT_VERSION} ament-lint && \
@@ -82,7 +80,7 @@ RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz 
 # Check that all the dependencies are satisfied
 WORKDIR /root/ros2_ws
 RUN apt-get update -y || true && rosdep update && \
-  rosdep install --from-paths src/ --ignore-src -r -y && \
+  rosdep install --from-paths src --ignore-src -r -y && \
   rm -rf /var/lib/apt/lists/*
 
 # Install cython
@@ -109,12 +107,3 @@ RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && source insta
 WORKDIR /root/ros2_ws
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
-
-# Setup environment variables 
-COPY docker/ros_entrypoint.sh /sbin/ros_entrypoint.sh
-RUN sudo chmod 755 /sbin/ros_entrypoint.sh
-
-ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
-
-          
-
