@@ -32,14 +32,10 @@ class WireDetectorNode(Node):
 
         self.get_logger().info("Wire Detection Node initialized")
 
-
     def image_callback(self, rgb_msg):
         try:
-            # Convert the ROS image messages to OpenCV images
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            #self.publish_debug_image(rgb)
-            #return
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
@@ -49,11 +45,9 @@ class WireDetectorNode(Node):
         if debug_image is not None:
             img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
             self.visualization_pub.publish(img_msg)    
-            #self.publish_debug_image(debug_image)
         else:
             img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
             self.visualization_pub.publish(img_msg)
-            #self.publish_debug_image(rgb)
 
     def detect_lines_and_update(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -67,18 +61,6 @@ class WireDetectorNode(Node):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
             return debug_img
-
-    def publish_debug_image(self, image):
-        header = Header()
-        header.stamp = self.get_clock().now().to_msg()
-        img_processed_msg = Image()
-        img_processed_msg.data = image.tobytes()
-        img_processed_msg.encoding = 'rgb8'
-        img_processed_msg.header = header
-        img_processed_msg.height = image.shape[0]
-        img_processed_msg.width = image.shape[1]                
-        img_processed_msg.step = image.shape[1] * image.shape[2]
-        self.visualization_pub.publish(img_processed_msg)    
     
     def draw_wire_lines(self, img, wire_lines, wire_midpoints, center_line=None, center_line_midpoint=None):
         for i, (x, y) in enumerate(wire_midpoints):
