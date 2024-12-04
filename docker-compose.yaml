@@ -18,6 +18,10 @@ services:
       - QT_X11_NO_MITSHM=1
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
+    volumes:
+      - /dev:/dev 
+      - /tmp:/tmp 
+      - /tmp/.X11-unix:/tmp/.X11-unix
   zed_wrapper:
     image: zed-wrapper-ros2  
     build: 
@@ -40,6 +44,7 @@ services:
     volumes:
       - /dev:/dev 
       - /tmp:/tmp 
+      - /tmp/.X11-unix:/tmp/.X11-unix
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
@@ -64,5 +69,6 @@ services:
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
       - ./autonomy/:/root/ros2_ws/:rw
       - /media/airlab/T7/wire_detection_bags/:/root/storage:rw
