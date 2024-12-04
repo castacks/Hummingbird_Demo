@@ -16,19 +16,19 @@ from .wire_detection_logic import WireDetector
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-
 class WireDetectorNode(Node):
     def __init__(self):
         super().__init__('wire_detection_node')
         self.set_params()
-
+        
+        self.bridge = CvBridge()
         self.wire_detector = WireDetector()
 
         # Subscribers
-        self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 10)
+        self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
 
         # Publishers
-        self.visualization_pub = self.create_publisher(Image, self.visualization_pub_topic, 10)
+        self.visualization_pub = self.create_publisher(Image, self.visualization_pub_topic, 1)
 
         self.get_logger().info("Wire Detection Node initialized")
 
@@ -36,8 +36,10 @@ class WireDetectorNode(Node):
     def image_callback(self, rgb_msg):
         try:
             # Convert the ROS image messages to OpenCV images
-            bgr = CvBridge().imgmsg_to_cv2(rgb_msg, "bgr8")
+            bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            #self.publish_debug_image(rgb)
+            #return
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
@@ -45,9 +47,13 @@ class WireDetectorNode(Node):
         debug_image = None
         debug_image = self.detect_lines_and_update(rgb)
         if debug_image is not None:
-            self.publish_debug_image(debug_image)
+            img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
+            self.visualization_pub.publish(img_msg)    
+            #self.publish_debug_image(debug_image)
         else:
-            self.publish_debug_image(rgb)
+            img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
+            self.visualization_pub.publish(img_msg)
+            #self.publish_debug_image(rgb)
 
     def detect_lines_and_update(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
