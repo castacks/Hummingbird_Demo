@@ -1,0 +1,24 @@
+services:
+  rtsp:
+    build: docker/Dockerfle.rtsp
+    tags: rtsp-ros2
+    command: >
+      bash -c "ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
+  zed_wrapper:
+    build: docker/Dockerfile.zed-dev
+    tags: zed_wrapper-ros2
+    command: >
+      bash -c "ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' && sleep infinity"
+    volumes:
+      - /dev:/dev 
+      - /tmp:/tmp 
+      - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/ \
+      - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service \
+      - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/ \
+      - $(pwd)/../src/:/root/ros2_ws/src/autonomy_src/ \
+      - /media/airlab/T7/wire_detection_bags/:/root/storage \
+  autonomy:
+    build: docker/Dockerfile.autonomy
+    tags: autonomy-ros2
+    command: >
+      bash -c "sleep infinity"

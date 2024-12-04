@@ -57,16 +57,12 @@ RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_rel
   rm -rf ZED_SDK_Linux_JP.run && \
   rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update -y && apt-get remove -y libopencv opencv-dev opencv-libs && apt-get install -y -f libgstreamer-plugins-base1.0-dev \
-libgstreamer-plugins-good1.0-dev libgstreamer-plugins-bad1.0-dev libgstrtspserver-1.0-dev \
-gstreamer1.0-plugins-ugly gstreamer1.0-plugins-bad
-
 # Install the ZED ROS2 Wrapper
 ENV ROS_DISTRO ${ROS2_DIST}
 
 # Copy the sources in the Docker image
-WORKDIR /root/ros2_ws/src/zed-ros2-wrapper
-COPY tmp_sources/ ./
+WORKDIR /root/ros2_ws/src/
+COPY ../zed_src/* ./
 
 # Install missing dependencies
 RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
@@ -121,7 +117,6 @@ COPY ros_entrypoint.sh /sbin/ros_entrypoint.sh
 RUN sudo chmod 755 /sbin/ros_entrypoint.sh
 
 ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
-CMD ["/bin/bash"]
 
           
 

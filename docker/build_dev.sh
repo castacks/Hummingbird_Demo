@@ -18,10 +18,6 @@ L4T_version=$1
 # Remove the prefix 'l4t-r'
 l4t_version_number="${L4T_version#l4t-r}"
 
-# copy the wrapper content
-rm -r ./tmp_sources
-mkdir -p ./tmp_sources
-cp -r ../zed_src/* ./tmp_sources
 
 # Split the string and assign to variables
 IFS='.' read -r l4t_major l4t_minor l4t_patch <<< "$l4t_version_number"
