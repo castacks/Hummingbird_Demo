@@ -62,10 +62,11 @@ ENV ROS_DISTRO ${ROS2_DIST}
 
 # Copy the sources in the Docker image
 WORKDIR /root/ros2_ws/src/
-COPY zed_ros2/* /root/ros2_ws/src/
-RUN echo $(ls /root/ros_ws/src/)
+COPY zed_wrapper/ ./
+RUN echo $(ls /root/ros2_ws/src/)
 
 # Install missing dependencies
+WORKDIR /root/ros2_ws/src/
 RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
   wget https://github.com/ros/diagnostics/archive/refs/tags/${DIAGNOSTICS_VERSION}.tar.gz -O - | tar -xvz && mv diagnostics-${DIAGNOSTICS_VERSION} diagnostics && \
   wget https://github.com/ament/ament_lint/archive/refs/tags/${AMENT_LINT_VERSION}.tar.gz -O - | tar -xvz && mv ament_lint-${AMENT_LINT_VERSION} ament-lint && \
@@ -86,7 +87,6 @@ RUN apt-get update -y || true && rosdep update && \
 
 # Install cython
 RUN python3 -m pip install --upgrade cython
-RUN python3 -m pip install opencv-python
 
 # Build the rcpputils and point_cloud_transport dependencies
 RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
