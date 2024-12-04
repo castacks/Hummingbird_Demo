@@ -62,7 +62,8 @@ ENV ROS_DISTRO ${ROS2_DIST}
 
 # Copy the sources in the Docker image
 WORKDIR /root/ros2_ws/src/
-COPY ../zed_src/* ./
+COPY zed_ros2/* /root/ros2_ws/src/
+RUN echo $(ls /root/ros_ws/src/)
 
 # Install missing dependencies
 RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
@@ -113,7 +114,7 @@ RUN echo "alias sws='source /opt/ros/$ROS_DISTRO/install/setup.bash && source in
 RUN echo "alias bws='colcon build --parallel-workers $(nproc) --symlink-install --event-handlers console_direct+ --base-paths src --cmake-args ' -DCMAKE_BUILD_TYPE=Release' ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' ' -DCMAKE_CXX_FLAGS=\"-Wl,--allow-shlib-undefined\"' ' --no-warn-unused-cli' " >> ~/.bashrc
 
 # Setup environment variables 
-COPY ros_entrypoint.sh /sbin/ros_entrypoint.sh
+COPY docker/ros_entrypoint.sh /sbin/ros_entrypoint.sh
 RUN sudo chmod 755 /sbin/ros_entrypoint.sh
 
 ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
