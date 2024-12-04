@@ -5,14 +5,18 @@ services:
       context: ./
       dockerfile: docker/Dockerfile.rtsp
     command: >
-      bash -c "ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
+      bash -c "source /opt/ros/humble/install/setup.bash && \
+               source /root/ros2_ws/install/local_setup.bash && \
+               ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
   zed_wrapper:
     image: zed-wrapper-ros2  
     build: 
       context: ./
       dockerfile: docker/Dockerfile.zed-dev
     command: >
-      bash -c "ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' && sleep infinity"
+      bash -c "source /opt/ros/humble/install/setup.bash && \
+               source /root/ros2_ws/install/local_setup.bash && \
+               ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' && sleep infinity"
     volumes:
       - /dev:/dev 
       - /tmp:/tmp 
