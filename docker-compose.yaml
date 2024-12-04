@@ -17,6 +17,15 @@ services:
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' && sleep infinity"
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+    stdin_open: true  # Equivalent to -it for interactive terminal
+    tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
       - /dev:/dev 
       - /tmp:/tmp 
