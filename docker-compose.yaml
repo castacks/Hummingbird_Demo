@@ -8,6 +8,15 @@ services:
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+    stdin_open: true  # Equivalent to -it for interactive terminal
+    tty: true  # Ensures that a pseudo-terminal is allocated
   zed_wrapper:
     image: zed-wrapper-ros2  
     build: 
@@ -42,6 +51,15 @@ services:
                source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                sleep infinity"
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+    stdin_open: true  # Equivalent to -it for interactive terminal
+    tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
       - ./autonomy/:/root/ros2_ws/:rw
       - /media/airlab/T7/wire_detection_bags/:/root/storage:rw
