@@ -21,6 +21,8 @@ class WireDetector:
         cartesian_lines = np.squeeze(cartesian_lines,axis=1)
 
         polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, threshold)
+        if polar_lines is None:
+            return None, None, None, None, None
         polar_lines = np.squeeze(polar_lines, axis=1)
         if polar_lines is None:
             return None, None, None, None, None
