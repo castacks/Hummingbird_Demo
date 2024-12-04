@@ -39,13 +39,13 @@ RUN apt-get update -y || true && rosdep update && \
   rosdep install --from-paths src/ --ignore-src -r -y && \
   rm -rf /var/lib/apt/lists/*
 
-RUN source /opt/ros/$ROS_DISTRO/install/setup.bash && \
+  RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
   colcon build --parallel-workers $(nproc) --symlink-install \
   --event-handlers console_direct+ --base-paths src \
   --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
-  ' --no-warn-unused-cli'
+  ' --no-warn-unused-cli' "
 
 WORKDIR /root/ros2_ws
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
