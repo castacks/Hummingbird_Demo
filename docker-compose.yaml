@@ -8,6 +8,7 @@ services:
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
+    network_mode: host
     runtime: nvidia
     privileged: true
     ipc: host
@@ -31,6 +32,7 @@ services:
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' && sleep infinity"
+    network_mode: host
     runtime: nvidia
     privileged: true
     ipc: host
@@ -58,6 +60,7 @@ services:
                source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch wire_detection wire_detection.launch.xml && sleep infinity"
+    network_mode: host
     runtime: nvidia
     privileged: true
     ipc: host
