@@ -1,12 +1,3 @@
-<!-- <launch>
-  <node 
-    pkg="wire_detection" 
-    exec="wire_detection_node" 
-    name="wire_detection_node">
-    <param file path="$(find-pkg-share wire_detection)/config/wire_detection_config.yaml" />
-  </node>
-</launch> -->
-
 <launch>
   <node 
     pkg="wire_detection" 
@@ -14,11 +5,4 @@
     name="wire_detection_node">
     <param from="$(find-pkg-share wire_detection)/wire_detection_config.yaml" />
   </node>
-
-  <include file="$(find-pkg-share zed_wrapper)/launch/zed_camera.launch.py">
-    <arg name="camera_model" value="zedx" />
-  </include>
-
-  <include file="$(find-pkg-share image2rtsp)/launch/image2rtsp.launch.py"/>
-
 </launch>
