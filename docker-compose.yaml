@@ -57,7 +57,7 @@ services:
       bash -c "colcon build && \
                source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
-               sleep infinity"
+               ros2 launch wire_detection wire_detection.launch.xml && sleep infinity"
     runtime: nvidia
     privileged: true
     ipc: host
