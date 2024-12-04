@@ -29,7 +29,10 @@ services:
       context: ./ 
       dockerfile: docker/Dockerfile.autonomy
     command: >
-      bash -c "sleep infinity"
+      bash -c "colcon build && \
+               source /opt/ros/humble/install/setup.bash && \
+               source /root/ros2_ws/install/local_setup.bash && \
+               sleep infinity"
     volumes:
-      - ./autonomy/src/:/root/ros2_ws/src/:rw
+      - ./autonomy/:/root/ros2_ws/:rw
       - /media/airlab/T7/wire_detection_bags/:/root/storage:rw
