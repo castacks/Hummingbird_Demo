@@ -30,6 +30,10 @@ class WireDetectorNode(Node):
         # Publishers
         self.visualization_pub = self.create_publisher(Image, self.visualization_pub_topic, 1)
 
+        # color tracking varibales
+        self.color_dict = {}
+        self.max_wires_detected = None
+
         self.get_logger().info("Wire Detection Node initialized")
 
     def image_callback(self, rgb_msg):
@@ -59,19 +63,49 @@ class WireDetectorNode(Node):
         debug_img = image.copy()
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
+            debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints, avg_yaw)
             return debug_img
     
-    def draw_wire_lines(self, img, wire_lines, wire_midpoints, center_line=None, center_line_midpoint=None):
+    def draw_wire_lines(self, img, wire_lines, wire_midpoints, avg_yaw):
+        colors = self.assign_line_colors(wire_lines, wire_midpoints, avg_yaw)
+        if colors == []:
+            colors = [0, 255, 0] * len(wire_lines)
         for i, (x, y) in enumerate(wire_midpoints):
             x0, y0, x1, y1 = wire_lines[i]
-            cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
-            cv2.circle(img, (int(x), int(y)), 5, (0, 0, 255), -1)
-        if center_line is not None:
-            x0, y0, x1, y1 = center_line
-            cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
-            cv2.circle(img, (int(center_line_midpoint[0]), int(center_line_midpoint[1])), 5, (0, 0, 255), -1)
+            cv2.line(img, (x0, y0), (x1, y1), colors[i], 2)
+            cv2.circle(img, (int(x), int(y)), 5, colors[i], -1)
         return img
+
+    def assign_line_colors(self, wire_lines, wire_midpoints, avg_yaw):
+        colors = []
+        if self.color_dict == {}:
+            for i in range(len(wire_lines)):  
+                color = tuple(np.random.randint(0, 256, 3).tolist())
+                self.color_dict[color] = wire_midpoints[i]
+
+        for i, (x, y) in enumerate(wire_midpoints): 
+            used_colors = []
+            # if all colors are used, assign a random color
+            if len(used_colors) == len(self.color_dict):
+                color = tuple(np.random.randint(0, 256, 3).tolist())
+                self.color_dict[color] = (x, y)
+                colors.append(color)
+                continue
+            
+            min_dist = float('inf')
+            min_color = None
+            for color, midpoint in self.color_dict.items():
+                if color in used_colors:
+                    continue
+                dist = np.linalg.norm(np.array([x, y]) - np.array(midpoint))        
+                if dist < min_dist:
+                    min_dist = dist
+                    min_color = color
+            used_colors.append(min_color)
+            colors.append(min_color)
+            self.color_dict.pop(min_color)
+            self.color_dict[min_color] = (x, y)
+        return colors
         
     def set_params(self):
         try:
