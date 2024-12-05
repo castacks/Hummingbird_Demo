@@ -43,7 +43,7 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        
+        start_time = self.get_clock().now()
         debug_image = None
         debug_image = self.detect_lines_and_update(rgb)
         if debug_image is not None:
@@ -52,6 +52,8 @@ class WireDetectorNode(Node):
         else:
             img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
             self.visualization_pub.publish(img_msg)
+        end_time = self.get_clock().now()
+        # self.get_logger().info(f"Time taken to process image: {end_time - start_time}")
 
     def detect_lines_and_update(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -63,28 +65,28 @@ class WireDetectorNode(Node):
         debug_img = image.copy()
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints, avg_yaw)
+            debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
             return debug_img
     
-    def draw_wire_lines(self, img, wire_lines, wire_midpoints, avg_yaw):
-        colors = self.assign_line_colors(wire_lines, wire_midpoints, avg_yaw)
-        if colors == []:
-            colors = [0, 255, 0] * len(wire_lines)
+    def draw_wire_lines(self, img, wire_lines, wire_midpoints):
+        # colors = self.assign_line_colors(wire_lines, wire_midpoints)
+        colors = []
+        colors = [(0, 255, 0) for i in range(len(wire_lines))]
         for i, (x, y) in enumerate(wire_midpoints):
             x0, y0, x1, y1 = wire_lines[i]
             cv2.line(img, (x0, y0), (x1, y1), colors[i], 2)
             cv2.circle(img, (int(x), int(y)), 5, colors[i], -1)
         return img
 
-    def assign_line_colors(self, wire_lines, wire_midpoints, avg_yaw):
+    def assign_line_colors(self, wire_lines, wire_midpoints):
         colors = []
-        if self.color_dict == {}:
+        if self.color_dict == {} and len(wire_lines) > 0:
             for i in range(len(wire_lines)):  
                 color = tuple(np.random.randint(0, 256, 3).tolist())
                 self.color_dict[color] = wire_midpoints[i]
 
+        used_colors = []
         for i, (x, y) in enumerate(wire_midpoints): 
-            used_colors = []
             # if all colors are used, assign a random color
             if len(used_colors) == len(self.color_dict):
                 color = tuple(np.random.randint(0, 256, 3).tolist())
@@ -103,7 +105,6 @@ class WireDetectorNode(Node):
                     min_color = color
             used_colors.append(min_color)
             colors.append(min_color)
-            self.color_dict.pop(min_color)
             self.color_dict[min_color] = (x, y)
         return colors
         
