@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>visual_servoing_python</name>
+  <version>0.1.0</version>
+  <description>A visual servoing ROS 2 package</description>
+  
+  <maintainer email="your_email@example.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>torch</depend> 
+  <depend>torchvision</depend> 
+  <depend>airstack_msgs</depend>
+  
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>python3</exec_depend> <!-- Specify any runtime dependencies -->
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
