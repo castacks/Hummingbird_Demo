@@ -32,7 +32,7 @@ services:
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' serial_number:='' && sleep infinity"
+               ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' serial_number:='41607017' && sleep infinity"
     network_mode: host
     runtime: nvidia
     privileged: true
