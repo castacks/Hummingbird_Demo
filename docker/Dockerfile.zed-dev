@@ -79,7 +79,8 @@ RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz 
 
 # Check that all the dependencies are satisfied
 WORKDIR /root/ros2_ws
-RUN apt-get update -y || true && rosdep update && \
+RUN apt-get remove --purge '*opencv*' -y && apt-get autoremove -y && apt-get clean -y && apt-get update -y && apt-get install ros-humble-uncrustify-vendor -y
+RUN apt-get update -y || apt-get upgrade -y || true && rosdep update && \
   rosdep install --from-paths src --ignore-src -r -y && \
   rm -rf /var/lib/apt/lists/*
 
