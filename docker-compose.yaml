@@ -1,6 +1,6 @@
 services:
   rtsp:
-    image: tharp789/rtsp-ros2
+    image: tharp789/hummingbird_demo:rtsp-ros2
     build:
       context: ./
       dockerfile: docker/Dockerfile.rtsp
@@ -24,7 +24,7 @@ services:
       - /tmp:/tmp 
       - /tmp/.X11-unix:/tmp/.X11-unix
   zed_wrapper:
-    image: tharp789/zed-wrapper-ros2  
+    image: tharp789/hummingbird_demo:zed-wrapper-ros2  
     build: 
       context: ./
       dockerfile: docker/Dockerfile.zed-dev
@@ -51,7 +51,7 @@ services:
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
   autonomy:
-    image: tharp789/autonomy-ros2
+    image: tharp789/hummingbird_demo:autonomy-ros2
     build:
       context: ./ 
       dockerfile: docker/Dockerfile.autonomy
