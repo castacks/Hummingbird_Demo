@@ -62,7 +62,7 @@ def transform_to_homogeneous(transform):
     return homogeneous_matrix
 
 
-class VisualServo(Node):
+class WireTrackingNode(Node):
     def __init__(self):
         super().__init__('visual_servo_node')
         self.set_params()
@@ -321,102 +321,6 @@ class VisualServo(Node):
             kf.predict()
         self.yaw_kalman_filter.predict()
 
-    def publish_velocity_ibvs(self, vx, vy, vz, v_yaw):
-        vel_msg = TwistStamped()
-        vel_msg.header.frame_id = "/base_link"
-        vel_msg.header.stamp = rclpy.clock.Clock().now().to_msg()
-        vel_msg.twist.linear.x = vx
-        vel_msg.twist.linear.y = vy
-        vel_msg.twist.linear.z = vz
-        vel_msg.twist.angular.z = v_yaw
-        vel_msg.twist.angular.x = 0.0
-        vel_msg.twist.angular.y = 0.0
-
-        msg = Bool()
-        msg.data = True
-        
-        self.velocity_pub.publish(vel_msg)
-
-    def ibvs_control(self):
-        # if self.tracked_wire_id is not None and self.activate_visual_servo:
-        if self.tracked_wire_id is not None and self.received_first_tf:
-            x_w, y_w, z = self.position_kalman_filters[self.tracked_wire_id].curr_pos
-            global_yaw = self.yaw_kalman_filter.curr_yaw
-            transform = self.tf_buffer.lookup_transform(self.world_frame_id, self.camera_frame_id, rclpy.time.Time().to_msg()).transform
-            # x, y = self.world_to_image(x_w, y_w, z, transform)   
-            x, y = self.world_to_image(x_w, y_w, z, transform)
-            if x > 0 and x < self.cx * 2 and y > 0 and y < self.cy * 2:
-                curr_z = transform.translation.z         
-                curr_yaw = get_yaw_from_quaternion(transform.rotation.x, 
-                                                transform.rotation.y, 
-                                                transform.rotation.z, 
-                                                transform.rotation.w)
-                # Compute error vector in image plane
-                e_u = self.cy - y
-                e_v = self.cx - x
-                e = np.array([[e_u], [e_v]])
-                # Compute interaction matrix for translation only
-                L = np.array([
-                                [-self.fy/z, 0, y/z],
-                                [0, -self.fx/z, x/z]
-                            ])
-                # Compute the pseudo-inverse of the interaction matrix
-                L_inv = np.linalg.pinv(L)
-
-                # lambda_gain = 1.0
-                x_gain = 0.6
-                y_gain = 0.6
-                z_gain = 1.75
-                yaw_gain = -0.25
-
-                z_stop = 0.85
-                z_offset = 1.25
-                z_limit = 12.0
-                delta_z = z - z_offset - curr_z
-                vz = z_gain * delta_z
-                vz = min(vz, z_limit) # set the limit for the z velocity
-
-                if delta_z < z_stop:
-                    x_gain = 0.2
-                    y_gain = 0.2
-
-                v_c = - np.dot(L_inv, e)
-                vy, vx, _ = v_c.flatten()
-                vx = x_gain * vx
-                vy = y_gain * vy
-
-                old_vx = vx
-                old_vy = vy
-                vx = old_vy
-                vy = -old_vx
-
-                # global_yaw = clamp_angles_pi(global_yaw - np.pi)
-                global_yaw = clamp_angles_pi(global_yaw)
-                curr_yaw = clamp_angles_pi(curr_yaw)
-                delta_angle = (global_yaw - curr_yaw + np.pi) % (2 * np.pi) - np.pi
-                v_yaw = delta_angle * yaw_gain
-
-                vx = 0.0
-                vy = 0.0
-                # vz = 12.0
-                v_yaw = 0.0
-
-                # prevents stability issues when the wire is too close to the camera
-                # if delta_z < z_stop:
-                #     vx, vy = 0.0, 0.0
-
-            else:
-                vx, vy, vz, v_yaw = 0.0, 0.0, 0.0, 0.0
-        
-            self.get_logger().info( "v_x, v_y, v_z, v_yaw: %s" % str((vx, vy, vz, v_yaw)))
-            # self.get_logger().info( f'global yaw: {global_yaw}, curr yaw: {curr_yaw}, v_yaw: {v_yaw}')
-            # v_yaw = 0.0
-            # vx = 0.0
-            # vy = 0.0
-            # vz = 0.0
-            self.publish_velocity_ibvs(vx, vy, vz, v_yaw)
-
-
     def image_to_world(self, points, depth, tf_camera_to_world):
         x_c, y_c, z_c = self.image_to_camera(points, depth.reshape(-1, 1))
 
@@ -456,36 +360,6 @@ class VisualServo(Node):
         cam_point = H_cam_to_world_inv @ np.append(point_vec, 1)
 
         return self.camera_to_image(cam_point[0], cam_point[1], cam_point[2])
-
-    def publish_line_location_visualization(self):
-        msg = Marker()
-        msg.header.frame_id = self.world_frame_id
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.ns = "line_location_visualization"
-        msg.id = 0
-        msg.type = Marker.LINE_LIST
-        msg.action = Marker.ADD
-        msg.scale.x = 1.0
-        msg.scale.y = 1.0
-        msg.scale.z = 1.0
-        msg.color.r = 1.0
-        msg.color.g = 0.0
-        msg.color.b = 0.0
-        msg.color.a = 1.0
-
-        for i, kf in self.position_kalman_filters.items():
-            midpoint = kf.curr_pos
-            yaw = self.yaw_kalman_filter.curr_yaw
-            length = self.line_length
-            dx = (length / 2) * np.cos(yaw)
-            dy = (length / 2) * np.sin(yaw)
-
-            start_point = Point(x=midpoint[0] - dx, y=midpoint[1] - dy, z=midpoint[2])
-            end_point = Point(x=midpoint[0] + dx, y=midpoint[1] + dy, z=midpoint[2])
-            msg.points.append(start_point)
-            msg.points.append(end_point)
-            
-        self.line_location_vis_pub.publish(msg)
 
     def draw_valid_kfs(self, img, tf_cam_to_world):
         global_yaw = self.yaw_kalman_filter.curr_yaw
@@ -558,7 +432,7 @@ class VisualServo(Node):
 
 def main():
     rclpy.init()
-    node = VisualServo()
+    node = WireTrackingNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:
@@ -568,9 +442,3 @@ def main():
     finally:
         node.destroy_node()
         rclpy.shutdown()
-    
-# if __name__ == '__main__':
-#     rclpy.init()
-#     node = VisualServo()
-#     rclpy.spin(node)
-#     rclpy.shutdown()

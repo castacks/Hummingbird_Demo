@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-package_name = 'visual_servoing_python'  # This should match your package directory name
+package_name = 'wire_tracking'  # This should match your package directory name
 
 setup(
     name=package_name,
@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name, ['launch/visual_servo_launch.xml']),  # If you have a launch file
-        ('share/' + package_name, ['config/visual_servo_config.yaml']),  # If you have a config file
+        ('share/' + package_name, ['launch/wire_tracking_launch.xml']),  # If you have a launch file
+        ('share/' + package_name, ['config/wire_tracking_config.yaml']),  # If you have a config file
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,7 +21,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'visual_servo_node = visual_servoing_python.visual_servo_node:main',  # Point to the main function
+            'wire_tracking_node = wire_tracking.wire_tracking_node:main',  # Point to the main function
         ],
     },
 )
