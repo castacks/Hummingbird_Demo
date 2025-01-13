@@ -51,7 +51,6 @@ services:
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
-      - /tmp/argus_socket:/tmp/argus_socket
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-ros2
