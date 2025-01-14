@@ -32,7 +32,7 @@ services:
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch zed_wrapper zed_camera.launch.py camera_model:='zedx' serial_number:='41607017' && sleep infinity"
+               ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && sleep infinity"
     network_mode: host
     runtime: nvidia
     privileged: true
@@ -42,6 +42,8 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
+      - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
