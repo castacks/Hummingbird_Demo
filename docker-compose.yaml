@@ -31,6 +31,7 @@ services:
       dockerfile: docker/Dockerfile.zed-dev
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
+               colcon build --packages-select zed_wrapper && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && sleep infinity"
     network_mode: host
