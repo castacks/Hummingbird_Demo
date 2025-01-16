@@ -4,21 +4,12 @@ from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
 import rclpy.clock
 from rclpy.node import Node
-import os
 import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import Image, CameraInfo
-from std_msgs.msg import Bool, Header
-from std_srvs.srv import Trigger
-from geometry_msgs.msg import Twist, TwistStamped, PoseStamped, Point, Transform
-from tf2_msgs.msg import TFMessage
-from visualization_msgs.msg import Marker
+from geometry_msgs.msg import PoseStamped, Transform, Pose
 from cv_bridge import CvBridge
-from tf2_ros import TransformListener, Buffer
-
-# TF2 in ROS 2
-import tf2_py
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -62,16 +53,10 @@ def transform_to_homogeneous(transform):
     return homogeneous_matrix
 
 
-class WireTrackingNode(Node):
+class VisualServo(Node):
     def __init__(self):
         super().__init__('visual_servo_node')
         self.set_params()
-        # Toggles
-        self.activate_visual_servo = False
-
-        # Robot TF info
-        self.tf_camera_to_world = None
-        self.received_first_tf = False
 
         # Wire Detector
         self.wire_detector = WireDetector()
@@ -85,64 +70,35 @@ class WireTrackingNode(Node):
         self.total_iterations = 0
 
         # Subscribers
+        self.received_camera_info = False
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
         self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic)
         self.depth_image_sub = Subscriber(self, Image, self.depth_image_sub_topic)
-        self.semantics_sub = Subscriber(self, Image, self.semantics_sub_topic)
-        concurrent_cb_group = ReentrantCallbackGroup()
+        self.pose_sub = Subscriber(self, PoseStamped, self.pose_sub_topic)
         self.bridge = CvBridge()
-
 
         # Time Synchronizer
         self.img_tss = ApproximateTimeSynchronizer(
-            [self.rgb_image_sub, self.depth_image_sub, self.semantics_sub], 
+            [self.rgb_image_sub, self.depth_image_sub, self.pose_sub],
             queue_size=1, 
             slop=0.1
         )
         self.img_tss.registerCallback(self.image_callback)
 
-        # TF update timer
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.tf_timer = self.create_timer(self.tf_update_rate, self.timer_tf_callback, callback_group=concurrent_cb_group)
-
-        # Service
-        self.activate_srv = self.create_service(Trigger, self.activate_srv_topic, self.activate_callback)
-
         # Publishers
-        self.velocity_pub = self.create_publisher(TwistStamped, self.velocity_pub_topic, 1)
-        self.img_debug_pub = self.create_publisher(Image, self.img_debug_pub_topic, 1)
-        self.line_location_vis_pub = self.create_publisher(Marker, self.line_location_vis_pub_topic, 1)
+        self.tracking_viz_pub = self.create_publisher(Image, self.tracking_viz_pub_topic, 1)
+        self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
 
         self.get_logger().info("Visual Servo Node initialized")
-
-    def timer_tf_callback(self):
-        try:
-            self.tf_camera_to_world = self.tf_buffer.lookup_transform(self.world_frame_id, self.camera_frame_id, rclpy.time.Time().to_msg()).transform
-            self.received_first_tf = True
-        except Exception as e:
-            self.get_logger().info(f"TF lookup failed: {e}")
-
-    def activate_callback(self, request, response):
-        if self.activate_visual_servo == False:
-            self.activate_visual_servo = True
-            self.get_logger().info("Visual servoing activated")
-            response.success = True
-        # elif self.activate_visual_servo == True:
-        #     self.activate_visual_servo = False
-        #     self.get_logger().info("Visual servoing deactivated")
-        #     response.success = True
-        else:
-            response.success = False
-        return response
         
     def camera_info_callback(self, data):
         self.fx = data.k[0]
         self.fy = data.k[4]
         self.cx = data.k[2]
         self.cy = data.k[5]
+        self.received_camera_info = True
 
-    def image_callback(self, rgb_msg, depth_msg, segmentation_msg):
+    def image_callback(self, rgb_msg, depth_msg, pose_msg):
         if self.line_length is None:
             self.line_length = max(rgb_msg.width, rgb_msg.height) * 2
         try:
@@ -150,48 +106,47 @@ class WireTrackingNode(Node):
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             depth = np.frombuffer(depth_msg.data, dtype=np.float32).reshape(depth_msg.height, depth_msg.width, -1)
-            segmentation = np.frombuffer(segmentation_msg.data, dtype=np.int8).reshape(segmentation_msg.height, segmentation_msg.width, -1)
-            timestamp = rgb_msg.header.stamp
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         
         debug_image = None
-        if self.received_first_tf and self.activate_visual_servo:
-        # if self.received_first_tf:
-            debug_image = self.detect_lines_and_update(rgb, depth, segmentation, timestamp)
-            self.ibvs_control()        
+        if self.received_camera_info:
+            debug_image = self.detect_lines_and_update(rgb, depth, pose_msg.pose)
             if debug_image is not None:
-                img_debug_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
-                self.img_debug_pub.publish(img_debug_pub_msg)
+                viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
+                self.tracking_viz_pub.publish(viz_pub_msg) 
+            # create depth visualization
+            depth_viz = self.create_depth_viz(depth)
+            depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, "rgb8")
+            self.depth_viz_pub.publish(depth_viz_msg)
 
-    def detect_lines_and_update(self, image, depth, segmentation, timestamp):
-        if self.use_segmentation:
-            seg_mask = (segmentation[:,:,0] == 2) & np.isfinite(depth).squeeze()
-            seg_mask = seg_mask.astype(np.uint8) * 255
-        else:
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
-            dilation_size = 10
-            dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
-            seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
-            seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
-
+    def detect_lines_and_update(self, image, depth, pose: Pose):
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
+        dilation_size = 10
+        dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
+        seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
+        seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
 
         if np.any(seg_mask) and self.received_first_tf:
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            try:
-                transform = self.tf_buffer.lookup_transform(self.world_frame_id, self.camera_frame_id, timestamp).transform
-            except Exception as e:
-                self.get_logger().info(f"TF lookup failed: {e}")
-                return
-            cam_yaw = get_yaw_from_quaternion(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w)
+            cam_yaw = get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
                 global_yaw = cam_yaw + avg_yaw
                 global_yaw = clamp_angles_pi(global_yaw) 
                 corresponding_depths = np.array([])
                 for i, (x, y) in enumerate(wire_midpoints):
                     corresponding_depths = np.append(corresponding_depths, depth[y, x])
+                
+                transform = Transform()
+                transform.translation.x = pose.position.x
+                transform.translation.y = pose.position.y
+                transform.translation.z = pose.position.z
+                transform.rotation.x = pose.orientation.x
+                transform.rotation.y = pose.orientation.y
+                transform.rotation.z = pose.orientation.z
+                transform.rotation.w = pose.orientation.w
                 global_midpoints = self.image_to_world(wire_midpoints, corresponding_depths, transform)
                 if self.are_kfs_initialized == False:
                     self.initialize_kfs(global_midpoints, global_yaw)
@@ -216,7 +171,6 @@ class WireTrackingNode(Node):
             if self.are_kfs_initialized:
                 debug_img = self.draw_valid_kfs(image, transform)
             return debug_img
-                
 
     def initialize_kfs(self, global_midpoints, global_yaw):
         if not self.are_kfs_initialized:
@@ -391,21 +345,20 @@ class WireTrackingNode(Node):
             cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
             cv2.circle(img, (int(center_line_midpoint[0]), int(center_line_midpoint[1])), 5, (0, 0, 255), -1)
         return img
+    
+    def create_depth_viz(self, depth):
+        depth_viz = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
+        return depth_viz
         
     def set_params(self):
         try:
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('semantics_sub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('activate_srv_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('velocity_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('img_debug_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('line_location_vis_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('world_frame_id', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('camera_frame_id', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('tf_update_rate', rclpy.Parameter.Type.DOUBLE)
-            self.declare_parameter('use_segmentation', rclpy.Parameter.Type.BOOL)
+            self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('tracking_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
             self.declare_parameter('min_valid_kf_count_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('iteration_start_threshold', rclpy.Parameter.Type.INTEGER)
@@ -414,14 +367,9 @@ class WireTrackingNode(Node):
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
-            self.semantics_sub_topic = self.get_parameter('semantics_sub_topic').get_parameter_value().string_value
-            self.activate_srv_topic = self.get_parameter('activate_srv_topic').get_parameter_value().string_value
-            self.velocity_pub_topic = self.get_parameter('velocity_pub_topic').get_parameter_value().string_value
-            self.img_debug_pub_topic = self.get_parameter('img_debug_pub_topic').get_parameter_value().string_value
-            self.line_location_vis_pub_topic = self.get_parameter('line_location_vis_pub_topic').get_parameter_value().string_value
-            self.world_frame_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
-            self.camera_frame_id = self.get_parameter('camera_frame_id').get_parameter_value().string_value
-            self.tf_update_rate = self.get_parameter('tf_update_rate').get_parameter_value().double_value
+            self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
+            self.tracking_viz_pub_topic = self.get_parameter('tracking_viz_pub_topic').get_parameter_value().string_value
+            self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.use_segmentation = self.get_parameter('use_segmentation').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
@@ -432,7 +380,7 @@ class WireTrackingNode(Node):
 
 def main():
     rclpy.init()
-    node = WireTrackingNode()
+    node = VisualServo()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:

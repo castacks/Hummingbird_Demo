@@ -26,9 +26,11 @@ class WireDetectorNode(Node):
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
+        self.depth_image_sub = self.create_subscription(Image, self.depth_image_sub_topic, self.depth_callback, 1)
 
         # Publishers
         self.visualization_pub = self.create_publisher(Image, self.visualization_pub_topic, 1)
+        self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
 
         # color tracking varibales
         self.color_dict = {}
@@ -77,6 +79,17 @@ class WireDetectorNode(Node):
             cv2.line(img, (x0, y0), (x1, y1), colors[i], 2)
             cv2.circle(img, (int(x), int(y)), 5, colors[i], -1)
         return img
+    
+    def depth_callback(self, depth_msg):
+        try:
+            depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+        except Exception as e:
+            rclpy.logerr("CvBridge Error: {0}".format(e))
+            return
+        depth_viz = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
+        img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
+        self.depth_viz_pub.publish(img_msg)
 
     def assign_line_colors(self, wire_lines, wire_midpoints):
         colors = []
@@ -111,10 +124,14 @@ class WireDetectorNode(Node):
     def set_params(self):
         try:
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('visualization_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             # Access parameters
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
+            self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.visualization_pub_topic = self.get_parameter('visualization_pub_topic').get_parameter_value().string_value
+            self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
     
