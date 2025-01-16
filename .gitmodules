@@ -2,6 +2,3 @@
 	path = zed-ros2-interfaces
 	url = https://github.com/stereolabs/zed-ros2-interfaces.git
 	branch = master
-[submodule "ros_ws/src/zed-ros2-interfaces"]
-	path = zed_wrapper/zed-ros2-interfaces
-	url = https://github.com/stereolabs/zed-ros2-interfaces.git
