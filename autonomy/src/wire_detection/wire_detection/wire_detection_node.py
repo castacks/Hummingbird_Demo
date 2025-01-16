@@ -86,7 +86,11 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        depth_viz = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        depth_viz = depth.copy()
+        depth_viz[np.isnan(depth)] = 0
+        depth_viz[np.isinf(depth)] = 0
+        depth_viz[np.isneginf(depth)] = 0
+        depth_viz = cv2.normalize(depth_viz, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
         depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
         self.depth_viz_pub.publish(img_msg)

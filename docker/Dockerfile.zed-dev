@@ -77,9 +77,6 @@ RUN apt-get update -y || apt-get upgrade -y || true && rosdep update && \
 # Install cython
 RUN python3 -m pip install --upgrade cython
 
-# Install and optimize the NEURAL depth model
-RUN /usr/local/zed/tools/ZED_Diagnostic -nrlo
-
 # Build the rcpputils and point_cloud_transport dependencies
 RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && \
   colcon build --parallel-workers $(nproc) --symlink-install --packages-select rcpputils point_cloud_transport \
