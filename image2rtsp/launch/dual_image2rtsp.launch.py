@@ -11,7 +11,7 @@ def generate_launch_description():
       )
 
    wire_cam_params = {
-      'topic':'/wire_cam/depth_vis',
+      'topic':'/wire_cam/depth_debug',
       'port':'8556'
    }
    pose_cam_params = {

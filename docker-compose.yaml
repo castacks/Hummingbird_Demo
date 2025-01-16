@@ -7,7 +7,7 @@ services:
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch image2rtsp image2rtsp.launch.py && sleep infinity"
+               ros2 launch image2rtsp dual_image2rtsp.launch.py && sleep infinity"
     network_mode: host
     runtime: nvidia
     privileged: true
