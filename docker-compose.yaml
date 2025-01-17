@@ -34,10 +34,9 @@ services:
       dockerfile: docker/Dockerfile.zed-dev
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
-               if [ ! -d "/root/ros2_ws/install/zed_wrapper" ]; then \
-               colcon build --symlink-install; else echo 'Already built'; fi && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && sleep infinity"
+               ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
+               sleep infinity"
     network_mode: host
     runtime: nvidia
     privileged: true
