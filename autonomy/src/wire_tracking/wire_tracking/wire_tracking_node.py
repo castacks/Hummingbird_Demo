@@ -21,37 +21,11 @@ from ament_index_python.packages import get_package_share_directory
 
 from .wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, get_yaw_from_quaternion, get_distance_between_3D_point
 from .kalman_filters import PositionKalmanFilter, YawKalmanFilter
+from . import coord_transforms as ct
 
 # ignore future deprecated warnings
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-def transform_to_homogeneous(transform):
-    """
-    Converts a Transform message into a 4x4 homogeneous transformation matrix.
-
-    Args:
-        Transform (Transform): The ROS Transform message to convert.
-
-    Returns:
-        np.ndarray: A 4x4 homogeneous transformation matrix.
-    """
-    assert isinstance(transform, Transform) , "Input must be a Transform message, got %s" % type(Transform)
-    # Extract translation components
-    translation = transform.translation
-    translation_vector = np.array([translation.x, translation.y, translation.z])
-
-    # Extract rotation components
-    rotation = transform.rotation
-    quaternion = [rotation.x, rotation.y, rotation.z, rotation.w]
-    rot_matrix = Rotation.from_quat(quaternion).as_matrix()
-
-    # Combine into a homogeneous transformation matrix
-    homogeneous_matrix = np.eye(4)
-    homogeneous_matrix[:3, :3] = rot_matrix[:3, :3]
-    homogeneous_matrix[:3, 3] = translation_vector
-    return homogeneous_matrix
-
 
 class VisualServo(Node):
     def __init__(self):
@@ -96,6 +70,7 @@ class VisualServo(Node):
         self.fy = data.k[4]
         self.cx = data.k[2]
         self.cy = data.k[5]
+        self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
         self.received_camera_info = True
 
     def image_callback(self, rgb_msg, depth_msg, pose_msg):
@@ -112,10 +87,14 @@ class VisualServo(Node):
         
         debug_image = None
         if self.received_camera_info:
+            self.pose = pose_msg.pose
             debug_image = self.detect_lines_and_update(rgb, depth, pose_msg.pose)
-            if debug_image is not None:
+            if debug_image is None:
+                viz_pub_msg = self.bridge.cv2_to_imgmsg(rgb, "rgb8")
+            else:
                 viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
-                self.tracking_viz_pub.publish(viz_pub_msg) 
+            self.tracking_viz_pub.publish(viz_pub_msg) 
+
             # create depth visualization
             depth_viz = self.create_depth_viz(depth)
             depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, "rgb8")
@@ -128,8 +107,9 @@ class VisualServo(Node):
         dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
         seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
         seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
-
-        if np.any(seg_mask) and self.received_first_tf:
+        # if there are no lines detected, return None, a default image will be published
+        debug_img = None
+        if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             cam_yaw = get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
@@ -138,16 +118,8 @@ class VisualServo(Node):
                 corresponding_depths = np.array([])
                 for i, (x, y) in enumerate(wire_midpoints):
                     corresponding_depths = np.append(corresponding_depths, depth[y, x])
-                
-                transform = Transform()
-                transform.translation.x = pose.position.x
-                transform.translation.y = pose.position.y
-                transform.translation.z = pose.position.z
-                transform.rotation.x = pose.orientation.x
-                transform.rotation.y = pose.orientation.y
-                transform.rotation.z = pose.orientation.z
-                transform.rotation.w = pose.orientation.w
-                global_midpoints = self.image_to_world(wire_midpoints, corresponding_depths, transform)
+
+                global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
                 if self.are_kfs_initialized == False:
                     self.initialize_kfs(global_midpoints, global_yaw)
                 else:
@@ -162,15 +134,15 @@ class VisualServo(Node):
                 min_id = None
                 for i, kf in self.position_kalman_filters.items():
                     if kf.valid_count >= self.valid_threshold:
-                        curr_pos = transform.translation
+                        curr_pos = pose.position
                         distance = get_distance_between_3D_point(kf.curr_pos, np.array([curr_pos.x, curr_pos.y, curr_pos.z]))
                         if distance < min_distance:
                             min_distance = distance
                             min_id = i
                 self.tracked_wire_id = min_id
             if self.are_kfs_initialized:
-                debug_img = self.draw_valid_kfs(image, transform)
-            return debug_img
+                debug_img = self.draw_valid_kfs(image, pose)
+        return debug_img
 
     def initialize_kfs(self, global_midpoints, global_yaw):
         if not self.are_kfs_initialized:
@@ -258,7 +230,7 @@ class VisualServo(Node):
         kfs_to_remove = []
         for i, kf in self.position_kalman_filters.items():
             if i not in matched_indices:
-                x_img, y_img = self.world_to_image(kf.curr_pos[0], kf.curr_pos[1], kf.curr_pos[2], self.tf_camera_to_world)
+                x_img, y_img = ct.world_to_image_pose(kf.curr_pos[0], kf.curr_pos[1], kf.curr_pos[2], self.pose, self.camera_vector)
                 if x_img > 0 and x_img < self.cx * 2 and y_img > 0 and y_img < self.cy * 2:
                     kf.valid_count -= 1
                 if kf.valid_count < 0:
@@ -275,53 +247,13 @@ class VisualServo(Node):
             kf.predict()
         self.yaw_kalman_filter.predict()
 
-    def image_to_world(self, points, depth, tf_camera_to_world):
-        x_c, y_c, z_c = self.image_to_camera(points, depth.reshape(-1, 1))
-
-        H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
-
-        # Convert the point to a numpy array
-        point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
-
-        # Apply the transform: Rotate then translate
-        with np.errstate(invalid='ignore'):
-            try:
-                world_points = H_cam_to_world @ point_vec.T
-            except Exception as e:
-                self.get_logger().info(f"Error: {H_cam_to_world}, {point_vec.T}")
-
-        return world_points[:3].T
-
-    def image_to_camera(self, image_points, depth):
-        camera_x = (image_points[:,0] - self.cx).reshape(-1, 1) * depth / self.fx
-        camera_y = (image_points[:,1] - self.cy).reshape(-1, 1) * depth / self.fy
-        return camera_x, camera_y, depth
-
-    def camera_to_image(self, camera_x, camera_y, camera_z):
-        image_x = (camera_x * self.fx / camera_z) + self.cx
-        image_y = (camera_y * self.fy / camera_z) + self.cy
-        return image_x, image_y
-
-    def world_to_image(self, world_x, world_y, world_z, tf_camera_to_world):
-
-        H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
-        H_cam_to_world_inv = np.linalg.inv(H_cam_to_world)
-
-        # Convert the point to a numpy array
-        point_vec = np.array([world_x, world_y, world_z])
-
-        # Apply the transform: Rotate then translate
-        cam_point = H_cam_to_world_inv @ np.append(point_vec, 1)
-
-        return self.camera_to_image(cam_point[0], cam_point[1], cam_point[2])
-
-    def draw_valid_kfs(self, img, tf_cam_to_world):
+    def draw_valid_kfs(self, img, pose_in_world):
         global_yaw = self.yaw_kalman_filter.curr_yaw
-        cam_yaw = get_yaw_from_quaternion(tf_cam_to_world.rotation.x, tf_cam_to_world.rotation.y, tf_cam_to_world.rotation.z, tf_cam_to_world.rotation.w)
+        cam_yaw = get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
         image_yaw = global_yaw - cam_yaw
         for i, kf in self.position_kalman_filters.items():
             if kf.valid_count >= self.valid_threshold:
-                image_midpoint = self.world_to_image(kf.curr_pos[0], kf.curr_pos[1], kf.curr_pos[2], tf_cam_to_world)
+                image_midpoint = ct.world_to_image_pose(kf.curr_pos[0], kf.curr_pos[1], kf.curr_pos[2], pose_in_world, self.camera_vector)
                 x0 = int(image_midpoint[0] + self.line_length * np.cos(image_yaw))
                 y0 = int(image_midpoint[1] + self.line_length * np.sin(image_yaw))
                 x1 = int(image_midpoint[0] - self.line_length * np.cos(image_yaw))
@@ -331,7 +263,7 @@ class VisualServo(Node):
 
         if self.tracked_wire_id is not None:
             tracked_midpoint = self.position_kalman_filters[self.tracked_wire_id].curr_pos
-            image_midpoint = self.world_to_image(tracked_midpoint[0], tracked_midpoint[1], tracked_midpoint[2], tf_cam_to_world)
+            image_midpoint = ct.world_to_image_pose(tracked_midpoint[0], tracked_midpoint[1], tracked_midpoint[2], pose_in_world, self.camera_vector)
             cv2.ellipse(img, (int(image_midpoint[0]), int(image_midpoint[1])), (15, 15), 0, 0, 360, (0, 255, 0), 3)
         return img
     
@@ -370,7 +302,6 @@ class VisualServo(Node):
             self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
             self.tracking_viz_pub_topic = self.get_parameter('tracking_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
-            self.use_segmentation = self.get_parameter('use_segmentation').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
             self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value

@@ -49,7 +49,7 @@ Image2rtsp::Image2rtsp() : Node("image2rtsp"){
         pipeline = "( " + source + " ! videoconvert ! videoscale ! " + caps_1 + framerate + caps_2 + " ! x264enc tune=zerolatency bitrate=" + bitrate + pipeline_tail;
         rtsp_server_add_url(mountpoint.c_str(), pipeline.c_str(), NULL);
     }
-    RCLCPP_INFO(this->get_logger(), "Stream available at rtsp://%s:%s%s", gst_rtsp_server_get_address(rtsp_server), port.c_str(), mountpoint.c_str());
+    RCLCPP_INFO(this->get_logger(), "Stream available at rtsp://%s:%s%s, from topic %s", gst_rtsp_server_get_address(rtsp_server), port.c_str(), mountpoint.c_str(), topic.c_str());
 }
 
 int main(int argc, char *argv[]){

@@ -1,0 +1,9 @@
+<launch>
+  <node 
+    pkg="wire_tracking" 
+    exec="wire_tracking_node" 
+    name="wire_tracking_node">
+    <param 
+      from="$(find-pkg-share wire_tracking)/wire_tracking_config.yaml" />
+  </node>
+</launch>

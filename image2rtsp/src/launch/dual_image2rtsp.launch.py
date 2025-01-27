@@ -10,12 +10,12 @@ def generate_launch_description():
       'parameters.yaml'
       )
 
-   wire_cam_params = {
-      'topic':'/wire_cam/depth_debug',
+   stream1_params = {
+      'topic':'/wire_cam/detection_debug',
       'port':'8556'
    }
-   pose_cam_params = {
-      'topic':'/pose_cam/zed_node/left/image_rect_color',
+   stream2_params = {
+      'topic':'/wire_cam/depth_debug',
       'port':'8554'
    }
    return LaunchDescription([
@@ -23,12 +23,12 @@ def generate_launch_description():
          package='image2rtsp',
          executable='image2rtsp',
          name='image2rtsp',
-         parameters=[config, wire_cam_params]
+         parameters=[config, stream1_params]
       ),
       Node(
          package='image2rtsp',
          executable='image2rtsp',
          name='image2rtsp',
-         parameters=[config, pose_cam_params]
+         parameters=[config, stream2_params]
       )
    ])
