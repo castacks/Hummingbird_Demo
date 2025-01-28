@@ -68,7 +68,7 @@ services:
                if [ ! -d "/root/ros2_ws/install" ]; then \
                colcon build --symlink-install; else echo 'Already built'; fi && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch wire_tracking wire_tracking.launch.xml && sleep infinity"
+               ros2 launch wire_detection wire_detection.launch.xml && sleep infinity"
     network_mode: host
     runtime: nvidia
     privileged: true

@@ -203,7 +203,7 @@ class VisualServo(Node):
         for i, mid in enumerate(new_global_midpoints):
             got_matched = False
             for j, kf in self.position_kalman_filters.items():
-                closest_point = find_closest_point_on_3d_line(mid, self.yaw_kalman_filter.curr_yaw, kf.curr_pos)
+                closest_point = find_closest_point_on_3d_line(mid, self.yaw_kalman_filter.get_yaw(), kf.curr_pos)
                 distance = np.linalg.norm(closest_point - kf.curr_pos, ord=2)
 
                 # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
@@ -242,7 +242,7 @@ class VisualServo(Node):
         self.yaw_kalman_filter.predict()
 
     def draw_valid_kfs(self, img, pose_in_world):
-        global_yaw = self.yaw_kalman_filter.curr_yaw
+        global_yaw = self.yaw_kalman_filter.get_yaw()
         cam_yaw = get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
         image_yaw = global_yaw - cam_yaw
         for i, kf in self.position_kalman_filters.items():

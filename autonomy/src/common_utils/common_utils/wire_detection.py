@@ -25,7 +25,11 @@ class WireDetector:
             return None, None, None, None, None
         polar_lines = np.squeeze(polar_lines, axis=1)
 
-        avg_angle = np.mean(polar_lines[:,1]) + np.pi / 2
+        # avg_angle = np.mean(polar_lines[:,1]) + np.pi / 2
+        # handling wrap around issue
+        unit_vectors = np.array([np.cos(polar_lines[:,1]), np.sin(polar_lines[:,1])]).T
+        avg_angle = np.arctan2(np.mean(unit_vectors[:,1]), np.mean(unit_vectors[:,0])) + np.pi / 2
+
         if self.img_shape == None:
             self.img_shape = seg_mask.shape
             self.img_height, self.img_width = self.img_shape

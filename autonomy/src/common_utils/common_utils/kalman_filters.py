@@ -61,11 +61,13 @@ class YawKalmanFilter:
         """
         Q_val = 0.0349066 ** 2 # 2 degrees
         R_val = 0.0349066 ** 2 # 2 degrees
-        self.Q = np.eye(1) * Q_val # Process noise covariance in radians
-        self.R = np.eye(1) * R_val # Measurement noise covariance in radians
-        self.P = np.eye(1) * R_val  # Initial estimate covariance
+        self.Q = np.eye(2) * Q_val # Process noise covariance in radians
+        self.R = np.eye(2) * R_val # Measurement noise covariance in radians
+        self.P = np.eye(2) * R_val  # Initial estimate covariance
 
-        self.curr_yaw = initial_yaw         # Initial state estimate
+        # self.curr_yaw = initial_yaw         # Initial state estimate
+
+        self.curr_state = np.array([np.cos(initial_yaw), np.sin(initial_yaw)]) # Initial state estimate
 
         self.prev_predicted = initial_yaw
 
@@ -74,7 +76,7 @@ class YawKalmanFilter:
         Predict the state and estimate covariance.
         """
         # State prediction
-        self.curr_yaw = self.curr_yaw
+        self.curr_state = self.curr_state
         # Covariance prediction
         self.P += self.Q
 
@@ -93,7 +95,11 @@ class YawKalmanFilter:
         # K = np.eye(1)
 
         # Update the state estimate and covariance
-        y = measured_yaw - self.curr_yaw
-        self.curr_yaw += np.squeeze(K * y)
+        # y = measured_yaw - self.curr_yaw
+        y = np.array([np.cos(measured_yaw), np.sin(measured_yaw)]) - self.curr_state
+        self.curr_state += np.squeeze(K * y)
 
         self.P = (1 - K) * self.P
+    
+    def get_yaw(self):
+        return np.arctan2(self.curr_state[1], self.curr_state[0])
