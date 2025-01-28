@@ -5,12 +5,9 @@ from rclpy.node import Node
 import numpy as np
 import cv2
 from sensor_msgs.msg import Image
-from std_msgs.msg import Header
 from cv_bridge import CvBridge
 
-from ament_index_python.packages import get_package_share_directory
-
-from .wire_detection_logic import WireDetector
+from common_utils.wire_detection import WireDetector
 
 # ignore future deprecated warnings
 import warnings

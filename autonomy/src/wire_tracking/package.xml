@@ -10,14 +10,9 @@
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>cv_bridge</depend>
-  <depend>torch</depend> 
-  <depend>torchvision</depend> 
-  <depend>airstack_msgs</depend>
+  <depend>common_utils</depend>
   
   <buildtool_depend>ament_python</buildtool_depend>
 
