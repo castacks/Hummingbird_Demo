@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 class VisualServo(Node):
     def __init__(self):
-        super().__init__('visual_servo_node')
+        super().__init__('wire_tracking_node')
         self.set_params()
 
         # Wire Detector
@@ -36,6 +36,13 @@ class VisualServo(Node):
         self.line_length = None
         self.tracked_wire_id = None
         self.total_iterations = 0
+
+        # Transform from pose_cam to wire_cam
+        # transform is 
+        self.pose_transform = np.array([[0, 0, 1, 0],
+                                        [1, 0, 0, 0],
+                                        [0, -1, 0, 0],
+                                        [0, 0, 0, 1]])
 
         # Subscribers
         self.received_camera_info = False
@@ -51,7 +58,7 @@ class VisualServo(Node):
             queue_size=1, 
             slop=0.1
         )
-        self.img_tss.registerCallback(self.image_callback)
+        self.img_tss.registerCallback(self.input_callback)
 
         # Publishers
         self.tracking_viz_pub = self.create_publisher(Image, self.tracking_viz_pub_topic, 1)
@@ -67,7 +74,7 @@ class VisualServo(Node):
         self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
         self.received_camera_info = True
 
-    def image_callback(self, rgb_msg, depth_msg, pose_msg):
+    def input_callback(self, rgb_msg, depth_msg, pose_msg):
         if self.line_length is None:
             self.line_length = max(rgb_msg.width, rgb_msg.height) * 2
         try:
