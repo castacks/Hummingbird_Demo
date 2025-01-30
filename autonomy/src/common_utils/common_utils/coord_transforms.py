@@ -53,6 +53,32 @@ def pose_to_homogeneous(pose):
     homogeneous_matrix[:3, :3] = rot_matrix[:3, :3]
     homogeneous_matrix[:3, 3] = translation_vector
     return homogeneous_matrix
+
+def homogeneous_to_pose(homogeneous_matrix):
+    """
+    Converts a 4x4 homogeneous transformation matrix into a Pose message.
+
+    Args:
+        homogeneous_matrix (np.ndarray): The 4x4 homogeneous transformation matrix to convert.
+
+    Returns:
+        Pose: A ROS Pose message.
+    """
+    assert isinstance(homogeneous_matrix, np.ndarray) and homogeneous_matrix.shape == (4, 4), "Input must be a 4x4 numpy array, got %s" % type(homogeneous_matrix)
+    # Extract translation components
+    translation_vector = homogeneous_matrix[:3, 3]
+    translation = translation_vector
+
+    # Extract rotation components
+    rot_matrix = homogeneous_matrix[:3, :3]
+    quaternion = Rotation.from_matrix(rot_matrix).as_quat()
+    rotation = quaternion
+
+    # Combine into a Pose message
+    pose = Pose()
+    pose.position.x, pose.position.y, pose.position.z = translation
+    pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = rotation
+    return pose
     
 def image_to_world_tf(points, depth, tf_camera_to_world, camera_vector):
         x_c, y_c, z_c = image_to_camera(points, depth.reshape(-1, 1), camera_vector)
@@ -124,3 +150,34 @@ def camera_to_image(camera_x, camera_y, camera_z, camera_vector):
     image_x = (camera_x * fx / camera_z) + cx
     image_y = (camera_y * fy / camera_z) + cy
     return image_x, image_y
+
+def get_yaw_from_quaternion(x, y, z, w):
+    """
+    Calculate the yaw (rotation around the z-axis) from a quaternion.
+    
+    Parameters:
+    x, y, z, w -- components of the quaternion
+    
+    Returns:
+    yaw -- the yaw angle in radians
+    """
+    # Calculate the yaw (z-axis rotation)
+    siny_cosp = 2 * (w * z + x * y)
+    cosy_cosp = 1 - 2 * (y**2 + z**2)
+    yaw = np.arctan2(siny_cosp, cosy_cosp)
+    # yaw = clamp_angles_rad(yaw)
+    return yaw
+
+def get_distance_between_3D_point(point1, point2):
+    """
+    Calculate the Euclidean distance between two 3D points.
+    
+    Parameters:
+    point1, point2 -- the 3D points
+    
+    Returns:
+    distance -- the Euclidean distance between the points
+    """
+    # Calculate the Euclidean distance
+    distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
+    return distance

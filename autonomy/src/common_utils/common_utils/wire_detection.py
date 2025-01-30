@@ -175,17 +175,3 @@ def get_yaw_from_quaternion(x, y, z, w):
     yaw = np.arctan2(siny_cosp, cosy_cosp)
     # yaw = clamp_angles_rad(yaw)
     return yaw
-
-def get_distance_between_3D_point(point1, point2):
-    """
-    Calculate the Euclidean distance between two 3D points.
-    
-    Parameters:
-    point1, point2 -- the 3D points
-    
-    Returns:
-    distance -- the Euclidean distance between the points
-    """
-    # Calculate the Euclidean distance
-    distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
-    return distance

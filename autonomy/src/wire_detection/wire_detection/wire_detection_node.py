@@ -132,10 +132,10 @@ class WireDetectorNode(Node):
             self.declare_parameter('visualization_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
 
-            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
-            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value()
-
             # Access parameters
+            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
+            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
+
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.visualization_pub_topic = self.get_parameter('visualization_pub_topic').get_parameter_value().string_value

@@ -13,7 +13,7 @@ from rclpy.executors import MultiThreadedExecutor
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, get_yaw_from_quaternion, get_distance_between_3D_point
+from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, 
 from common_utils.kalman_filters import PositionKalmanFilter, YawKalmanFilter
 import common_utils.coord_transforms as ct
 
@@ -27,7 +27,7 @@ class VisualServo(Node):
         self.set_params()
 
         # Wire Detector
-        self.wire_detector = WireDetector()
+        self.wire_detector = WireDetector(threshold=self.point_threshold)
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
@@ -38,11 +38,10 @@ class VisualServo(Node):
         self.total_iterations = 0
 
         # Transform from pose_cam to wire_cam
-        # transform is 
-        self.pose_transform = np.array([[0, 0, 1, 0],
-                                        [1, 0, 0, 0],
-                                        [0, -1, 0, 0],
-                                        [0, 0, 0, 1]])
+        self.pose_cam_to_wire_cam = np.array([1.0, 0.0, 0.0, 0.0],
+                                             [0.0, np.cos(np.deg2rad(180)), -np.sin(np.deg2rad(180)), 0.0],
+                                             [0.0, np.sin(np.deg2rad(180)), np.cos(np.deg2rad(180)), 0.216],
+                                             [0.0, 0.0, 0.0, 1.0])
 
         # Subscribers
         self.received_camera_info = False
@@ -104,21 +103,26 @@ class VisualServo(Node):
     def detect_lines_and_update(self, image, depth, pose: Pose):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
-        dilation_size = 10
-        dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
-        seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
-        seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
+        seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+        seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
         # if there are no lines detected, return None, a default image will be published
+        pose = self.transform_pose_cam_to_wire_cam(pose)
         debug_img = None
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            cam_yaw = get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+            cam_yaw = ct.get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
                 global_yaw = cam_yaw + avg_yaw
                 global_yaw = clamp_angles_pi(global_yaw) 
                 corresponding_depths = np.array([])
                 for i, (x, y) in enumerate(wire_midpoints):
-                    corresponding_depths = np.append(corresponding_depths, depth[y, x])
+                    # does not allow for the depth of a midpoint to be a indescipt value
+                    while depth_midpoint == 0.0 or depth_midpoint == None or np.isnan(depth_midpoint):
+                        depth_midpoint = depth[y, x]
+                        x = int(x + np.cos(avg_yaw)*2)
+                        y = int(y + np.sin(avg_yaw)*2) 
+
+                    corresponding_depths = np.append(corresponding_depths, depth_midpoint)
 
                 global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
                 if self.are_kfs_initialized == False:
@@ -136,7 +140,7 @@ class VisualServo(Node):
                 for i, kf in self.position_kalman_filters.items():
                     if kf.valid_count >= self.valid_threshold:
                         curr_pos = pose.position
-                        distance = get_distance_between_3D_point(kf.curr_pos, np.array([curr_pos.x, curr_pos.y, curr_pos.z]))
+                        distance = ct.get_distance_between_3D_point(kf.curr_pos, np.array([curr_pos.x, curr_pos.y, curr_pos.z]))
                         if distance < min_distance:
                             min_distance = distance
                             min_id = i
@@ -144,6 +148,12 @@ class VisualServo(Node):
             if self.are_kfs_initialized:
                 debug_img = self.draw_valid_kfs(image, pose)
         return debug_img
+    
+    def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
+        pose_cam_transform = ct.pose_to_homogeneous(pose_cam_pose)
+        pose_wire_transform = self.pose_cam_to_wire_cam @ pose_cam_transform
+        wire_cam_pose = ct.homogeneous_to_pose(pose_wire_transform)
+        return wire_cam_pose
 
     def initialize_kfs(self, global_midpoints, global_yaw):
         if not self.are_kfs_initialized:
@@ -250,7 +260,7 @@ class VisualServo(Node):
 
     def draw_valid_kfs(self, img, pose_in_world):
         global_yaw = self.yaw_kalman_filter.get_yaw()
-        cam_yaw = get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
+        cam_yaw = ct.get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
         image_yaw = global_yaw - cam_yaw
         for i, kf in self.position_kalman_filters.items():
             if kf.valid_count >= self.valid_threshold:
@@ -309,8 +319,9 @@ class VisualServo(Node):
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
 
+            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
+            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
 
-            
             self.tracking_viz_pub_topic = self.get_parameter('tracking_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
