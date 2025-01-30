@@ -81,11 +81,16 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
+        min_depth = 0.3
+        max_depth = 10.0
         depth_viz = depth.copy()
-        depth_viz[np.isnan(depth)] = 0
-        depth_viz[np.isinf(depth)] = 0
-        depth_viz[np.isneginf(depth)] = 0
-        depth_viz = cv2.normalize(depth_viz, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        depth_viz[np.isnan(depth)] = min_depth
+        depth_viz[np.isinf(depth)] = min_depth
+        depth_viz[np.isneginf(depth)] = min_depth
+
+        depth_viz = (depth_viz - min_depth) / (max_depth - min_depth)
+        depth_viz = (depth_viz * 255).astype(np.uint8)
+        # depth_viz = cv2.normalize(depth_viz, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
         depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
         self.depth_viz_pub.publish(img_msg)
