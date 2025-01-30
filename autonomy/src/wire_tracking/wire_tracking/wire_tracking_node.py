@@ -286,10 +286,17 @@ class VisualServo(Node):
         
     def set_params(self):
         try:
+            # ROS parameters
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
+
+            # Wire Detection parameters
+            self.declare_parameter('point_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
+
+            # KF parameters
             self.declare_parameter('tracking_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
@@ -301,11 +308,15 @@ class VisualServo(Node):
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
+
+
+            
             self.tracking_viz_pub_topic = self.get_parameter('tracking_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
             self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value
+
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
     
