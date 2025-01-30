@@ -56,7 +56,7 @@ class WireDetector:
         hist, bin_edges = np.histogram(distances_wrt_center, bins=num_bins, weights=line_distances)
         wire_distances_wrt_center = []
         for i, counts in enumerate(hist):
-            if counts > np.mean(hist):
+            if counts >= np.mean(hist):
                 binned_wire_distances = distances_wrt_center[(distances_wrt_center >= bin_edges[i]) & (distances_wrt_center < bin_edges[i+1])]
                 if len(binned_wire_distances) != 0:
                     avg_distance = np.mean(binned_wire_distances)

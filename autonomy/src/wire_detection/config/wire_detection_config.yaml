@@ -1,5 +1,8 @@
 wire_detection_node:
   ros__parameters:
+    # wire detection parameters
+    expansion_size: 10
+    point_threshold: 300
     # subscribers
     rgb_image_sub_topic: "/wire_cam/zed_node/rgb/image_rect_color"
     depth_image_sub_topic: "/wire_cam/zed_node/depth/depth_registered"

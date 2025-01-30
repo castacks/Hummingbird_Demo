@@ -19,7 +19,7 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
-        self.wire_detector = WireDetector()
+        self.wire_detector = WireDetector(threshold=self.point_threshold)
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
@@ -57,10 +57,8 @@ class WireDetectorNode(Node):
     def detect_lines_and_update(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
-        dilation_size = 10
-        dilation_kernel = np.ones((dilation_size,dilation_size), np.uint8)
-        seg_mask = cv2.dilate(seg_mask, dilation_kernel, iterations=1)
-        seg_mask = cv2.erode(seg_mask, dilation_kernel, iterations=1)
+        seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+        seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
         debug_img = image.copy()
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
@@ -124,10 +122,19 @@ class WireDetectorNode(Node):
         
     def set_params(self):
         try:
+            #wire detection params
+            self.declare_parameter('point_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
+
+            # sub pub topics
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('visualization_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
+
+            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
+            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value()
+
             # Access parameters
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
