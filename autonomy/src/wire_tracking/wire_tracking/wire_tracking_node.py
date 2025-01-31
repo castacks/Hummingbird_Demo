@@ -38,10 +38,10 @@ class WireTrackingNode(Node):
         self.total_iterations = 0
 
         # Transform from pose_cam to wire_cam
-        self.pose_cam_to_wire_cam = np.array([1.0, 0.0, 0.0, 0.0],
+        self.pose_cam_to_wire_cam = np.array([[1.0, 0.0, 0.0, 0.0],
                                              [0.0, np.cos(np.deg2rad(180)), -np.sin(np.deg2rad(180)), 0.0],
                                              [0.0, np.sin(np.deg2rad(180)), np.cos(np.deg2rad(180)), 0.216],
-                                             [0.0, 0.0, 0.0, 1.0])
+                                             [0.0, 0.0, 0.0, 1.0]])
 
         # Subscribers
         self.received_camera_info = False
@@ -63,7 +63,7 @@ class WireTrackingNode(Node):
         self.tracking_viz_pub = self.create_publisher(Image, self.tracking_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
 
-        self.get_logger().info("Visual Servo Node initialized")
+        self.get_logger().info("Wire Tracking Node initialized")
         
     def camera_info_callback(self, data):
         self.fx = data.k[0]

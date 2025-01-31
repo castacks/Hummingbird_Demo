@@ -11,6 +11,10 @@
     tracking_viz_pub_topic: "/wire_cam/detection_debug"
     depth_viz_pub_topic: "/wire_cam/depth_debug"
 
+    # Wire detection params
+    expansion_size: 10
+    point_threshold: 350
+
     # KF params
     max_distance_threshold: 1.0 # wires are normally around more than 4.0 distance from eachother in sim
     min_valid_kf_count_threshold: 20
