@@ -13,7 +13,7 @@ from rclpy.executors import MultiThreadedExecutor
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, 
+from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi
 from common_utils.kalman_filters import PositionKalmanFilter, YawKalmanFilter
 import common_utils.coord_transforms as ct
 
@@ -21,7 +21,7 @@ import common_utils.coord_transforms as ct
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-class VisualServo(Node):
+class WireTrackingNode(Node):
     def __init__(self):
         super().__init__('wire_tracking_node')
         self.set_params()
@@ -334,7 +334,7 @@ class VisualServo(Node):
 
 def main():
     rclpy.init()
-    node = VisualServo()
+    node = WireTrackingNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:
