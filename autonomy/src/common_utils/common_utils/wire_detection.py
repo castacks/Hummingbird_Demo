@@ -2,8 +2,9 @@ import numpy as np
 import cv2
 
 class WireDetector:
-    def __init__(self, threshold=500):
+    def __init__(self, threshold=500, expansion_size=10):
         self.threshold = threshold
+        self.expansion_size = expansion_size
         self.img_height = None
         self.img_width = None
         self.img_shape = None
@@ -89,6 +90,13 @@ class WireDetector:
             wire_lines = np.array([])
             wire_midpoints = np.array([])
         return wire_lines, wire_midpoints, avg_angle
+    
+    def create_seg_mask(self, image):
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
+        seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+        seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+        return seg_mask
 
 def compute_perpendicular_distance(center_line, lines):
     x1, y1, x2, y2 = center_line

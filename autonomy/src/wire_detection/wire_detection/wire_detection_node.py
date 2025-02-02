@@ -19,7 +19,7 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
-        self.wire_detector = WireDetector(threshold=self.point_threshold)
+        self.wire_detector = WireDetector(threshold=self.point_threshold, expansion_size=self.expansion_size)
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
@@ -47,14 +47,10 @@ class WireDetectorNode(Node):
             self.wire_viz_pub.publish(img_msg)
 
     def detect_lines_and_update(self, image):
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
-        seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
-        seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
-        debug_img = image.copy()
+        seg_mask = self.wire_detector.create_seg_mask(image)
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
+            debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
             return debug_img
     
     def draw_wire_lines(self, img, wire_lines, wire_midpoints):

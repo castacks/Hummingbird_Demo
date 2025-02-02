@@ -28,7 +28,7 @@ class WireTrackingNode(Node):
         self.set_params()
 
         # Wire Detector
-        self.wire_detector = WireDetector(threshold=self.point_threshold)
+        self.wire_detector = WireDetector(threshold=self.point_threshold, expansion_size=self.expansion_size)
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
@@ -110,10 +110,7 @@ class WireTrackingNode(Node):
 
     def detect_lines_and_update(self, image, depth, pose: Pose):
         # get a segmentation mask from the rgb image
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
-        seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
-        seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+        seg_mask = self.wire_detector.create_seg_mask(image)
 
         # if there are no lines detected, return None, a default image will be published
         debug_img = None
@@ -152,7 +149,7 @@ class WireTrackingNode(Node):
                             min_distance = distance
                             min_id = i
                 self.tracked_wire_id = min_id
-                
+
             if self.are_kfs_initialized:
                 debug_img = self.draw_valid_kfs(image, pose)
                 
