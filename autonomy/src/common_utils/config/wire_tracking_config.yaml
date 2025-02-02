@@ -17,6 +17,6 @@
     point_threshold: 350
 
     # KF params
-    max_distance_threshold: 1.0 # wires are normally around more than 4.0 distance from eachother in sim
+    max_distance_threshold: 0.25 # meters
     min_valid_kf_count_threshold: 20
     iteration_start_threshold: 30

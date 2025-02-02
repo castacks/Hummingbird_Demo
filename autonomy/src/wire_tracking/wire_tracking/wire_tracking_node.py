@@ -152,8 +152,10 @@ class WireTrackingNode(Node):
                             min_distance = distance
                             min_id = i
                 self.tracked_wire_id = min_id
+                
             if self.are_kfs_initialized:
                 debug_img = self.draw_valid_kfs(image, pose)
+                
         return debug_img
     
     def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
@@ -164,6 +166,8 @@ class WireTrackingNode(Node):
 
     def initialize_kfs(self, global_midpoints, global_yaw):
         if not self.are_kfs_initialized:
+            
+            # on initialization it if there are are wires that are too close together, it will merge them
             consolidated_midpoints = []
             for i in range(global_midpoints.shape[0]):
                 got_matched = False
@@ -174,11 +178,11 @@ class WireTrackingNode(Node):
                 else:
                     for j, merged_mid in enumerate(consolidated_midpoints):
                         distance = np.linalg.norm(mid - merged_mid, ord=2)
-                        # self.get_logger().info(f'distance: {distance}, mid: {mid}, merged_mid: {merged_mid}')
                         if distance < self.distance_threshold:
                             consolidated_midpoints[j] = (mid + merged_mid) / 2
                             got_matched = True
                             break
+
                 if not got_matched:
                     consolidated_midpoints.append(mid)
 
@@ -204,21 +208,15 @@ class WireTrackingNode(Node):
             saturation = hsv[0, 0, 1]
             value = hsv[0, 0, 2]
         self.vis_colors[self.max_kf_label] = color
-        
-        
-        self.vis_colors[self.max_kf_label] = np.random.randint(0, 256, 3).tolist()
 
     def debug_kfs(self, detected_midpoints = None):
         valid_counts = []
-        midpoints = np.array([kf.curr_pos for kf in self.position_kalman_filters.values()])
         for i, kf in self.position_kalman_filters.items():
             valid_counts.append(kf.valid_count)
         if detected_midpoints is not None:
             self.get_logger().info("Detected Midpoints: %s" % str(detected_midpoints))
         self.get_logger().info("Num KFs: %s" % len(self.position_kalman_filters))
         self.get_logger().info("Valid Counts: %s" % str(valid_counts))
-
-        # self.get_logger().info("Midpoints: %s" % str(midpoints))
 
     def update_kfs(self, new_global_midpoints, global_yaw):
         matched_indices = []
@@ -260,11 +258,6 @@ class WireTrackingNode(Node):
             self.position_kalman_filters.pop(i)
             self.vis_colors.pop(i)
 
-    def predict_kfs(self):
-        for i, kf in self.position_kalman_filters.items():
-            kf.predict()
-        self.yaw_kalman_filter.predict()
-
     def draw_valid_kfs(self, img, pose_in_world):
         global_yaw = self.yaw_kalman_filter.get_yaw()
         cam_yaw = ct.get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
@@ -283,17 +276,7 @@ class WireTrackingNode(Node):
             tracked_midpoint = self.position_kalman_filters[self.tracked_wire_id].curr_pos
             image_midpoint = ct.world_to_image_pose(tracked_midpoint[0], tracked_midpoint[1], tracked_midpoint[2], pose_in_world, self.camera_vector)
             cv2.ellipse(img, (int(image_midpoint[0]), int(image_midpoint[1])), (15, 15), 0, 0, 360, (0, 255, 0), 3)
-        return img
-    
-    def draw_wire_lines(self, img, wire_lines, wire_midpoints, center_line=None, center_line_midpoint=None):
-        for i, (x, y) in enumerate(wire_midpoints):
-            x0, y0, x1, y1 = wire_lines[i]
-            cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
-            cv2.circle(img, (int(x), int(y)), 5, (0, 0, 255), -1)
-        if center_line is not None:
-            x0, y0, x1, y1 = center_line
-            cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
-            cv2.circle(img, (int(center_line_midpoint[0]), int(center_line_midpoint[1])), 5, (0, 0, 255), -1)
+            
         return img
         
     def set_params(self):
