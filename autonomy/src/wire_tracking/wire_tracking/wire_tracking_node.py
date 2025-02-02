@@ -223,7 +223,7 @@ class WireTrackingNode(Node):
             got_matched = False
             for j, kf in self.position_kalman_filters.items():
                 closest_point = find_closest_point_on_3d_line(mid, self.yaw_kalman_filter.get_yaw(), kf.curr_pos)
-                distance = np.linalg.norm(closest_point - kf.curr_pos, ord=2)
+                distance = np.linalg.norm(closest_point - kf.curr_pos)
 
                 # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
                 if distance < self.distance_threshold:
