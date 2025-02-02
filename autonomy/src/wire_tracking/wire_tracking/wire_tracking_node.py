@@ -10,10 +10,11 @@ from geometry_msgs.msg import PoseStamped, Pose
 from cv_bridge import CvBridge
 
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi
+from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, create_depth_viz
 from common_utils.kalman_filters import PositionKalmanFilter, YawKalmanFilter
 import common_utils.coord_transforms as ct
 
@@ -38,17 +39,21 @@ class WireTrackingNode(Node):
         self.total_iterations = 0
 
         # Transform from pose_cam to wire_cam
+        # 180 rotation about x-axis, 0.216m translation in y-axis
         self.pose_cam_to_wire_cam = np.array([[1.0, 0.0, 0.0, 0.0],
-                                             [0.0, np.cos(np.deg2rad(180)), -np.sin(np.deg2rad(180)), 0.0],
-                                             [0.0, np.sin(np.deg2rad(180)), np.cos(np.deg2rad(180)), 0.216],
+                                             [0.0, np.cos(np.deg2rad(180)), -np.sin(np.deg2rad(180)), 0.216],
+                                             [0.0, np.sin(np.deg2rad(180)), np.cos(np.deg2rad(180)), 0.0],
                                              [0.0, 0.0, 0.0, 1.0]])
 
         # Subscribers
+        cam_info_callbackgroup = ReentrantCallbackGroup()
         self.received_camera_info = False
-        self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
-        self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic)
-        self.depth_image_sub = Subscriber(self, Image, self.depth_image_sub_topic)
-        self.pose_sub = Subscriber(self, PoseStamped, self.pose_sub_topic)
+        self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 
+                                                        rclpy.qos.qos_profile_sensor_data, 
+                                                        callback_group=cam_info_callbackgroup)
+        self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        self.depth_image_sub = Subscriber(self, Image, self.depth_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        self.pose_sub = Subscriber(self, PoseStamped, self.pose_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
         self.bridge = CvBridge()
 
         # Time Synchronizer
@@ -60,8 +65,9 @@ class WireTrackingNode(Node):
         self.img_tss.registerCallback(self.input_callback)
 
         # Publishers
-        self.tracking_viz_pub = self.create_publisher(Image, self.tracking_viz_pub_topic, 1)
-        self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
+        self.tracking_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 10)
+        self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 10)
+        self.pose_viz_pub = self.create_publisher(PoseStamped, self.pose_viz_pub_topic, 10)
 
         self.get_logger().info("Wire Tracking Node initialized")
         
@@ -87,34 +93,38 @@ class WireTrackingNode(Node):
         
         debug_image = None
         if self.received_camera_info:
-            self.pose = pose_msg.pose
-            debug_image = self.detect_lines_and_update(rgb, depth, pose_msg.pose)
-            if debug_image is None:
-                viz_pub_msg = self.bridge.cv2_to_imgmsg(rgb, "rgb8")
-            else:
-                viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
-            self.tracking_viz_pub.publish(viz_pub_msg) 
+            # transform pose cam pose to wire cam pose
+            pose = self.transform_pose_cam_to_wire_cam(pose_msg.pose)
+            debug_image = self.detect_lines_and_update(rgb, depth, pose)
 
-            # create depth visualization
-            depth_viz = self.create_depth_viz(depth)
-            depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, "rgb8")
-            self.depth_viz_pub.publish(depth_viz_msg)
+        if debug_image is None:
+            viz_pub_msg = self.bridge.cv2_to_imgmsg(rgb, "rgb8")
+        else:
+            viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
+        self.tracking_viz_pub.publish(viz_pub_msg) 
+
+        # create depth visualization
+        depth_viz = create_depth_viz(depth)
+        depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, "rgb8")
+        self.depth_viz_pub.publish(depth_viz_msg)
 
     def detect_lines_and_update(self, image, depth, pose: Pose):
+        # get a segmentation mask from the rgb image
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
         seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
         seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
+
         # if there are no lines detected, return None, a default image will be published
-        pose = self.transform_pose_cam_to_wire_cam(pose)
         debug_img = None
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
+            # get the horizontal camera yaw
             cam_yaw = ct.get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
                 global_yaw = cam_yaw + avg_yaw
                 global_yaw = clamp_angles_pi(global_yaw) 
-                corresponding_depths = np.array([])
+                corresponding_depths = np.zeros(len(wire_midpoints))
                 for i, (x, y) in enumerate(wire_midpoints):
                     # does not allow for the depth of a midpoint to be a indescipt value
                     while depth_midpoint == 0.0 or depth_midpoint == None or np.isnan(depth_midpoint):
@@ -122,7 +132,7 @@ class WireTrackingNode(Node):
                         x = int(x + np.cos(avg_yaw)*2)
                         y = int(y + np.sin(avg_yaw)*2) 
 
-                    corresponding_depths = np.append(corresponding_depths, depth_midpoint)
+                    corresponding_depths[i] = depth_midpoint
 
                 global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
                 if self.are_kfs_initialized == False:
@@ -130,9 +140,6 @@ class WireTrackingNode(Node):
                 else:
                     self.update_kfs(global_midpoints, global_yaw)
 
-            # debug_img = self.draw_wire_lines(debug_img, wire_lines, wire_midpoints)
-            # self.debug_kfs()
-            # currently choosing the tracked wire is based on valid count, should be based on distance from the center of the image
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
                 min_distance = 100000
@@ -288,27 +295,25 @@ class WireTrackingNode(Node):
             cv2.line(img, (x0, y0), (x1, y1), (0, 255, 0), 2)
             cv2.circle(img, (int(center_line_midpoint[0]), int(center_line_midpoint[1])), 5, (0, 0, 255), -1)
         return img
-    
-    def create_depth_viz(self, depth):
-        depth_viz = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
-        return depth_viz
         
     def set_params(self):
         try:
-            # ROS parameters
+            # Subscriber topics
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
+
+            # Publisher topics
+            self.declare_parameter('wire_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('pose_viz_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Wire Detection parameters
             self.declare_parameter('point_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
 
             # KF parameters
-            self.declare_parameter('tracking_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
             self.declare_parameter('min_valid_kf_count_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('iteration_start_threshold', rclpy.Parameter.Type.INTEGER)
@@ -319,11 +324,13 @@ class WireTrackingNode(Node):
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
 
+            self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
+            self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
+            self.pose_viz_pub_topic = self.get_parameter('pose_viz_pub_topic').get_parameter_value().string_value
+
             self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
 
-            self.tracking_viz_pub_topic = self.get_parameter('tracking_viz_pub_topic').get_parameter_value().string_value
-            self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
             self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value

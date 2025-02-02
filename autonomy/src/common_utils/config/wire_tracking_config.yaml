@@ -8,8 +8,9 @@
     pose_sub_topic: "/pose_cam/zed_node/pose"
 
     # publishers
-    tracking_viz_pub_topic: "/wire_cam/detection_debug"
+    wire_viz_pub_topic: "/wire_cam/detection_debug"
     depth_viz_pub_topic: "/wire_cam/depth_debug"
+    pos_viz_pub_topic: "/wire_cam/pos_debug"
 
     # Wire detection params
     expansion_size: 10

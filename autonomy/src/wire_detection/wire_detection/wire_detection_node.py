@@ -7,7 +7,7 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-from common_utils.wire_detection import WireDetector
+from common_utils.wire_detection import WireDetector, create_depth_viz
 
 # ignore future deprecated warnings
 import warnings
@@ -26,12 +26,8 @@ class WireDetectorNode(Node):
         self.depth_image_sub = self.create_subscription(Image, self.depth_image_sub_topic, self.depth_callback, 1)
 
         # Publishers
-        self.visualization_pub = self.create_publisher(Image, self.visualization_pub_topic, 1)
+        self.wire_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
-
-        # color tracking varibales
-        self.color_dict = {}
-        self.max_wires_detected = None
 
         self.get_logger().info("Wire Detection Node initialized")
 
@@ -42,17 +38,13 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        start_time = self.get_clock().now()
-        debug_image = None
         debug_image = self.detect_lines_and_update(rgb)
         if debug_image is not None:
             img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
-            self.visualization_pub.publish(img_msg)    
+            self.wire_viz_pub.publish(img_msg)    
         else:
             img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
-            self.visualization_pub.publish(img_msg)
-        end_time = self.get_clock().now()
-        # self.get_logger().info(f"Time taken to process image: {end_time - start_time}")
+            self.wire_viz_pub.publish(img_msg)
 
     def detect_lines_and_update(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -67,12 +59,12 @@ class WireDetectorNode(Node):
     
     def draw_wire_lines(self, img, wire_lines, wire_midpoints):
         # colors = self.assign_line_colors(wire_lines, wire_midpoints)
-        colors = []
-        colors = [(0, 255, 0) for i in range(len(wire_lines))]
+        green = (0, 255, 0)
+        blue = (255, 0, 0)
         for i, (x, y) in enumerate(wire_midpoints):
             x0, y0, x1, y1 = wire_lines[i]
-            cv2.line(img, (x0, y0), (x1, y1), colors[i], 2)
-            cv2.circle(img, (int(x), int(y)), 5, colors[i], -1)
+            cv2.line(img, (x0, y0), (x1, y1), green, 2)
+            cv2.circle(img, (int(x), int(y)), 5, blue, -1)
         return img
     
     def depth_callback(self, depth_msg):
@@ -81,49 +73,9 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        min_depth = 0.3
-        max_depth = 10.0
-        depth_viz = depth.copy()
-        depth_viz[np.isnan(depth)] = min_depth
-        depth_viz[np.isinf(depth)] = min_depth
-        depth_viz[np.isneginf(depth)] = min_depth
-
-        depth_viz = (depth_viz - min_depth) / (max_depth - min_depth)
-        depth_viz = (depth_viz * 255).astype(np.uint8)
-        # depth_viz = cv2.normalize(depth_viz, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        depth_viz = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
+        depth_viz = create_depth_viz(depth)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
         self.depth_viz_pub.publish(img_msg)
-
-    def assign_line_colors(self, wire_lines, wire_midpoints):
-        colors = []
-        if self.color_dict == {} and len(wire_lines) > 0:
-            for i in range(len(wire_lines)):  
-                color = tuple(np.random.randint(0, 256, 3).tolist())
-                self.color_dict[color] = wire_midpoints[i]
-
-        used_colors = []
-        for i, (x, y) in enumerate(wire_midpoints): 
-            # if all colors are used, assign a random color
-            if len(used_colors) == len(self.color_dict):
-                color = tuple(np.random.randint(0, 256, 3).tolist())
-                self.color_dict[color] = (x, y)
-                colors.append(color)
-                continue
-            
-            min_dist = float('inf')
-            min_color = None
-            for color, midpoint in self.color_dict.items():
-                if color in used_colors:
-                    continue
-                dist = np.linalg.norm(np.array([x, y]) - np.array(midpoint))        
-                if dist < min_dist:
-                    min_dist = dist
-                    min_color = color
-            used_colors.append(min_color)
-            colors.append(min_color)
-            self.color_dict[min_color] = (x, y)
-        return colors
         
     def set_params(self):
         try:
@@ -134,7 +86,7 @@ class WireDetectorNode(Node):
             # sub pub topics
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('visualization_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('wire_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Access parameters
@@ -143,12 +95,11 @@ class WireDetectorNode(Node):
 
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
-            self.visualization_pub_topic = self.get_parameter('visualization_pub_topic').get_parameter_value().string_value
+            self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
     
-
 def main():
     rclpy.init()
     node = WireDetectorNode()

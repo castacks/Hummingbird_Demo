@@ -175,3 +175,15 @@ def get_yaw_from_quaternion(x, y, z, w):
     yaw = np.arctan2(siny_cosp, cosy_cosp)
     # yaw = clamp_angles_rad(yaw)
     return yaw
+
+def create_depth(depth):
+    min_depth = 0.4
+    max_depth = 10.0
+    depth[np.isnan(depth)] = min_depth
+    depth[np.isinf(depth)] = min_depth
+    depth[np.isneginf(depth)] = min_depth
+
+    depth = (depth - min_depth) / (max_depth - min_depth)
+    depth = (depth * 255).astype(np.uint8)
+    depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
+    return depth

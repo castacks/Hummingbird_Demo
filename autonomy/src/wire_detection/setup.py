@@ -11,7 +11,6 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, ['launch/wire_detection.launch.xml']),  # If you have a launch file
-        ('share/' + package_name, ['config/wire_detection_config.yaml']),  # If you have a config
     ],
     install_requires=['setuptools'],
     zip_safe=True,
