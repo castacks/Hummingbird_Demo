@@ -40,10 +40,10 @@ class WireTrackingNode(Node):
 
         # Transform from pose_cam to wire_cam
         # 180 rotation about x-axis, 0.216m translation in y-axis
-        self.pose_cam_to_wire_cam = np.array([[1.0, 0.0, 0.0, 0.0],
-                                             [0.0, np.cos(np.deg2rad(180)), -np.sin(np.deg2rad(180)), 0.216],
-                                             [0.0, np.sin(np.deg2rad(180)), np.cos(np.deg2rad(180)), 0.0],
-                                             [0.0, 0.0, 0.0, 1.0]])
+        self.pose_cam_to_wire_cam = np.array([[np.cos(np.deg2rad(180)),  0.0, np.sin(np.deg2rad(180)), 0.0],
+                                              [         0.0,             1.0,           0.0,           0.0],
+                                              [-np.sin(np.deg2rad(180)), 0.0, np.cos(np.deg2rad(180)), - 0.216],
+                                              [0.0, 0.0, 0.0, 1.0]])
 
         # Subscribers
         cam_info_callbackgroup = ReentrantCallbackGroup()
@@ -108,8 +108,6 @@ class WireTrackingNode(Node):
             viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
         self.tracking_viz_pub.publish(viz_pub_msg) 
 
-        self.debug_kfs()
-
         # create depth visualization
         depth_viz = create_depth_viz(depth)
         depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, "rgb8")
@@ -130,10 +128,10 @@ class WireTrackingNode(Node):
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             # get the horizontal camera yaw
-            cam_yaw = ct.get_yaw_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+            cam_yaw = ct.get_yaw_x_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
-                global_yaw = cam_yaw + avg_yaw
-                global_yaw = clamp_angles_pi(global_yaw) 
+                global_yaw = clamp_angles_pi(cam_yaw + avg_yaw)
+                self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {cam_yaw}, Avg Yaw: {avg_yaw}") 
                 corresponding_depths = np.zeros(len(wire_midpoints))
                 for i, (x, y) in enumerate(wire_midpoints):
                     # does not allow for the depth of a midpoint to be a indescipt value
@@ -152,7 +150,7 @@ class WireTrackingNode(Node):
                 else:
                     self.update_kfs(global_midpoints, global_yaw, pose)
 
-                # self.debug_kfs(pose=pose)
+                self.debug_kfs(detected_midpoints=global_midpoints)
 
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
@@ -173,8 +171,8 @@ class WireTrackingNode(Node):
     
     def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
         world_to_pose_cam = ct.pose_to_homogeneous(pose_cam_pose)
-        pose_wire_transform = world_to_pose_cam @ self.pose_cam_to_wire_cam
-        wire_cam_pose = ct.homogeneous_to_pose(pose_wire_transform)
+        world_to_wire_cam = world_to_pose_cam @ self.pose_cam_to_wire_cam
+        wire_cam_pose = ct.homogeneous_to_pose(world_to_wire_cam)
         return wire_cam_pose
 
     def initialize_kfs(self, global_midpoints, global_yaw):
@@ -278,7 +276,7 @@ class WireTrackingNode(Node):
 
     def draw_valid_kfs(self, img, pose_in_world):
         global_yaw = self.yaw_kalman_filter.get_yaw()
-        cam_yaw = ct.get_yaw_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
+        cam_yaw = ct.get_yaw_x_from_quaternion(pose_in_world.orientation.x, pose_in_world.orientation.y, pose_in_world.orientation.z, pose_in_world.orientation.w)
         image_yaw = global_yaw - cam_yaw
         for i, kf in self.position_kalman_filters.items():
             if kf.valid_count >= self.valid_threshold:

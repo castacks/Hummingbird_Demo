@@ -17,6 +17,6 @@
     line_threshold: 350
 
     # KF params
-    max_distance_threshold: 0.25 # meters
+    max_distance_threshold: 0.1 # meters
     min_valid_kf_count_threshold: 20
     iteration_start_threshold: 30
