@@ -83,7 +83,7 @@ class YawKalmanFilter:
         """
         # Calculate Kalman Gain
         S = self.P + self.R
-        K = self.P / S
+        K = self.P @ np.linalg.inv(S)
 
         # Update the state estimate and covariance
         measured_yaw = np.array([np.cos(measured_yaw), np.sin(measured_yaw)])
