@@ -19,7 +19,7 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
-        self.wire_detector = WireDetector(threshold=self.point_threshold, expansion_size=self.expansion_size)
+        self.wire_detector = WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size)
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
@@ -76,7 +76,7 @@ class WireDetectorNode(Node):
     def set_params(self):
         try:
             #wire detection params
-            self.declare_parameter('point_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('line_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
 
             # sub pub topics
@@ -86,7 +86,7 @@ class WireDetectorNode(Node):
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Access parameters
-            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
+            self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
 
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value

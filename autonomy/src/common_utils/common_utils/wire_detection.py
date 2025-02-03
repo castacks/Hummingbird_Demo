@@ -184,7 +184,7 @@ def get_yaw_from_quaternion(x, y, z, w):
     # yaw = clamp_angles_rad(yaw)
     return yaw
 
-def create_depth(depth):
+def create_depth_viz(depth):
     min_depth = 0.4
     max_depth = 10.0
     depth[np.isnan(depth)] = min_depth

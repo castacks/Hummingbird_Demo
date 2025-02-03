@@ -28,7 +28,7 @@ class WireTrackingNode(Node):
         self.set_params()
 
         # Wire Detector
-        self.wire_detector = WireDetector(threshold=self.point_threshold, expansion_size=self.expansion_size)
+        self.wire_detector = WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size)
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
@@ -295,7 +295,7 @@ class WireTrackingNode(Node):
             self.declare_parameter('pose_viz_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Wire Detection parameters
-            self.declare_parameter('point_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('line_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
 
             # KF parameters
@@ -313,7 +313,7 @@ class WireTrackingNode(Node):
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.pose_viz_pub_topic = self.get_parameter('pose_viz_pub_topic').get_parameter_value().string_value
 
-            self.point_threshold = self.get_parameter('point_threshold').get_parameter_value().integer_value
+            self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
 
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
