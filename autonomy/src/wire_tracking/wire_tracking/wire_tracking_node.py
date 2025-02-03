@@ -60,7 +60,7 @@ class WireTrackingNode(Node):
         self.img_tss = ApproximateTimeSynchronizer(
             [self.rgb_image_sub, self.depth_image_sub, self.pose_sub],
             queue_size=1, 
-            slop=0.1
+            slop=0.2
         )
         self.img_tss.registerCallback(self.input_callback)
 
@@ -77,6 +77,8 @@ class WireTrackingNode(Node):
         self.cx = data.k[2]
         self.cy = data.k[5]
         self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
+        if self.received_camera_info == False:
+            self.get_logger().info("Received Camera Info")
         self.received_camera_info = True
 
     def input_callback(self, rgb_msg, depth_msg, pose_msg):
@@ -86,7 +88,8 @@ class WireTrackingNode(Node):
             # Convert the ROS image messages to OpenCV images
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            depth = np.frombuffer(depth_msg.data, dtype=np.float32).reshape(depth_msg.height, depth_msg.width, -1)
+            depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
@@ -124,10 +127,12 @@ class WireTrackingNode(Node):
                 corresponding_depths = np.zeros(len(wire_midpoints))
                 for i, (x, y) in enumerate(wire_midpoints):
                     # does not allow for the depth of a midpoint to be a indescipt value
+                    depth_midpoint = depth[y, x]
+                    # TODO: refine this method
                     while depth_midpoint == 0.0 or depth_midpoint == None or np.isnan(depth_midpoint):
-                        depth_midpoint = depth[y, x]
                         x = int(x + np.cos(avg_yaw)*2)
                         y = int(y + np.sin(avg_yaw)*2) 
+                        depth_midpoint = depth[y, x]
 
                     corresponding_depths[i] = depth_midpoint
 
