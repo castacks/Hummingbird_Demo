@@ -194,12 +194,8 @@ def launch_setup(context, *args, **kwargs):
         namespace=camera_name_val,
         executable='zed_wrapper',
         name=node_name,
-        output='screen',
+        output='log',
         respawn=True,
-        #prefix=['valgrind'],
-        #prefix=['xterm -e valgrind --tools=callgrind'],
-        #prefix=['xterm -e gdb -ex run --args'],
-        #prefix=['gdbserver localhost:3000'],
         parameters=node_parameters
     )
 

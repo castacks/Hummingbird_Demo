@@ -22,6 +22,10 @@ def generate_launch_description():
                 'wire_cam_serial',
                 default_value=TextSubstitution(text='47859404'),
                 description='the camera serial number used for wire tracking'),
+        DeclareLaunchArgument(
+            'log_level',
+            default_value=TextSubstitution(text='warn'),
+            description='Logging level (e.g., debug, info, warn, error, fatal)'),
 
         # Pose camera launch file
         IncludeLaunchDescription(
