@@ -19,6 +19,8 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - L4T_MAJOR=${L4T_MAJOR}
+      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
@@ -48,6 +50,8 @@ services:
       - QT_X11_NO_MITSHM=1
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
+      - L4T_MAJOR=${L4T_MAJOR}
+      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
@@ -78,6 +82,8 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - L4T_MAJOR=${L4T_MAJOR}
+      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
