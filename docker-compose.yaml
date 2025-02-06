@@ -4,6 +4,10 @@ services:
     build:
       context: ./
       dockerfile: docker/Dockerfile.rtsp
+      args:
+        L4T_MAJOR: ${L4T_MAJOR}
+        L4T_MINOR: ${L4T_MINOR}
+        L4T_PATCH: ${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                if [ ! -d "/root/ros2_ws/install" ]; then \
@@ -19,8 +23,6 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
-      - L4T_MAJOR=${L4T_MAJOR}
-      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
@@ -34,6 +36,10 @@ services:
     build: 
       context: ./
       dockerfile: docker/Dockerfile.zed-dev
+      args:
+        L4T_MAJOR: ${L4T_MAJOR}
+        L4T_MINOR: ${L4T_MINOR}
+        L4T_PATCH: ${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
@@ -50,8 +56,6 @@ services:
       - QT_X11_NO_MITSHM=1
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
-      - L4T_MAJOR=${L4T_MAJOR}
-      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
@@ -67,6 +71,10 @@ services:
     build:
       context: ./ 
       dockerfile: docker/Dockerfile.autonomy
+      args:
+        L4T_MAJOR: ${L4T_MAJOR}
+        L4T_MINOR: ${L4T_MINOR}
+        L4T_PATCH: ${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                if [ ! -d "/root/ros2_ws/install" ]; then \
@@ -82,8 +90,6 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
-      - L4T_MAJOR=${L4T_MAJOR}
-      - L4T_MINOR=${L4T_MINOR}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:

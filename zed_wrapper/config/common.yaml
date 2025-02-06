@@ -21,8 +21,8 @@
             camera_flip: false
             serial_number: 0 # usually overwritten by launch file
             pub_resolution: "CUSTOM" # The resolution used for output. 'NATIVE' to use the same `general.grab_resolution` - `CUSTOM` to apply the `general.pub_downscale_factor` downscale factory to reduce bandwidth in transmission
-            pub_downscale_factor: 2.0 # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM'
-            pub_frame_rate: 30.0 # frequency of publishing of visual images and depth images
+            pub_downscale_factor: 6.0 # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM'
+            pub_frame_rate: 60.0 # frequency of publishing of visual images and depth images
             gpu_id: -1
             optional_opencv_calibration_file: "" # Optional path where the ZED SDK can find a file containing the calibration information of the camera computed by OpenCV. Read the ZED SDK documentation for more information: https://www.stereolabs.com/docs/api/structsl_1_1InitParameters.html#a9eab2753374ef3baec1d31960859ba19
 
@@ -40,14 +40,14 @@
             whitebalance_temperature: 42 # [DYNAMIC] - [28,65] works only if `auto_whitebalance` is false
 
         region_of_interest:
-            automatic_roi: false # Enable the automatic ROI generation to automatically detect part of the robot in the FoV and remove them from the processing. Note: if enabled the value of `manual_polygon` is ignored
+            automatic_roi: true # Enable the automatic ROI generation to automatically detect part of the robot in the FoV and remove them from the processing. Note: if enabled the value of `manual_polygon` is ignored
             depth_far_threshold_meters: 2.5 # Filtering how far object in the ROI should be considered, this is useful for a vehicle for instance
             image_height_ratio_cutoff: 0.5 # By default consider only the lower half of the image, can be useful to filter out the sky
             #manual_polygon: '[]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
             #manual_polygon: "[[0.25,0.33],[0.75,0.33],[0.75,0.5],[0.5,0.75],[0.25,0.5]]" # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
             #manual_polygon: '[[0.25,0.25],[0.75,0.25],[0.75,0.75],[0.25,0.75]]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
             #manual_polygon: '[[0.5,0.25],[0.75,0.5],[0.5,0.75],[0.25,0.5]]' # A polygon defining the ROI where the ZED SDK perform the processing ignoring the rest. Coordinates must be normalized to '1.0' to be resolution independent.
-            apply_to_depth: true # Apply ROI to depth processing
+            apply_to_depth: false # Apply ROI to depth processing
             apply_to_positional_tracking: true # Apply ROI to positional tracking processing
             apply_to_object_detection: true # Apply ROI to object detection processing
             apply_to_body_tracking: true # Apply ROI to body tracking processing
@@ -55,9 +55,9 @@
 
         depth:
             depth_mode: "ULTRA" # Matches the ZED SDK setting: 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', 'NEURAL_PLUS' - Note: if 'NONE' all the modules that requires depth extraction are disabled by default (Pos. Tracking, Obj. Detection, Mapping, ...)
-            depth_stabilization: 95 # Forces positional tracking to start if major than 0 - Range: [0,100]
+            depth_stabilization: 100 # Forces positional tracking to start if major than 0 - Range: [0,100]
             openni_depth_mode: false # 'false': 32bit float [meters], 'true': 16bit unsigned int [millimeters]
-            point_cloud_freq: 10.0 # [DYNAMIC] - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
+            point_cloud_freq: 0.0 # [DYNAMIC] - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
             depth_confidence: 90 # [DYNAMIC]
             depth_texture_conf: 100 # [DYNAMIC]
             remove_saturated_areas: true # [DYNAMIC]
@@ -66,13 +66,13 @@
             pos_tracking_enabled: true # True to enable positional tracking from start
             pos_tracking_mode: "GEN_2" # Matches the ZED SDK setting: 'GEN_1', 'GEN_2'
             imu_fusion: true # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
-            publish_tf: true # [usually overwritten by launch file] publish `odom -> camera_link` TF
-            publish_map_tf: true # [usually overwritten by launch file] publish `map -> odom` TF
+            publish_tf: false # [usually overwritten by launch file] publish `odom -> camera_link` TF
+            publish_map_tf: false # [usually overwritten by launch file] publish `map -> odom` TF
             map_frame: "map"
             odometry_frame: "odom"
             area_memory_db_path: ""
-            area_memory: true # Enable to detect loop closure
-            reset_odom_with_loop_closure: true # Re-initialize odometry to the last valid pose when loop closure happens (reset camera odometry drift)
+            area_memory: false # Enable to detect loop closure
+            reset_odom_with_loop_closure: false # Re-initialize odometry to the last valid pose when loop closure happens (reset camera odometry drift)
             depth_min_range: 0.0 # Set this value for removing fixed zones of the robot in the FoV of the camerafrom the visual odometry evaluation
             set_as_static: false # If 'true' the camera will be static and not move in the environment
             set_gravity_as_origin: false # If 'true' align the positional tracking world to imu gravity measurement. Keep the yaw from the user initial pose.
