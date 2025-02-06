@@ -131,6 +131,26 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /pose_cam/zed_node/rgb/image_rect_color
       Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Wire_Cam_ZED_pose
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Axes
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wire_cam/zed_node/pose
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -192,10 +212,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.41039836406707764
+      Pitch: 0.21039843559265137
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.900400161743164
+      Yaw: 4.677231311798096
     Saved: ~
 Window Geometry:
   Depth:

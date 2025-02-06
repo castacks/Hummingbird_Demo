@@ -288,3 +288,20 @@ def get_distance_between_3D_points(point1, point2):
     # Calculate the Euclidean distance
     distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
     return distance
+
+def quaterion_to_euler(x, y, z, w):
+    """
+    Convert a quaternion to Euler angles.
+    
+    Parameters:
+    x, y, z, w -- components of the quaternion
+    
+    Returns:
+    roll -- the roll angle in radians
+    pitch -- the pitch angle in radians
+    yaw -- the yaw angle in radians
+    """
+    # Calculate the Euler angles
+    r = Rotation.from_quat([x, y, z, w])
+    roll, pitch, yaw = r.as_euler('xyz')
+    return roll, pitch, yaw

@@ -55,6 +55,14 @@ class WireTrackingNode(Node):
 
         self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
         self.depth_image_sub = Subscriber(self, Image, self.depth_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+
+        # switch the pose topic based on the use_pose_cam parameter
+        if self.use_pose_cam:
+            self.pose_sub_topic = '/pose_cam' + self.pose_sub_topic
+        else:
+            self.pose_sub_topic = '/wire_cam' + self.pose_sub_topic
+
+        self.get_logger().info(f"Using Pose on topic {self.pose_sub_topic}")
         self.pose_sub = Subscriber(self, PoseStamped, self.pose_sub_topic)
         self.bridge = CvBridge()
 
@@ -95,12 +103,17 @@ class WireTrackingNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         
+        if self.use_pose_cam:
+            pose = self.transform_pose_cam_to_wire_cam(pose_msg.pose)
+        else:    
+            pose = pose_msg.pose
+
+        self.get_logger().info(f"Wire Cam Position: {pose.position.x}, {pose.position.y}, {pose.position.z}")
+        self.get_logger().info(f"Wire Cam Orientation: {ct.quaternion_to_euler(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)}")
+
         debug_image = None
         if self.received_camera_info:
             # transform pose cam pose to wire cam pose
-            pose = self.transform_pose_cam_to_wire_cam(pose_msg.pose)
-            # self.get_logger().info(f"Wire cam Pose: {pose}")
-            # self.get_logger().info(f"Pose cam Pose: {pose_msg.pose}")
             debug_image = self.detect_lines_and_update(rgb, depth, pose)
 
         if debug_image is None:
@@ -346,6 +359,7 @@ class WireTrackingNode(Node):
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
 
             # KF parameters
+            self.declare_parameter('use_pose_cam', rclpy.Parameter.Type.BOOL)
             self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
             self.declare_parameter('min_valid_kf_count_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('iteration_start_threshold', rclpy.Parameter.Type.INTEGER)
@@ -365,6 +379,7 @@ class WireTrackingNode(Node):
             self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
 
+            self.use_pose_cam = self.get_parameter('use_pose_cam').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
             self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value
