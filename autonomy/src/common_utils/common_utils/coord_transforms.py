@@ -80,35 +80,32 @@ def homogeneous_to_pose(homogeneous_matrix):
     pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = rotation
     return pose
     
-def image_to_world_tf(points, depth, tf_camera_to_world, camera_vector):
-        x_c, y_c, z_c = image_to_camera(points, depth.reshape(-1, 1), camera_vector)
-
-        H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
-
-        # Convert the point to a numpy array
-        point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
-
-        # Apply the transform: Rotate then translate
-        with np.errstate(invalid='ignore'):
-            try:
-                world_points = H_cam_to_world @ point_vec.T
-            except Exception as e:
-                return None
-        return world_points[:3].T
-
-def image_to_world_pose(points, depth, pose_in_world, camera_vector):
-    x_c, y_c, z_c = image_to_camera(points, depth.reshape(-1, 1), camera_vector)
+def image_to_world_tf(image_points, depth, tf_camera_to_world, camera_vector):
+    ''' 
+    Convert image points to world points using a pose
+    
+    Parameters:
+    image_points -- the image points in the image frame (Nx2)
+    depth -- the depth of the image points (Nx1)
+    pose_in_world -- the pose of the camera in the world frame
+    
+    Returns:
+    world_points_x -- the x-coordinates of the world points
+    world_points_y -- the y-coordinates of the world points
+    world_points_z -- the z-coordinates of the world points
+    '''
+    camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
     # transforming from camera frame to world convention
-    x_c_w = z_c
-    y_c_w = -x_c
-    z_c_w = -y_c
+    camera_points_in_world_x = camera_points_z
+    camera_points_in_world_y = - camera_points_x
+    camera_points_in_world_z = - camera_points_y
 
-    H_cam_to_world = pose_to_homogeneous(pose_in_world)
+    H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
 
     # Convert the point to a numpy array
     # point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
-    point_vec = np.hstack((x_c_w, y_c_w, z_c_w, np.ones_like(x_c)))
+    point_vec = np.hstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_in_world_x)))
 
     # Apply the transform: Rotate then translate
     with np.errstate(invalid='ignore'):
@@ -117,46 +114,138 @@ def image_to_world_pose(points, depth, pose_in_world, camera_vector):
         except Exception as e:
             return None
 
-    return world_points[:3].T
+    return world_points[:,0], world_points[:,1], world_points[:,2]
 
-def world_to_image_tf(world_x, world_y, world_z, tf_camera_to_world, camera_vector):
+def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
+    ''' 
+    Convert image points to world points using a pose
+    
+    Parameters:
+    image_points -- the image points in the image frame (Nx2)
+    depth -- the depth of the image points (Nx1)
+    pose_in_world -- the pose of the camera in the world frame
+    
+    Returns:
+    world_points_x -- the x-coordinates of the world points
+    world_points_y -- the y-coordinates of the world points
+    world_points_z -- the z-coordinates of the world points
+    '''
+    camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
-    H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
-    H_cam_to_world_inv = np.linalg.inv(H_cam_to_world)
+    # transforming from camera frame to world convention
+    camera_points_in_world_x = camera_points_z
+    camera_points_in_world_y = - camera_points_x
+    camera_points_in_world_z = - camera_points_y
+
+    H_cam_to_world = pose_to_homogeneous(pose_in_world)
 
     # Convert the point to a numpy array
-    point_vec = np.array([world_x, world_y, world_z])
+    # point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
+    point_vec = np.hstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_in_world_x)))
 
     # Apply the transform: Rotate then translate
-    cam_point = H_cam_to_world_inv @ np.append(point_vec, 1)
+    with np.errstate(invalid='ignore'):
+        try:
+            world_points = H_cam_to_world @ point_vec.T
+        except Exception as e:
+            return None
 
-    return camera_to_image(cam_point[0], cam_point[1], cam_point[2], camera_vector)
+    return world_points[:,0], world_points[:,1], world_points[:,2]
 
-def world_to_image_pose(world_x, world_y, world_z, pose_in_world, camera_vector):
+def world_to_image_tf(world_points, tf_camera_to_world, camera_vector):
+    '''
+    Convert world points to image points using a transform
+
+    Parameters:
+    world_points -- the world points in the world frame (Nx3)
+    pose_in_world -- the pose of the camera in the world frame
+    camera_vector -- the camera vector (fx, fy, cx, cy)
+
+    Returns:
+    image_points_x -- the x-coordinates of the image points
+    image_points_y -- the y-coordinates of the image points
+    '''
+    
+    H_world_to_cam = transform_to_homogeneous(tf_camera_to_world)
+    H_cam_to_world = np.linalg.inv(H_world_to_cam)
+
+    # Convert the point to a numpy array
+    world_point = np.hstack((world_points, np.ones((world_points.shape[0], 1))))
+
+    # Apply the transform: Rotate then translate
+    cam_in_world_points = H_cam_to_world @ world_point.T
+    # cam_in_cam_point = np.array([-cam_in_world_point[1], -cam_in_world_point[2], cam_in_world_point[0]])
+    cam_in_cam_points = np.array([cam_in_world_points[:,1], -cam_in_world_points[:,0], -cam_in_world_points[:,2]])
+
+    return camera_to_image(cam_in_cam_points, camera_vector)
+
+def world_to_image_pose(world_points, pose_in_world, camera_vector):
+    '''
+    Convert world points to image points using a pose
+
+    Parameters:
+    world_points -- the world points in the world frame (Nx3)
+    pose_in_world -- the pose of the camera in the world frame
+    camera_vector -- the camera vector (fx, fy, cx, cy)
+
+    Returns:
+    image_points_x -- the x-coordinates of the image points
+    image_points_y -- the y-coordinates of the image points
+    '''
+
     H_world_to_cam = pose_to_homogeneous(pose_in_world)
     H_cam_to_world = np.linalg.inv(H_world_to_cam)
 
     # Convert the point to a numpy array
-    world_point = np.array([world_x, world_y, world_z])
+    world_point = np.hstack((world_points, np.ones((world_points.shape[0], 1))))
 
     # Apply the transform: Rotate then translate
-    cam_in_world_point = H_cam_to_world @ np.append(world_point, 1)
-    cam_in_cam_point = np.array([-cam_in_world_point[1], -cam_in_world_point[2], cam_in_world_point[0]])
+    cam_in_world_points = H_cam_to_world @ world_point.T
+    # cam_in_cam_point = np.array([-cam_in_world_point[1], -cam_in_world_point[2], cam_in_world_point[0]])
+    cam_in_cam_points = np.array([cam_in_world_points[:,1], -cam_in_world_points[:,0], -cam_in_world_points[:,2]])
 
-    return camera_to_image(cam_in_cam_point[0], cam_in_cam_point[1], cam_in_cam_point[2], camera_vector)
+    return camera_to_image(cam_in_cam_points, camera_vector)
 
 
 def image_to_camera(image_points, depth, camera_vector):
-    fx, fy, cx, cy = camera_vector
-    camera_x = (image_points[:,0] - cx).reshape(-1, 1) * depth / fx
-    camera_y = (image_points[:,1] - cy).reshape(-1, 1) * depth / fy
-    return camera_x, camera_y, depth
+    '''
+    Convert image points to camera points
 
-def camera_to_image(camera_x, camera_y, camera_z, camera_vector):
+    Parameters:
+    image_points -- the image points in the image frame (Nx2)
+    depth -- the depth of the image points (Nx1)
+    camera_vector -- the camera vector (fx, fy, cx, cy)
+
+    Returns:
+    camera_points_x -- the x-coordinates of the camera points
+    camera_points_y -- the y-coordinates of the camera points
+    camera_points_z -- the z-coordinates of the camera points
+    '''
     fx, fy, cx, cy = camera_vector
-    image_x = (camera_x * fx / camera_z) + cx
-    image_y = (camera_y * fy / camera_z) + cy
-    return image_x, image_y
+    camera_matrix = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+    inv_camera_matrix = np.linalg.inv(camera_matrix)
+    image_points = np.hstack((image_points, np.ones((image_points.shape[0], 1))))
+    camera_points = np.dot(inv_camera_matrix, image_points.T).T * depth
+    return camera_points[:, 0], camera_points[:, 1], camera_points[:, 2]
+
+def camera_to_image(camera_points, camera_vector):
+    '''
+    Convert camera points to image points
+
+    Parameters:
+    camera_points -- the camera points in the camera frame (3xN)
+    camera_vector -- the camera vector (fx, fy, cx, cy)
+
+    Returns:
+    image_points_x -- the x-coordinates of the image points
+    image_points_y -- the y-coordinates of the image points
+
+    '''
+
+    fx, fy, cx, cy = camera_vector
+    camera_matrix = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+    image_points = np.dot(camera_matrix, camera_points)
+    return image_points[:,0], image_points[:,1]
 
 def get_yaw_z_from_quaternion(x, y, z, w):
     """
