@@ -90,9 +90,7 @@ def image_to_world_tf(image_points, depth, tf_camera_to_world, camera_vector):
     pose_in_world -- the pose of the camera in the world frame
     
     Returns:
-    world_points_x -- the x-coordinates of the world points
-    world_points_y -- the y-coordinates of the world points
-    world_points_z -- the z-coordinates of the world points
+    world_points -- the world points in the world frame (Nx3)
     '''
     camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
@@ -114,7 +112,7 @@ def image_to_world_tf(image_points, depth, tf_camera_to_world, camera_vector):
         except Exception as e:
             return None
 
-    return world_points[:,0], world_points[:,1], world_points[:,2]
+    return world_points
 
 def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
     ''' 
@@ -126,9 +124,7 @@ def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
     pose_in_world -- the pose of the camera in the world frame
     
     Returns:
-    world_points_x -- the x-coordinates of the world points
-    world_points_y -- the y-coordinates of the world points
-    world_points_z -- the z-coordinates of the world points
+    world_points -- the world points in the world frame (Nx3)
     '''
     camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
@@ -150,7 +146,7 @@ def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
         except Exception as e:
             return None
 
-    return world_points[:,0], world_points[:,1], world_points[:,2]
+    return world_points
 
 def world_to_image_tf(world_points, tf_camera_to_world, camera_vector):
     '''
@@ -279,7 +275,7 @@ def get_yaw_x_from_quaternion(x, y, z, w):
     yaw = np.arctan2(sinx_cosp, cosx_cosp)
     return yaw
 
-def get_distance_between_3D_point(point1, point2):
+def get_distance_between_3D_points(point1, point2):
     """
     Calculate the Euclidean distance between two 3D points.
     
