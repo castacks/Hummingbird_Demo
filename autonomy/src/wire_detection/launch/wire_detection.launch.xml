@@ -5,4 +5,11 @@
     name="wire_detection_node">
     <param from="$(find-pkg-share common_utils)/wire_tracking_config.yaml" />
   </node>
+
+    <node 
+    pkg="rviz2" 
+    exec="rviz2" 
+    name="rviz2" 
+    args="-d $(find-pkg-share common_utils)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
+    
 </launch>

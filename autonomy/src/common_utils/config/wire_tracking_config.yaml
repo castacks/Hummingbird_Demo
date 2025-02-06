@@ -14,9 +14,12 @@
 
     # Wire detection params
     expansion_size: 10
-    line_threshold: 350
+    line_threshold: 400
 
     # KF params
-    max_distance_threshold: 0.1 # meters
-    min_valid_kf_count_threshold: 20
-    iteration_start_threshold: 30
+    max_distance_threshold: 0.15 # meters
+    min_valid_kf_count_threshold: 10
+    iteration_start_threshold: 20
+    # yaw_covariance: 0.0349066 # radians
+    yaw_covariance: 0.02 # radians
+    pos_covariance: 0.10 # meters

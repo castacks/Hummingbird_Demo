@@ -152,6 +152,8 @@ def clamp_angles_pi(angles):
         angles = np.array([angles])
     converted_angles = []
     for angle in angles:
+        # convert angles to be in 360 degrees
+        angle = angle % (2 * np.pi)
         if angle < 0:
             # Adjust negative angles
             converted_angle = (angle + np.pi) % (2 * np.pi)
@@ -195,3 +197,33 @@ def create_depth_viz(depth):
     depth = (depth * 255).astype(np.uint8)
     depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
     return depth
+
+def average_depth_on_line(pt1, pt2, depth_image, segmentation_mask):
+    """
+    Computes the average depth of points along a line that are also within the segmentation mask.
+    
+    :param pt1: Tuple (x1, y1) representing the first point of the line.
+    :param pt2: Tuple (x2, y2) representing the second point of the line.
+    :param depth_image: 2D numpy array representing the depth image.
+    :param segmentation_mask: 2D numpy array (binary mask) where valid points are 1.
+    :return: The average depth of valid points along the line.
+    """
+    # Generate points along the line using Bresenham's line algorithm
+    line_points = np.array(cv2.line(np.zeros_like(depth_image, dtype=np.uint8), pt1, pt2, 1))
+    y_indices, x_indices = np.where(line_points == 1)
+    
+    # Filter points that fall within the segmentation mask
+    valid_mask = segmentation_mask[y_indices, x_indices] > 0
+    valid_depths = depth_image[y_indices[valid_mask], x_indices[valid_mask]]
+
+    # remove nans or infs or 0s
+    valid_depths = valid_depths[~np.isnan(valid_depths)]
+    valid_depths = valid_depths[~np.isinf(valid_depths)]
+    valid_depths = valid_depths[valid_depths > 0.0]
+    
+    # Compute and return the average depth
+    if valid_depths.size > 0:
+        return np.mean(valid_depths)
+    else:
+        return None  # No valid depth values found
+

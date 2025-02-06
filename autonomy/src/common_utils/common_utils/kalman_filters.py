@@ -1,7 +1,7 @@
 import numpy as np
 
 class PositionKalmanFilter:
-    def __init__(self, pos_0):
+    def __init__(self, pos_0, pos_covariance=0.10):
         """
         Initialize the Kalman Filter.
         
@@ -13,8 +13,8 @@ class PositionKalmanFilter:
         - x0: Initial state estimate.
         - P0: Initial estimate covariance.
         """
-        Q_val = 0.10 ** 2 # 10 cm
-        R_val = 0.10 ** 2 # 10 cm
+        Q_val = pos_covariance ** 2 # 10 cm
+        R_val = pos_covariance ** 2 # 10 cm
         self.Q = np.eye(3) * Q_val # Process noise covariance
         self.R = np.eye(3) * R_val # Measurement noise covariance
         self.P = np.eye(3) * R_val  # Initial estimate covariance
@@ -45,7 +45,7 @@ class PositionKalmanFilter:
         self.valid_count += 1
 
 class YawKalmanFilter:
-    def __init__(self, initial_yaw):
+    def __init__(self, initial_yaw, yaw_covariance=0.0349066):
         """
         Initialize the Kalman Filter.
         
@@ -57,8 +57,8 @@ class YawKalmanFilter:
         - x0: Initial state estimate.
         - P0: Initial estimate covariance.
         """
-        Q_val = 0.0349066 ** 2 # 2 degrees
-        R_val = 0.0349066 ** 2 # 2 degrees
+        Q_val = yaw_covariance ** 2 # 2 degrees
+        R_val = yaw_covariance ** 2 # 2 degrees
         self.Q = np.eye(2) * Q_val # Process noise covariance in radians
         self.R = np.eye(2) * R_val # Measurement noise covariance in radians
         self.P = np.eye(2) * R_val  # Initial estimate covariance

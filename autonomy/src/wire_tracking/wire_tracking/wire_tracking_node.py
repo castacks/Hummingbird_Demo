@@ -14,7 +14,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, create_depth_viz
+from common_utils.wire_detection import WireDetector, find_closest_point_on_3d_line, clamp_angles_pi, create_depth_viz, average_depth_on_line
 from common_utils.kalman_filters import PositionKalmanFilter, YawKalmanFilter
 import common_utils.coord_transforms as ct
 
@@ -134,14 +134,12 @@ class WireTrackingNode(Node):
                 self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {cam_yaw}, Avg Yaw: {avg_yaw}") 
                 corresponding_depths = np.zeros(len(wire_midpoints))
                 for i, (x, y) in enumerate(wire_midpoints):
-                    # does not allow for the depth of a midpoint to be a indescipt value
-                    depth_midpoint = depth[y, x]
-                    # TODO: refine this method
-                    while depth_midpoint == 0.0 or depth_midpoint == None or np.isnan(depth_midpoint):
-                        x = int(x + np.cos(avg_yaw)*2)
-                        y = int(y + np.sin(avg_yaw)*2) 
-                        depth_midpoint = depth[y, x]
 
+                    # depth_midpoint = depth[y, x]
+                    # find all depths that are in the segmentation mask and lie on the line of the wire, and average their depths
+                    pt1 = np.array([wire_lines[i][0], wire_lines[i][1]])
+                    pt2 = np.array([wire_lines[i][2], wire_lines[i][3]])
+                    depth_midpoint = average_depth_on_line(pt1, pt2, depth, seg_mask)
                     corresponding_depths[i] = depth_midpoint
 
                 global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
@@ -150,7 +148,7 @@ class WireTrackingNode(Node):
                 else:
                     self.update_kfs(global_midpoints, global_yaw, pose)
 
-                self.debug_kfs(detected_midpoints=global_midpoints)
+                self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
 
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
@@ -200,13 +198,13 @@ class WireTrackingNode(Node):
             for mid in consolidated_midpoints:
                 self.add_kf(mid)
 
-            self.yaw_kalman_filter = YawKalmanFilter(global_yaw)
+            self.yaw_kalman_filter = YawKalmanFilter(global_yaw, yaw_covariance=self.yaw_covariance)
             self.are_kfs_initialized = True
             self.get_logger().info("Kalman Filters Initialized")
 
     def add_kf(self, midpoint):
         self.max_kf_label += 1
-        self.position_kalman_filters[self.max_kf_label] = PositionKalmanFilter(midpoint)
+        self.position_kalman_filters[self.max_kf_label] = PositionKalmanFilter(midpoint, pos_covariance=self.pos_covariance)
         self.position_kalman_filters[self.max_kf_label].valid_count = 1
         saturation_threshold = 150
         value_threshold = 100
@@ -244,6 +242,7 @@ class WireTrackingNode(Node):
             for kf_id, kf in self.position_kalman_filters.items():
                 closest_point = find_closest_point_on_3d_line(midpoint, self.yaw_kalman_filter.get_yaw(), kf.curr_pos)
                 distance = np.linalg.norm(closest_point - kf.curr_pos)
+                self.get_logger().info(f"Distance: {distance}")
                 # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
                 if distance < self.distance_threshold:
                     kf.update(midpoint)
@@ -316,6 +315,8 @@ class WireTrackingNode(Node):
             self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
             self.declare_parameter('min_valid_kf_count_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('iteration_start_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('yaw_covariance', rclpy.Parameter.Type.DOUBLE)
+            self.declare_parameter('pos_covariance', rclpy.Parameter.Type.DOUBLE)
 
             # Access parameters
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
@@ -333,6 +334,8 @@ class WireTrackingNode(Node):
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
             self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
             self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value
+            self.yaw_covariance = self.get_parameter('yaw_covariance').get_parameter_value().double_value
+            self.pos_covariance = self.get_parameter('pos_covariance').get_parameter_value().double_value
 
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
