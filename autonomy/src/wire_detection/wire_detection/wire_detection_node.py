@@ -28,6 +28,7 @@ class WireDetectorNode(Node):
         # Publishers
         self.wire_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
+        self.seg_mask_viz_pub = self.create_publisher(Image, self.seg_mask_pub_topic, 1)
 
         self.get_logger().info("Wire Detection Node initialized")
 
@@ -38,7 +39,8 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        debug_image = self.detect_lines_and_update(rgb)
+        debug_image, seg_mask = self.detect_lines_and_update(rgb)
+        self.seg_mask_viz_pub.publish(self.bridge.cv2_to_imgmsg(seg_mask, encoding='mono8'))
         if debug_image is not None:
             img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
             self.wire_viz_pub.publish(img_msg)    
@@ -50,13 +52,15 @@ class WireDetectorNode(Node):
         seg_mask = self.wire_detector.create_seg_mask(image)
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
+            self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
             debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
-            return debug_img
+
+            return debug_img, seg_mask
     
     def draw_wire_lines(self, img, wire_lines, wire_midpoints):
         # colors = self.assign_line_colors(wire_lines, wire_midpoints)
         green = (0, 255, 0)
-        blue = (255, 0, 0)
+        blue = (0, 0, 255)
         for i, (x, y) in enumerate(wire_midpoints):
             x0, y0, x1, y1 = wire_lines[i]
             cv2.line(img, (x0, y0), (x1, y1), green, 2)
@@ -84,6 +88,7 @@ class WireDetectorNode(Node):
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('wire_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('seg_mask_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Access parameters
             self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
@@ -93,6 +98,7 @@ class WireDetectorNode(Node):
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
             self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
+            self.seg_mask_pub_topic = self.get_parameter('seg_mask_pub_topic').get_parameter_value().string_value
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")
     

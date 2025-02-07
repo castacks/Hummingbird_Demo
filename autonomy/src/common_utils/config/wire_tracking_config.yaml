@@ -12,10 +12,11 @@
     wire_viz_pub_topic: "/wire_cam/detection_debug"
     depth_viz_pub_topic: "/wire_cam/depth_debug"
     pose_viz_pub_topic: "/wire_cam/pos_debug"
+    seg_mask_pub_topic: "/wire_cam/seg_mask"
 
     # Wire detection params
     expansion_size: 10
-    line_threshold: 400
+    line_threshold: 10
 
     # KF params
     max_distance_threshold: 0.15 # meters

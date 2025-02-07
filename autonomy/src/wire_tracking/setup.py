@@ -11,6 +11,7 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, ['launch/wire_tracking.launch.xml']),  # If you have a launch file
+        ('share/' + package_name + '/rviz', ['rviz/wire_tracking.rviz'])
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -10,6 +10,6 @@
     pkg="rviz2" 
     exec="rviz2" 
     name="rviz2" 
-    args="-d $(find-pkg-share common_utils)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
+    args="-d $(find-pkg-share wire_detection)/rviz/wire_detection.rviz --ros-args --log-level WARN" />
     
 </launch>

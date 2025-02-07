@@ -141,8 +141,10 @@ class WireTrackingNode(Node):
         seg_mask = self.wire_detector.create_seg_mask(image)
 
         # if there are no lines detected, return None, a default image will be published
+        self.get_logger().info(f"hello")
         if np.any(seg_mask):
             wire_lines, wire_midpoints, wire_yaw_in_image = self.wire_detector.detect_wires(seg_mask)
+            self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
 
             # get the horizontal camera yaw
             # pose_yaw = ct.get_x_rot_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
@@ -172,7 +174,7 @@ class WireTrackingNode(Node):
 
                 pose_yaw = ct.clamp_angles_pi(global_yaw - wire_yaw_in_image)
                 self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {pose_yaw}, Yaw in Image {wire_yaw_in_image}")
-                # self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
+                self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
 
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:

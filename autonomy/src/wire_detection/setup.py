@@ -11,6 +11,8 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, ['launch/wire_detection.launch.xml']),  # If you have a launch file
+        ('share/' + package_name + '/rviz', ['rviz/wire_detection.rviz']),
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,
