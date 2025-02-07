@@ -129,15 +129,15 @@ def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
     camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
     # transforming from camera frame to world convention
-    camera_points_in_world_x = camera_points_z
-    camera_points_in_world_y = - camera_points_x
-    camera_points_in_world_z = - camera_points_y
+    # camera_points_in_world_x = camera_points_z
+    # camera_points_in_world_y = - camera_points_x
+    # camera_points_in_world_z = - camera_points_y
 
     H_cam_to_world = pose_to_homogeneous(pose_in_world)
 
     # Convert the point to a numpy array
-    # point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
-    point_vec = np.hstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_in_world_x)))
+    # point_vec = np.hstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_in_world_x)))
+    point_vec = np.hstack((camera_points_x, camera_points_y, camera_points_z, np.ones_like(camera_points_x)))
 
     # Apply the transform: Rotate then translate
     with np.errstate(invalid='ignore'):
@@ -197,10 +197,9 @@ def world_to_image_pose(world_points, pose_in_world, camera_vector):
 
     # Apply the transform: Rotate then translate
     cam_in_world_points = H_cam_to_world @ world_point.T
-    # cam_in_cam_point = np.array([-cam_in_world_point[1], -cam_in_world_point[2], cam_in_world_point[0]])
-    cam_in_cam_points = np.array([cam_in_world_points[:,1], -cam_in_world_points[:,0], -cam_in_world_points[:,2]])
-
-    return camera_to_image(cam_in_cam_points, camera_vector)
+    # cam_in_cam_points = np.array([cam_in_world_points[:,1], -cam_in_world_points[:,0], -cam_in_world_points[:,2]])
+    # return camera_to_image(cam_in_cam_points, camera_vector)
+    return camera_to_image(cam_in_world_points, camera_vector)
 
 
 def image_to_camera(image_points, depth, camera_vector):
@@ -243,7 +242,7 @@ def camera_to_image(camera_points, camera_vector):
     image_points = np.dot(camera_matrix, camera_points)
     return image_points[:,0], image_points[:,1]
 
-def get_yaw_z_from_quaternion(x, y, z, w):
+def get_z_rot_from_quaternion(x, y, z, w):
     """
     Calculate the yaw (rotation around the z-axis) from a quaternion.
     
@@ -254,12 +253,20 @@ def get_yaw_z_from_quaternion(x, y, z, w):
     yaw -- the yaw angle in radians
     """
     # Calculate the yaw (z-axis rotation)
-    siny_cosp = 2 * (w * z + x * y)
-    cosy_cosp = 1 - 2 * (y**2 + z**2)
-    yaw = np.arctan2(siny_cosp, cosy_cosp)
-    return yaw
+    # siny_cosp = 2 * (w * z + x * y)
+    # cosy_cosp = 1 - 2 * (y**2 + z**2)
+    # yaw = np.arctan2(siny_cosp, cosy_cosp)
+    # return yaw
 
-def get_yaw_x_from_quaternion(x, y, z, w):
+    quaternion = [w, x, y, z]
+    numerator = 2 * (quaternion[0]*quaternion[3]+quaternion[1]*quaternion[2])
+    denominator = 1 - (2*(np.square(quaternion[2])+np.square(quaternion[3])))
+    yaw_angle = np.arctan2(numerator, denominator)
+    return yaw_angle
+
+
+
+def get_x_rot_from_quaternion(x, y, z, w):
     """
     Calculate the yaw (rotation around the x-axis) from a quaternion.
     
@@ -273,6 +280,22 @@ def get_yaw_x_from_quaternion(x, y, z, w):
     sinx_cosp = 2 * (w * x + y * z)
     cosx_cosp = 1 - 2 * (x**2 + y**2)
     yaw = np.arctan2(sinx_cosp, cosx_cosp)
+    return yaw
+
+def get_y_rot_from_quaternion(x, y, z, w):
+    """
+    Calculate the yaw (rotation around the y-axis) from a quaternion.
+    
+    Parameters:
+    x, y, z, w -- components of the quaternion
+    
+    Returns:
+    yaw -- the yaw angle in radians
+    """
+    # Calculate the yaw (z-axis rotation)
+    sinz_cosp = 2 * (w * y - z * x)
+    cosz_cosp = 1 - 2 * (y**2 + z**2)
+    yaw = np.arctan2(sinz_cosp, cosz_cosp)
     return yaw
 
 def get_distance_between_3D_points(point1, point2):
@@ -289,7 +312,7 @@ def get_distance_between_3D_points(point1, point2):
     distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
     return distance
 
-def quaterion_to_euler(x, y, z, w):
+def quaternion_to_euler(x, y, z, w, order='xyz'):
     """
     Convert a quaternion to Euler angles.
     
@@ -303,5 +326,5 @@ def quaterion_to_euler(x, y, z, w):
     """
     # Calculate the Euler angles
     r = Rotation.from_quat([x, y, z, w])
-    roll, pitch, yaw = r.as_euler('xyz')
+    roll, pitch, yaw = r.as_euler(order)
     return roll, pitch, yaw

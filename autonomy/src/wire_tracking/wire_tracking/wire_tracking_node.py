@@ -103,13 +103,16 @@ class WireTrackingNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         
+        # pose comes in camera frame orientation, x down, y left, z forward
         if self.use_pose_cam:
             pose = self.transform_pose_cam_to_wire_cam(pose_msg.pose)
         else:    
             pose = pose_msg.pose
 
-        self.get_logger().info(f"Wire Cam Position: {pose.position.x}, {pose.position.y}, {pose.position.z}")
-        self.get_logger().info(f"Wire Cam Orientation: {ct.quaternion_to_euler(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)}")
+        # self.get_logger().info(f"Wire Cam Position: {pose.position.x}, {pose.position.y}, {pose.position.z}")
+        # roll, pitch, yaw = ct.quaternion_to_euler(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w, 'xyz')
+        # self.get_logger().info(f"X Rot: {np.rad2deg(roll)}, Y Rot: {np.rad2deg(pitch)}, Z Rot: {np.rad2deg(yaw)}")
+        # self.get_logger().info(f"Wire Cam Yaw: {np.rad2deg(ct.get_z_rot_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w))}")
 
         debug_image = None
         if self.received_camera_info:
@@ -140,11 +143,14 @@ class WireTrackingNode(Node):
         # if there are no lines detected, return None, a default image will be published
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
+
             # get the horizontal camera yaw
-            cam_yaw = ct.get_yaw_x_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+            # cam_yaw = ct.get_x_rot_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
-                global_yaw = wd.clamp_angles_pi(cam_yaw + avg_yaw)
-                self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {cam_yaw}, Avg Yaw: {avg_yaw}") 
+                # global_yaw = wd.clamp_angles_pi(cam_yaw + avg_yaw)
+                # self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {cam_yaw}, Avg Yaw: {avg_yaw}") 
+
+                global_yaw = 0.0
                 corresponding_depths = np.zeros(len(wire_midpoints))
                 for i, (x, y) in enumerate(wire_midpoints):
 
@@ -152,10 +158,14 @@ class WireTrackingNode(Node):
                     # find all depths that are in the segmentation mask and lie on the line of the wire, and average their depths
                     pt1 = np.array([wire_lines[i][0], wire_lines[i][1]])
                     pt2 = np.array([wire_lines[i][2], wire_lines[i][3]])
-                    depth_midpoint = wd.average_depth_on_line(pt1, pt2, depth, seg_mask)
-                    corresponding_depths[i] = depth_midpoint
+                    wire_depth, wire_global_yaw = self.characterize_a_line(pt1, pt2, depth, seg_mask)
+                    wire_global_yaw = wd.clamp_angles_pi(wire_global_yaw)
+                    global_yaw += wire_global_yaw
+                    corresponding_depths[i] = wire_depth
 
                 global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
+                global_yaw /= len(wire_midpoints)
+
                 if self.are_kfs_initialized == False:
                     self.initialize_kfs(global_midpoints, global_yaw)
                 else:
@@ -288,16 +298,25 @@ class WireTrackingNode(Node):
             self.position_kalman_filters.pop(kf_id)
             self.vis_colors.pop(kf_id)
 
-    def draw_kfs_viz(self, img, pose_in_world, cam_yaw):
-        global_yaw = self.yaw_kalman_filter.get_yaw()
-        image_yaw = global_yaw - cam_yaw
+    def draw_kfs_viz(self, img, pose_in_world):
+        kf_yaw = self.yaw_kalman_filter.get_yaw()
         for i, kf in self.position_kalman_filters.items():
             if kf.valid_count >= self.valid_threshold:
-                image_midpoint = ct.world_to_image_pose(kf.curr_pos, pose_in_world, self.camera_vector)
-                x0 = int(image_midpoint[0] + self.line_length * np.cos(image_yaw))
-                y0 = int(image_midpoint[1] + self.line_length * np.sin(image_yaw))
-                x1 = int(image_midpoint[0] - self.line_length * np.cos(image_yaw))
-                y1 = int(image_midpoint[1] - self.line_length * np.sin(image_yaw))
+                x0 = kf.curr_pos[0] + 1.0 * np.cos(kf_yaw)
+                y0 = kf.curr_pos[1] + 1.0 * np.sin(kf_yaw)
+                x1 = kf.curr_pos[0] - 1.0 * np.cos(kf_yaw)
+                y1 = kf.curr_pos[1] - 1.0 * np.sin(kf_yaw)
+
+                line_points = ct.world_to_image_pose(np.array([[x0, y0, kf.curr_pos[2]], [x1, y1, kf.curr_pos[2]]]), pose_in_world, self.camera_vector)
+                x0, y0 = line_points[0] * self.line_length
+                x1, y1 = line_points[1] * self.line_length
+
+                # image_midpoint = ct.world_to_image_pose(kf.curr_pos, pose_in_world, self.camera_vector)
+                # x0 = int(image_midpoint[0] + self.line_length * np.cos(image_yaw))
+                # y0 = int(image_midpoint[1] + self.line_length * np.sin(image_yaw))
+                # x1 = int(image_midpoint[0] - self.line_length * np.cos(image_yaw))
+                # y1 = int(image_midpoint[1] - self.line_length * np.sin(image_yaw))
+                
                 cv2.line(img, (x0, y0), (x1, y1), self.vis_colors[i], 2)
                 cv2.circle(img, (int(image_midpoint[0]), int(image_midpoint[1])), 5, self.vis_colors[i], -1)
 
@@ -308,15 +327,13 @@ class WireTrackingNode(Node):
             
         return img
     
-    def average_depth_on_line(self, pt1, pt2, depth_image, segmentation_mask):
+    def characterize_a_line(self, pt1, pt2, depth_image, segmentation_mask, pose):
         """
         Computes the average depth of points along a line that are also within the segmentation mask.
         
-        :param pt1: Tuple (x1, y1) representing the first point of the line.
-        :param pt2: Tuple (x2, y2) representing the second point of the line.
-        :param depth_image: 2D numpy array representing the depth image.
-        :param segmentation_mask: 2D numpy array (binary mask) where valid points are 1.
-        :return: The average depth of valid points along the line.
+
+        Returns:
+            mean_depth: The average depth of the points along the line that are within the segmentation mask.
         """
         # Generate points along the line using Bresenham's line algorithm
         line_points = np.array(cv2.line(np.zeros_like(depth_image, dtype=np.uint8), pt1, pt2, 1))
@@ -333,11 +350,14 @@ class WireTrackingNode(Node):
         valid_xs = valid_xs[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
         valid_ys = valid_ys[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
 
-
         if valid_depths.size > 0:
+            world_points = ct.image_to_world_pose(np.hstack((valid_xs.reshape(-1, 1), valid_ys.reshape(-1, 1))), valid_depths, pose, self.camera_vector)
+            avg_global_yaw = wd.compute_yaw_from_3D_points(world_points)
+
             cam_points_x, cam_points_y, cam_points_z = ct.image_to_camera(np.hstack((valid_xs.reshape(-1, 1), valid_ys.reshape(-1, 1))), valid_depths, self.camera_vector)
-            mean_depth = np.mean(cam_points_z)
-            return mean_depth
+
+            avg_depth = np.mean(cam_points_z)
+            return avg_depth, avg_global_yaw
         else:
             return None  # No valid depth values found
         

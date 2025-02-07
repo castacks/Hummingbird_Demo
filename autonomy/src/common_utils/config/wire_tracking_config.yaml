@@ -5,7 +5,7 @@
     camera_info_sub_topic: "/wire_cam/zed_node/left/camera_info"
     rgb_image_sub_topic: "/wire_cam/zed_node/left/image_rect_color"
     depth_image_sub_topic: "/wire_cam/zed_node/depth/depth_registered"
-    use_pose_cam: true
+    use_pose_cam: false
     pose_sub_topic: "/zed_node/pose"
 
     # publishers

@@ -128,7 +128,6 @@ def find_closest_point_on_3d_line(line_midpoint, yaw, target_point):
     closest_point = np.array([x0, y0, z0]) + t * direction
     return closest_point
 
-
 def clamp_angles_deg(angles):
     angles = np.array(angles)
     converted_angles = []
@@ -169,23 +168,6 @@ def clamp_angles_pi(angles):
     else:
         return np.array(converted_angles)
 
-def get_yaw_from_quaternion(x, y, z, w):
-    """
-    Calculate the yaw (rotation around the z-axis) from a quaternion.
-    
-    Parameters:
-    x, y, z, w -- components of the quaternion
-    
-    Returns:
-    yaw -- the yaw angle in radians
-    """
-    # Calculate the yaw (z-axis rotation)
-    siny_cosp = 2 * (w * z + x * y)
-    cosy_cosp = 1 - 2 * (y**2 + z**2)
-    yaw = np.arctan2(siny_cosp, cosy_cosp)
-    # yaw = clamp_angles_rad(yaw)
-    return yaw
-
 def create_depth_viz(depth):
     min_depth = 0.4
     max_depth = 10.0
@@ -197,4 +179,21 @@ def create_depth_viz(depth):
     depth = (depth * 255).astype(np.uint8)
     depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
     return depth
+
+def compute_yaw_from_3D_points(points):
+    mean = np.mean(points, axis=0)
+    centered_points = points - mean
+    _, _, Vt = np.linalg.svd(centered_points)
+    
+    # Principal direction (first principal component)
+    direction = Vt[0]  # First row of Vt is the principal direction
+    
+    # Extract x and y components
+    dx, dy = direction[0], direction[1]
+    
+    # Compute yaw angle
+    yaw_rad = np.arctan2(dy, dx)
+    
+    return yaw_rad
+
 
