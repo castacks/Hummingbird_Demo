@@ -142,13 +142,12 @@ class WireTrackingNode(Node):
 
         # if there are no lines detected, return None, a default image will be published
         if np.any(seg_mask):
-            wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
+            wire_lines, wire_midpoints, wire_yaw_in_image = self.wire_detector.detect_wires(seg_mask)
 
             # get the horizontal camera yaw
-            # cam_yaw = ct.get_x_rot_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+            # pose_yaw = ct.get_x_rot_from_quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
             if len(wire_midpoints) != 0:
-                # global_yaw = wd.clamp_angles_pi(cam_yaw + avg_yaw)
-                # self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {cam_yaw}, Avg Yaw: {avg_yaw}") 
+                # global_yaw = wd.clamp_angles_pi(pose_yaw + wire_yaw_in_image)
 
                 global_yaw = 0.0
                 corresponding_depths = np.zeros(len(wire_midpoints))
@@ -171,7 +170,9 @@ class WireTrackingNode(Node):
                 else:
                     self.update_kfs(global_midpoints, global_yaw, pose)
 
-                self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
+                pose_yaw = ct.clamp_angles_pi(global_yaw - wire_yaw_in_image)
+                self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {pose_yaw}, Yaw in Image {wire_yaw_in_image}")
+                # self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
 
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
@@ -187,7 +188,7 @@ class WireTrackingNode(Node):
                 self.tracked_wire_id = min_id
 
             if self.are_kfs_initialized:
-                debug_img = self.draw_kfs_viz(image, pose, cam_yaw)
+                debug_img = self.draw_kfs_viz(image, pose)
             else:
                 debug_img = None        
         return debug_img
@@ -316,7 +317,7 @@ class WireTrackingNode(Node):
                 # y0 = int(image_midpoint[1] + self.line_length * np.sin(image_yaw))
                 # x1 = int(image_midpoint[0] - self.line_length * np.cos(image_yaw))
                 # y1 = int(image_midpoint[1] - self.line_length * np.sin(image_yaw))
-                
+
                 cv2.line(img, (x0, y0), (x1, y1), self.vis_colors[i], 2)
                 cv2.circle(img, (int(image_midpoint[0]), int(image_midpoint[1])), 5, self.vis_colors[i], -1)
 
