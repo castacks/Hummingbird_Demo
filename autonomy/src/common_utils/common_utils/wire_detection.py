@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 class WireDetector:
-    def __init__(self, threshold=500, expansion_size=10):
+    def __init__(self, threshold, expansion_size):
         self.threshold = threshold
         self.expansion_size = expansion_size
         self.img_height = None
@@ -12,22 +12,20 @@ class WireDetector:
         self.cy = None
         self.line_length = None
 
-    def get_hough_lines(self, seg_mask, threshold):
+    def get_hough_lines(self, seg_mask):
         seg_coords = np.argwhere(seg_mask==255)
         seg_coords = seg_coords[:, [1, 0]]
 
-        cartesian_lines = cv2.HoughLinesP(seg_mask, 1, np.pi/180, threshold)
+        cartesian_lines = cv2.HoughLinesP(seg_mask, 1, np.pi/180, self.threshold)
         if cartesian_lines is None:
             return None, None, None, None, None
         cartesian_lines = np.squeeze(cartesian_lines,axis=1)
 
-        polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, threshold)
+        polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, self.threshold)
         if polar_lines is None:
             return None, None, None, None, None
         polar_lines = np.squeeze(polar_lines, axis=1)
 
-        # avg_angle = np.mean(polar_lines[:,1]) + np.pi / 2
-        # handling wrap around issue
         unit_vectors = np.array([np.cos(polar_lines[:,1]), np.sin(polar_lines[:,1])]).T
         avg_angle = np.arctan2(np.mean(unit_vectors[:,1]), np.mean(unit_vectors[:,0])) + np.pi / 2
 
@@ -80,8 +78,8 @@ class WireDetector:
 
         return wire_lines, wire_midpoints
 
-    def detect_wires(self, seg_mask, threshold=500):
-        cartesian_lines, center_line, center_line_midpoint, avg_angle, seg_coords = self.get_hough_lines(seg_mask, threshold)
+    def detect_wires(self, seg_mask):
+        cartesian_lines, center_line, center_line_midpoint, avg_angle, seg_coords = self.get_hough_lines(seg_mask)
         if cartesian_lines is not None: 
             wire_lines, wire_midpoints = self.get_line_instance_locations(cartesian_lines, center_line, center_line_midpoint, avg_angle, seg_coords)
             wire_lines = np.array(wire_lines)

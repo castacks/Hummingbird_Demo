@@ -16,7 +16,7 @@
 
     # Wire detection params
     expansion_size: 10
-    line_threshold: 10
+    line_threshold: 200
 
     # KF params
     max_distance_threshold: 0.15 # meters
