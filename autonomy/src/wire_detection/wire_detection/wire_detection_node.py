@@ -53,7 +53,6 @@ class WireDetectorNode(Node):
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
-            self.get_logger().info(f"Image size: {image.shape}")
             debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
 
             return debug_img, seg_mask

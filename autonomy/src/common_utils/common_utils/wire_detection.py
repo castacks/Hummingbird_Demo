@@ -117,12 +117,19 @@ def compute_perpendicular_distance(center_line, lines):
     return np.array(distances)
 
 def find_closest_point_on_3d_line(line_midpoint, yaw, target_point):
+    assert line_midpoint.shape == (3,), f"Line midpoint must be a 3D point, got {line_midpoint.shape}"
+    assert target_point.shape == (3,), f"Target point must be a 3D point, got {target_point.shape}"
+    assert np.isscalar(yaw), f"Yaw must be a scalar, got {yaw}"
+
     x0, y0, z0 = line_midpoint
     xt, yt, zt = target_point
 
+    diff_vector = np.array([xt - x0, yt - y0, zt - z0]).flatten()
+    assert diff_vector.shape == (3,), f"Invalid shape for difference vector: {diff_vector.shape}"
+
     # Direction vector based on yaw
-    direction = np.array([np.cos(yaw), np.sin(yaw), 0.0])
-    t = np.dot(np.array([xt - x0, yt - y0, zt - z0]), direction) / np.dot(direction, direction)
+    direction = np.array([np.cos(yaw), np.sin(yaw), 0.0]).flatten()
+    t = np.dot(diff_vector, direction) / np.dot(direction, direction)
     closest_point = np.array([x0, y0, z0]) + t * direction
     return closest_point
 
@@ -179,6 +186,11 @@ def create_depth_viz(depth):
     return depth
 
 def compute_yaw_from_3D_points(points):
+    '''
+    Compute the yaw from a set of 3D points.
+    Assumes y and z are planner coordinates.
+    '''
+
     mean = np.mean(points, axis=0)
     centered_points = points - mean
     _, _, Vt = np.linalg.svd(centered_points)
@@ -187,10 +199,14 @@ def compute_yaw_from_3D_points(points):
     direction = Vt[0]  # First row of Vt is the principal direction
     
     # Extract x and y components
-    dx, dy = direction[0], direction[1]
+    # dx, dy = direction[0], direction[1]
+
+    # # Extract y and z components
+    dy, dz = direction[1], direction[2]
     
     # Compute yaw angle
-    yaw_rad = np.arctan2(dy, dx)
+    yaw_rad = np.arctan2(dy, dz)
+    # yaw_rad = np.arctan2(dy, dx)
     
     return yaw_rad
 

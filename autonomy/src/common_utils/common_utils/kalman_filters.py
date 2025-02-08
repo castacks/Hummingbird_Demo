@@ -18,8 +18,8 @@ class PositionKalmanFilter:
         self.Q = np.eye(3) * Q_val # Process noise covariance
         self.R = np.eye(3) * R_val # Measurement noise covariance
         self.P = np.eye(3) * R_val  # Initial estimate covariance
-
-        self.curr_pos = pos_0         # Initial state estimate [x, y, z]
+        assert len(pos_0) == 3
+        self.curr_pos = np.array(pos_0).reshape(-1, 1) # Initial state estimate
         self.valid_count = 0     # Number of valid measurements to be considered a line
 
     def predict(self):
@@ -32,15 +32,18 @@ class PositionKalmanFilter:
     def update(self, measured_pos):
         """Update the state estimate using a new measurement."""
         # Calculate Kalman Gain
+
+        measured_pos = np.array(measured_pos).reshape(-1, 1)
+        assert measured_pos.shape == (3, 1), f"measured_pos shape: {measured_pos.shape}"
+
         S = self.P + self.R
         K = self.P @ np.linalg.inv(S)
 
-        # debug 
-        # K = np.eye(3)
-
         # Update the state estimate and covariance
         y = measured_pos - self.curr_pos
+        assert y.shape == (3, 1), f"y shape: {y.shape}"
         self.curr_pos = self.curr_pos + K @ y
+        assert self.curr_pos.shape == (3, 1), f"curr_pos shape: {self.curr_pos.shape}"
         self.P = (np.eye(3) - K) @ self.P
         self.valid_count += 1
 

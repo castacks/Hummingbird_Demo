@@ -80,7 +80,11 @@ services:
                if [ ! -d "/root/ros2_ws/install" ]; then \
                colcon build --symlink-install; else echo 'Already built'; fi && \
                source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch wire_detection wire_detection.launch.xml && sleep infinity"
+               if [ "$START_TRACKING" -eq 1 ]; then \
+               echo 'Starting Tracking...' && \
+               ros2 launch wire_tracking wire_tracking.launch.xml && sleep infinity;
+               else echo 'Starting Detection...' && \
+               ros2 launch wire_detection wire_detection.launch.xml && sleep infinity; fi"
     network_mode: host
     runtime: nvidia
     privileged: true
@@ -90,6 +94,7 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY
       - QT_X11_NO_MITSHM=1
+      - START_TRACKING=${START_TRACKING}
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
