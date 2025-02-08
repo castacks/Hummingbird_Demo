@@ -155,28 +155,26 @@ class WireTrackingNode(Node):
                     pt1 = np.array([wire_lines[i][0], wire_lines[i][1]])
                     pt2 = np.array([wire_lines[i][2], wire_lines[i][3]])
                     wire_depth, wire_global_yaw = self.characterize_a_line(pt1, pt2, depth, seg_mask, pose)
+                    if wire_depth is None or wire_global_yaw is None:
+                        continue
                     
                     cos_yaw += np.cos(wire_global_yaw)
                     sin_yaw += np.sin(wire_global_yaw)
 
                     corresponding_depths[i] = wire_depth
 
-                global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
-                # self.get_logger().info(f"Global Midpoints: {global_midpoints}, Image Midpoints: {wire_midpoints}")
-                cos_yaw /= len(wire_midpoints)
-                sin_yaw /= len(wire_midpoints)
-                global_yaw = wd.clamp_angles_pi(np.arctan2(sin_yaw, cos_yaw))
+                if corresponding_depths.size != 0 or (cos_yaw != 0.0 and sin_yaw != 0.0):
+                    global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
+                    cos_yaw /= len(wire_midpoints)
+                    sin_yaw /= len(wire_midpoints)
+                    global_yaw = wd.clamp_angles_pi(np.arctan2(sin_yaw, cos_yaw))
 
                 if self.are_kfs_initialized == False:
                     self.initialize_kfs(global_midpoints, global_yaw)
                 else:
                     self.update_kfs(global_midpoints, global_yaw, pose)
 
-                # self.get_logger().info(f"Measured Yaw: {global_yaw}, KF Yaw: {self.yaw_kalman_filter.get_yaw()}, Depth: {corresponding_depths}")
-
-                # pose_yaw = wd.clamp_angles_pi(global_yaw - wire_yaw_in_image)
-                # self.get_logger().info(f"Global Yaw: {global_yaw}, Cam Yaw: {pose_yaw}, Yaw in Image {wire_yaw_in_image}")
-                # self.debug_kfs(detected_midpoints=global_midpoints, depth_midpoints=corresponding_depths, yaw=global_yaw)
+                # self.debug_kfs(detected_midpoints=wire_midpoints, depth_midpoints=corresponding_depths)
 
             self.total_iterations += 1
             if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
@@ -272,7 +270,6 @@ class WireTrackingNode(Node):
             for kf_id, kf in self.position_kalman_filters.items():
                 closest_point = wd.find_closest_point_on_3d_line(midpoint, self.yaw_kalman_filter.get_yaw(), kf.curr_pos.flatten())
                 distance = np.linalg.norm(closest_point - kf.curr_pos.T)
-                # self.get_logger().info(f"Closest_point: {closest_point}, KF Pos: {kf.curr_pos.T}, Distance: {distance}")
                 # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
                 if distance < self.distance_threshold:
                     kf.update(midpoint)
@@ -324,24 +321,14 @@ class WireTrackingNode(Node):
                 global_line_points = np.array([[kf_pos[0], y0, z0], [kf_pos[0], y1, z1], [kf_pos[0], kf_pos[1], kf_pos[2]]])
                 assert global_line_points.shape == (3, 3), f"global line points should be (3, 3), got {global_line_points.shape}"
                 line_xs, line_ys = ct.world_to_image_pose(global_line_points, pose_in_world, self.camera_vector)
-                x0 = int(line_xs[0])
-                y0 = int(line_ys[0])
-                x1 = int(line_xs[1])
-                y1 = int(line_ys[1])
-                # x0 = int(line_xs[0] * self.line_length)
-                # y0 = int(line_ys[0] * self.line_length)
-                # x1 = int(line_xs[1] * self.line_length)
-                # y1 = int(line_ys[1] * self.line_length)
+                image_yaw = np.arctan2(line_ys[1] - line_ys[0], line_xs[1] - line_xs[0])
+                x0 = int(line_xs[0] + self.line_length * np.cos(image_yaw))
+                y0 = int(line_ys[0] + self.line_length * np.sin(image_yaw))
+                x1 = int(line_xs[1] - self.line_length * np.cos(image_yaw))
+                y1 = int(line_ys[1] - self.line_length * np.sin(image_yaw))
                 x_mid = int(line_xs[2])
                 y_mid = int(line_ys[2])
-
-                # image_midpoint = ct.world_to_image_pose(kf_pos.reshape(-1,1).T, pose_in_world, self.camera_vector)
-                # x0 = int(image_midpoint[0] + self.line_length * np.cos(image_yaw))
-                # y0 = int(image_midpoint[1] + self.line_length * np.sin(image_yaw))
-                # x1 = int(image_midpoint[0] - self.line_length * np.cos(image_yaw))
-                # y1 = int(image_midpoint[1] - self.line_length * np.sin(image_yaw))
-                self.get_logger().info(f"x0: {x0}, y0: {y0}, x1: {x1}, y1: {y1}")
-                self.get_logger().info(f"global_line_points: {global_line_points[0,:]}, {global_line_points[1,:]}")
+                # self.get_logger().info(f"global_line_points: {global_line_points[0,:]}, {global_line_points[1,:]}")
                 cv2.line(img, (x0, y0), (x1, y1), self.vis_colors[i], 2)
                 cv2.circle(img, (int(x_mid), int(y_mid)), 5, self.vis_colors[i], -1)
 
@@ -387,7 +374,7 @@ class WireTrackingNode(Node):
             avg_depth = np.mean(cam_points_z)
             return avg_depth, avg_global_yaw
         else:
-            return None  # No valid depth values found
+            return None, None  # No valid depth values found
         
     def set_params(self):
         try:

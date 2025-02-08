@@ -20,8 +20,8 @@
 
     # KF params
     max_distance_threshold: 0.15 # meters
-    min_valid_kf_count_threshold: 10
-    iteration_start_threshold: 20
+    min_valid_kf_count_threshold: 15
+    iteration_start_threshold: 0
     # yaw_covariance: 0.0349066 # radians
-    yaw_covariance: 0.02 # radians
-    pos_covariance: 0.10 # meters
+    yaw_covariance: 0.05 # radians
+    pos_covariance: 0.20 # meters

@@ -45,7 +45,7 @@ def pose_to_homogeneous(pose):
 
     # Extract rotation components
     rotation = pose.orientation
-    quaternion = [rotation.x, rotation.y, rotation.z, rotation.w]
+    quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w]) * np.array([1, -1, -1, 1])
     rot_matrix = Rotation.from_quat(quaternion).as_matrix()
     # assert False, f"rot_vector: {Rotation.from_quat(quaternion).as_rotvec()}"
 
