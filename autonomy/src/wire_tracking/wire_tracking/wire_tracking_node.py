@@ -139,6 +139,7 @@ class WireTrackingNode(Node):
         seg_mask = self.wire_detector.create_seg_mask(image)
 
         # if there are no lines detected, return None, a default image will be published
+        debug_image = None
         if np.any(seg_mask):
             wire_lines, wire_midpoints, wire_yaw_in_image = self.wire_detector.detect_wires(seg_mask)
 
