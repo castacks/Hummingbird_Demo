@@ -347,8 +347,15 @@ class WireTrackingNode(Node):
             mean_depth: The average depth of the points along the line that are within the segmentation mask.
         """
         # Generate points along the line using Bresenham's line algorithm
-        line_points = np.array(cv2.line(np.zeros_like(depth_image, dtype=np.uint8), pt1, pt2, 1))
-        y_indices, x_indices = np.where(line_points == 1)
+        # line_points = np.array(cv2.line(np.zeros_like(depth_image, dtype=np.uint8), pt1, pt2, 1))
+        line_mask = np.zeros_like(depth_image, dtype=np.uint8)
+        # assert isinstance(pt1, tuple) and isinstance(pt2, tuple), f"Expected points of type tuple, got pt1 type: {type(pt1)}, and pt2 type: {type(pt2)}"
+        if isinstance(pt1, np.ndarray):
+        	pt1 = (pt1[0], pt1[1])
+        if isinstance(pt2, np.ndarray):
+        	pt2 = (pt2[0], pt2[1])
+        cv2.line(line_mask, pt1, pt2, 1)
+        y_indices, x_indices = np.where(line_mask == 1)
         
         # Filter points that fall within the segmentation mask
         valid_mask = segmentation_mask[y_indices, x_indices] > 0
