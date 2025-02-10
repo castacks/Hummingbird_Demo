@@ -13,6 +13,6 @@
     name="rviz2" 
     args="-d $(find-pkg-share wire_tracking)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
     
-     <executable cmd="ros2 bag record -o /root/data_collection/wire_tracking_$(env ROSBAG_DATE) /wire_cam/zed_node/left/image_rect_color /wire_cam/detection_debug /wire_cam/zed_node/pose /wire_cam/zed_node/depth/depth_registered /pose_cam/zed_node/pose /wire_cam/pos_debug"  />
+     <executable cmd="ros2 bag record -o /root/data_collection/wire_tracking_$(env ROSBAG_DATE) /wire_cam/zed_node/left/image_rect_color /wire_cam/detection_debug /wire_cam/zed_node/pose /wire_cam/zed_node/depth/depth_registered /pose_cam/zed_node/pose /wire_cam/pos_debug" output="log" />
 
 </launch>
