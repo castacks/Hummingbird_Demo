@@ -190,10 +190,10 @@ class WireTrackingNode(Node):
                 self.tracked_wire_id = min_id
 
             if self.are_kfs_initialized:
-                debug_img = self.draw_kfs_viz(image, pose, wire_lines)
+                debug_image = self.draw_kfs_viz(image, pose, wire_lines)
             else:
-                debug_img = None        
-        return debug_img
+                debug_image = None        
+        return debug_image
     
     def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
         H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
