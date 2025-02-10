@@ -1,6 +1,6 @@
 services:
   rtsp:
-    image: tharp789/hummingbird_demo:rtsp-ros2
+    image: tharp789/hummingbird_demo:rtsp-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build:
       context: ./
       dockerfile: docker/Dockerfile.rtsp
@@ -32,7 +32,7 @@ services:
       - ./image2rtsp/:/root/ros2_ws/:rw
   
   zed_wrapper:
-    image: tharp789/hummingbird_demo:zed-wrapper-ros2  
+    image: tharp789/hummingbird_demo:zed-wrapper-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build: 
       context: ./
       dockerfile: docker/Dockerfile.zed-dev
@@ -67,7 +67,7 @@ services:
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
   
   autonomy:
-    image: tharp789/hummingbird_demo:autonomy-ros2
+    image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build:
       context: ./ 
       dockerfile: docker/Dockerfile.autonomy
