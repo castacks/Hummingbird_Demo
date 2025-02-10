@@ -39,7 +39,7 @@ class WireTrackingNode(Node):
         self.total_iterations = 0
 
         # Transform from pose_cam to wire_cam
-        # 180 rotation about y-axis, 0.216m translation in negative z-axis
+        # 180 rotation about y-axis, 0.216m translation in negative x-axis
         self.H_wire_cam_to_pose_cam = np.array([[np.cos(np.deg2rad(180)),  0.0, np.sin(np.deg2rad(180)), - 0.216],
                                               [         0.0,             1.0,           0.0,           0.0],
                                               [-np.sin(np.deg2rad(180)), 0.0, np.cos(np.deg2rad(180)), 0.0],
