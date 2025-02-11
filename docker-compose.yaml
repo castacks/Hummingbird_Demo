@@ -65,6 +65,7 @@ services:
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
+      - /usr/local/zed/settings/:/usr/local/zed/settings/
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
