@@ -43,7 +43,7 @@ class WireTrackingNode(Node):
         self.H_wire_cam_to_pose_cam = np.array([[np.cos(np.deg2rad(180)),  0.0, np.sin(np.deg2rad(180)), - 0.216],
                                               [         0.0,             1.0,           0.0,           0.0],
                                               [-np.sin(np.deg2rad(180)), 0.0, np.cos(np.deg2rad(180)), 0.0],
-                                              [0.0, 0.0, 0.0, 1.0]])
+                                              [0.0, 0.0, 0.0, 1.0]])        
 
         # Subscribers
         cam_info_callbackgroup = ReentrantCallbackGroup()
@@ -108,6 +108,8 @@ class WireTrackingNode(Node):
             pose = self.transform_pose_cam_to_wire_cam(pose_msg.pose)
         else:    
             pose = pose_msg.pose
+            pose.orientation.y = - pose_msg.pose.orientation.y
+            pose.orientation.z = - pose_msg.pose.orientation.z
 
         # camera frame from ros is x forward, y left, z up
         # self.get_logger().info(f"Wire Cam Position: {pose.position.x}, {pose.position.y}, {pose.position.z}")
@@ -196,8 +198,11 @@ class WireTrackingNode(Node):
         return debug_image
     
     def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
+        self.get_logger().info(f"Pose Cam Pose: {pose_cam_pose.position.x}, {pose_cam_pose.position.y}, {pose_cam_pose.position.z}")
         H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
         H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
+        # assert False, f"Pose to wire transform: {H_pose_cam_to_world}"
+        # H_wire_cam_to_world = H_pose_cam_to_world @ self.H_wire_cam_to_pose_cam
         wire_cam_pose = ct.homogeneous_to_pose(H_wire_cam_to_world)
         return wire_cam_pose
 

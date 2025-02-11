@@ -28,6 +28,29 @@ def transform_to_homogeneous(transform):
     homogeneous_matrix[:3, 3] = translation_vector
     return homogeneous_matrix
 
+def rotvec_to_homogeneous(rotvec, x, y, z):
+    """
+    Converts a rotation vector and a displacement into a 4x4 homogeneous transformation matrix.
+
+    Args:
+        rotvec: a 3x1 rotation vector listing rotation in x, y, z
+        x: displacement in meteres
+        y: displacement in meteres
+        z: displacement in meteres
+
+    Returns:
+        np.ndarray: A 4x4 homogeneous transformation matrix.
+    """
+    translation_vector = np.array([x, y, z])
+    rot_matrix = Rotation.from_rotvec(rotvec).as_matrix()
+
+    homogeneous_matrix = np.eye(4)
+    homogeneous_matrix[:3, :3] = rot_matrix[:3, :3]
+    homogeneous_matrix[:3, 3] = translation_vector
+
+    assert homogeneous_matrix.shape == (4, 4), "Output must be a 4x4 numpy array, got %s" % homogeneous_matrix.shape
+    return homogeneous_matrix
+
 def pose_to_homogeneous(pose):
     """
     Converts a Pose message into a 4x4 homogeneous transformation matrix.
@@ -45,7 +68,8 @@ def pose_to_homogeneous(pose):
 
     # Extract rotation components
     rotation = pose.orientation
-    quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w]) * np.array([1, -1, -1, 1])
+    # quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w]) * np.array([1, -1, -1, 1])
+    quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w])
     rot_matrix = Rotation.from_quat(quaternion).as_matrix()
     # assert False, f"rot_vector: {Rotation.from_quat(quaternion).as_rotvec()}"
 
