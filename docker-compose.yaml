@@ -77,15 +77,21 @@ services:
         L4T_PATCH: ${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
-               if [ ! -d "/root/ros2_ws/install" ]; then \
-               colcon build --symlink-install; else echo 'Already built'; fi && \
-               source /root/ros2_ws/install/setup.bash && \
-               export ROSBAG_DATE="$(date +"%Y-%m-%d_%H-%M-%S")" && \
-               if [ "$START_TRACKING" -eq 1 ]; then \
-               echo 'Starting Tracking...' && \
-               ros2 launch wire_tracking wire_tracking.launch.xml && sleep infinity;
-               else echo 'Starting Detection...' && \
-               ros2 launch wire_detection wire_detection.launch.xml && sleep infinity; fi"
+         if [ ! -d '/root/ros2_ws/install' ]; then \
+           colcon build --symlink-install; else echo 'Already built'; fi && \
+         source /root/ros2_ws/install/setup.bash && \
+         export ROSBAG_DATE=\"$(date +'%Y-%m-%d_%H-%M-%S')\" && \
+         env | grep ROSBAG_DATE && \
+         if [ \"$START_TRACKING\" -eq 1 ]; then \
+           echo 'Starting Tracking...' && \
+           ros2 launch wire_tracking wire_tracking.launch.xml;
+         elif [ \"$START_TRACKING\" -eq 0 ]; then \
+           echo 'Starting Detection...' && \
+           ros2 launch wire_detection wire_detection.launch.xml;
+         else \
+           echo \"Starting Data Collection at /root/data_collection/zed_data_\$\{ROSBAG_DATE\}.bag\" && \
+           ros2 bag record -o /root/data_collection/zed_collect_\$\{ROSBAG_DATE\} /wire_cam/zed_node/left/image_raw /wire_cam/zed_node/right/image_raw /wire_cam/zed_node/left/camera_info /wire_cam/zed_node/right/camera_info /wire_cam/zed_node/left/image_rect_color /wire_cam/zed_node/pose /wire_cam/zed_node/disparity/disparity_image /wire_cam/zed_node/confidence/confidence_map;
+         fi"
     network_mode: host
     runtime: nvidia
     privileged: true
