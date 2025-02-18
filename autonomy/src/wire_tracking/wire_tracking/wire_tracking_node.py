@@ -198,7 +198,7 @@ class WireTrackingNode(Node):
         return debug_image
     
     def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
-        self.get_logger().info(f"Pose Cam Pose: {pose_cam_pose.position.x}, {pose_cam_pose.position.y}, {pose_cam_pose.position.z}")
+        # self.get_logger().info(f"Pose Cam Pose: {pose_cam_pose.position.x}, {pose_cam_pose.position.y}, {pose_cam_pose.position.z}")
         H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
         H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
         # assert False, f"Pose to wire transform: {H_pose_cam_to_world}"
