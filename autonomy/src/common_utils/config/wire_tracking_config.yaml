@@ -15,8 +15,10 @@
     seg_mask_pub_topic: "/wire_cam/seg_mask"
 
     # Wire detection params
-    expansion_size: 10
+    expansion_size: 2
     line_threshold: 250
+    low_canny_threshold: 100
+    high_canny_threshold: 200
 
     # KF params
     max_distance_threshold: 0.15 # meters

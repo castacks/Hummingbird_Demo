@@ -2,9 +2,11 @@ import numpy as np
 import cv2
 
 class WireDetector:
-    def __init__(self, threshold, expansion_size):
+    def __init__(self, threshold, expansion_size, low_canny_threshold, high_canny_threshold):
         self.threshold = threshold
         self.expansion_size = expansion_size
+        self.low_canny_threshold = low_canny_threshold
+        self.high_canny_threshold = high_canny_threshold
         self.img_height = None
         self.img_width = None
         self.img_shape = None
@@ -91,7 +93,7 @@ class WireDetector:
     
     def create_seg_mask(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        seg_mask = cv2.Canny(gray, 50, 150, apertureSize=3)
+        seg_mask = cv2.Canny(gray, self.low_canny_threshold, self.high_canny_threshold, apertureSize=3)
         seg_mask = cv2.dilate(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
         seg_mask = cv2.erode(seg_mask, np.ones((self.expansion_size, self.expansion_size), np.uint8), iterations=1)
         return seg_mask

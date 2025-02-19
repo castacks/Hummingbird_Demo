@@ -28,7 +28,7 @@ class WireTrackingNode(Node):
         self.set_params()
 
         # Wire Detector
-        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size)
+        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size, low_canny_threshold=self.low_canny_threshold, high_canny_threshold=self.high_canny_threshold) 
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
@@ -404,6 +404,8 @@ class WireTrackingNode(Node):
             # Wire Detection parameters
             self.declare_parameter('line_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
 
             # KF parameters
             self.declare_parameter('use_pose_cam', rclpy.Parameter.Type.BOOL)
@@ -425,6 +427,8 @@ class WireTrackingNode(Node):
 
             self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
+            self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
+            self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
 
             self.use_pose_cam = self.get_parameter('use_pose_cam').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
