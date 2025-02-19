@@ -15,6 +15,7 @@
     
      <executable cmd="ros2 bag record -d 60 -o /root/data_collection/wire_tracking_$(env ROSBAG_DATE) 
      /wire_cam/zed_node/left/image_rect_color 
+     /wire_cam/detection_debug
      /wire_cam/zed_node/pose 
      /wire_cam/zed_node/depth/depth_registered 
      /pose_cam/zed_node/pose" output="log" />
