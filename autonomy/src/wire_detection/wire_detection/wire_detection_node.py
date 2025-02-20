@@ -4,7 +4,7 @@ import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 from cv_bridge import CvBridge
 
 import common_utils.wire_detection as wd
@@ -20,6 +20,7 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
+        self.received_camera_info = False
         self.wire_detector = wd.WireDetector(threshold=self.line_threshold, 
                                              expansion_size=self.expansion_size, 
                                              low_canny_threshold=self.low_canny_threshold, 
@@ -29,7 +30,7 @@ class WireDetectorNode(Node):
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
         self.depth_image_sub = self.create_subscription(Image, self.depth_image_sub_topic, self.depth_callback, 1)
-        self.camera_info_sub = self.create_subscription(Image, self.depth_image_sub_topic, self.depth_callback, 1)
+        self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
         # Publishers
         self.wire_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 1)
