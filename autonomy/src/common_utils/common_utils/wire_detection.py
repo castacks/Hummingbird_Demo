@@ -2,11 +2,12 @@ import numpy as np
 import cv2
 
 class WireDetector:
-    def __init__(self, threshold, expansion_size, low_canny_threshold, high_canny_threshold):
+    def __init__(self, threshold, expansion_size, low_canny_threshold, high_canny_threshold, pixel_binning_size):
         self.threshold = threshold
         self.expansion_size = expansion_size
         self.low_canny_threshold = low_canny_threshold
         self.high_canny_threshold = high_canny_threshold
+        self.pixel_binning_size = pixel_binning_size
         self.img_height = None
         self.img_width = None
         self.img_shape = None
@@ -50,8 +51,7 @@ class WireDetector:
         line_distances = np.sqrt((cartesian_lines[:,2] - cartesian_lines[:,0])**2 + (cartesian_lines[:,3] - cartesian_lines[:,1])**2).astype(np.int32)
         max_dist = np.max(distances_wrt_center)
         min_dist = np.min(distances_wrt_center)
-        wire_pixel_seperation = 10
-        num_bins = int((max_dist - min_dist) // wire_pixel_seperation)
+        num_bins = int((max_dist - min_dist) // self.pixel_binning_size)
         if num_bins == 0:
             num_bins = 1
         hist, bin_edges = np.histogram(distances_wrt_center, bins=num_bins, weights=line_distances)

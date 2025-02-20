@@ -7,7 +7,7 @@ import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-from common_utils.wire_detection import WireDetector, create_depth_viz
+import common_utils.wire_detection as wd
 
 # ignore future deprecated warnings
 import warnings
@@ -19,7 +19,11 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
-        self.wire_detector = WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size)
+        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, 
+                                             expansion_size=self.expansion_size, 
+                                             low_canny_threshold=self.low_canny_threshold, 
+                                             high_canny_threshold=self.high_canny_threshold,
+                                             pixel_binning_size=self.pixel_binning_size) 
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
@@ -73,7 +77,7 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        depth_viz = create_depth_viz(depth)
+        depth_viz = wd.create_depth_viz(depth)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
         self.depth_viz_pub.publish(img_msg)
         
@@ -82,6 +86,9 @@ class WireDetectorNode(Node):
             #wire detection params
             self.declare_parameter('line_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('pixel_binning_size', rclpy.Parameter.Type.INTEGER)
 
             # sub pub topics
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
@@ -93,6 +100,9 @@ class WireDetectorNode(Node):
             # Access parameters
             self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
+            self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
+            self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
+            self.pixel_binning_size = self.get_parameter('pixel_binning_size').get_parameter_value().integer_value
 
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value

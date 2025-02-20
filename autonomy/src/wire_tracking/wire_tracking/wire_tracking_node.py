@@ -28,7 +28,11 @@ class WireTrackingNode(Node):
         self.set_params()
 
         # Wire Detector
-        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, expansion_size=self.expansion_size, low_canny_threshold=self.low_canny_threshold, high_canny_threshold=self.high_canny_threshold) 
+        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, 
+                                             expansion_size=self.expansion_size, 
+                                             low_canny_threshold=self.low_canny_threshold, 
+                                             high_canny_threshold=self.high_canny_threshold,
+                                             pixel_binning_size=self.pixel_binning_size) 
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
@@ -357,9 +361,9 @@ class WireTrackingNode(Node):
         line_mask = np.zeros_like(depth_image, dtype=np.uint8)
         # assert isinstance(pt1, tuple) and isinstance(pt2, tuple), f"Expected points of type tuple, got pt1 type: {type(pt1)}, and pt2 type: {type(pt2)}"
         if isinstance(pt1, np.ndarray):
-        	pt1 = (pt1[0], pt1[1])
+            pt1 = (pt1[0], pt1[1])
         if isinstance(pt2, np.ndarray):
-        	pt2 = (pt2[0], pt2[1])
+            pt2 = (pt2[0], pt2[1])
         cv2.line(line_mask, pt1, pt2, 1)
         y_indices, x_indices = np.where(line_mask == 1)
         
@@ -406,6 +410,7 @@ class WireTrackingNode(Node):
             self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('pixel_binning_size', rclpy.Parameter.Type.INTEGER)
 
             # KF parameters
             self.declare_parameter('use_pose_cam', rclpy.Parameter.Type.BOOL)
@@ -429,6 +434,7 @@ class WireTrackingNode(Node):
             self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
             self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
             self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
+            self.pixel_binning_size = self.get_parameter('pixel_binning_size').get_parameter_value().integer_value
 
             self.use_pose_cam = self.get_parameter('use_pose_cam').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value

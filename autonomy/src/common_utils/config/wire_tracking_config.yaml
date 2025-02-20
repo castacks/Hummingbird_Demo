@@ -17,6 +17,7 @@
     # Wire detection params
     expansion_size: 2
     line_threshold: 250
+    pixel_binning_size: 3
     low_canny_threshold: 100
     high_canny_threshold: 200
 
