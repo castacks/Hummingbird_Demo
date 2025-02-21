@@ -25,7 +25,8 @@ class WireDetectorNode(Node):
                                              expansion_size=self.expansion_size, 
                                              low_canny_threshold=self.low_canny_threshold, 
                                              high_canny_threshold=self.high_canny_threshold,
-                                             pixel_binning_size=self.pixel_binning_size) 
+                                             pixel_binning_size=self.pixel_binning_size,
+                                             bin_avg_threshold_multiplier=self.bin_avg_threshold_multiplier)
 
         # Subscribers
         self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)

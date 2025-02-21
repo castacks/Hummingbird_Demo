@@ -32,7 +32,8 @@ class WireTrackingNode(Node):
                                              expansion_size=self.expansion_size, 
                                              low_canny_threshold=self.low_canny_threshold, 
                                              high_canny_threshold=self.high_canny_threshold,
-                                             pixel_binning_size=self.pixel_binning_size) 
+                                             pixel_binning_size=self.pixel_binning_size,
+                                             bin_avg_threshold_multiplier=self.bin_avg_threshold_multiplier)
         self.position_kalman_filters = {}
         self.vis_colors = {}
         self.yaw_kalman_filter = None
