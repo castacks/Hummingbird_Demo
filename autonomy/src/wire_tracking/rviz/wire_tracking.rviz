@@ -127,7 +127,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /pose_cam/zed_node/rgb/image_rect_color
+        Value: /pose_cam/visual_odometry_img
       Value: true
   Enabled: true
   Global Options:
