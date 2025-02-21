@@ -2,3 +2,6 @@
 	path = zed-ros2-interfaces
 	url = https://github.com/stereolabs/zed-ros2-interfaces.git
 	branch = master
+[submodule "autonomy/src/macvo/macvo/src"]
+	path = autonomy/src/macvo/macvo/src
+	url = https://github.com/MAC-VO/MAC-VO.git
