@@ -104,6 +104,14 @@ services:
       - DISPLAY
       - QT_X11_NO_MITSHM=1
       - START_TRACKING=${START_TRACKING}
+    deploy:
+      # let it use the GPU
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia # https://stackoverflow.com/a/70761193
+              count: 1
+              capabilities: [ gpu ]
     stdin_open: true  # Equivalent to -it for interactive terminal
     tty: true  # Ensures that a pseudo-terminal is allocated
     volumes:
