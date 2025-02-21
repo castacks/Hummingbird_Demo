@@ -17,10 +17,11 @@
 
     # Wire detection params
     expansion_size: 2
-    line_threshold: 250
+    line_threshold: 200
     pixel_binning_size: 3
     low_canny_threshold: 100
     high_canny_threshold: 200
+    bin_avg_threshold_multiplier: 0.5
 
     # KF params
     max_distance_threshold: 0.15 # meters

@@ -411,6 +411,7 @@ class WireTrackingNode(Node):
             self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('pixel_binning_size', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('bin_avg_threshold_multiplier', rclpy.Parameter.Type.DOUBLE)
 
             # KF parameters
             self.declare_parameter('use_pose_cam', rclpy.Parameter.Type.BOOL)
@@ -435,6 +436,7 @@ class WireTrackingNode(Node):
             self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
             self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
             self.pixel_binning_size = self.get_parameter('pixel_binning_size').get_parameter_value().integer_value
+            self.bin_avg_threshold_multiplier = self.get_parameter('bin_avg_threshold_multiplier').get_parameter_value().double_value
 
             self.use_pose_cam = self.get_parameter('use_pose_cam').get_parameter_value().bool_value
             self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value

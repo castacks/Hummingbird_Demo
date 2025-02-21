@@ -121,6 +121,7 @@ class WireDetectorNode(Node):
             self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
             self.declare_parameter('pixel_binning_size', rclpy.Parameter.Type.INTEGER)
+            self.declare_parameter('bin_avg_threshold_multiplier', rclpy.Parameter.Type.DOUBLE)
 
             # sub topics
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
@@ -139,6 +140,7 @@ class WireDetectorNode(Node):
             self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
             self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
             self.pixel_binning_size = self.get_parameter('pixel_binning_size').get_parameter_value().integer_value
+            self.bin_avg_threshold_multiplier = self.get_parameter('bin_avg_threshold_multiplier').get_parameter_value().double_value
             
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
