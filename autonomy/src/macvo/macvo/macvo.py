@@ -98,8 +98,8 @@ class MACVONode(Node):
         self.baseline = self.get_parameter("camera_baseline").get_parameter_value().double_value
 
 	# Wait for camera info to be recieved
-	self.camera_info = None
-	self.recieved_camera_info = False
+        self.camera_info = None 
+        self.recieved_camera_info = False
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
         camera_info_sub_topic = self.get_parameter("camera_info_sub_topic").get_parameter_value().string_value
         self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
