@@ -79,19 +79,11 @@ class MACVONode(Node):
 
         self.declare_parameter("inference_dim_u", rclpy.Parameter.Type.INTEGER)
         self.declare_parameter("inference_dim_v", rclpy.Parameter.Type.INTEGER)
-        u_dim = self.get_parameter("inference_dim_u").get_parameter_value().integer_value
-        v_dim = self.get_parameter("inference_dim_v").get_parameter_value().integer_value
+        self.u_dim = self.get_parameter("inference_dim_u").get_parameter_value().integer_value
+        self.v_dim = self.get_parameter("inference_dim_v").get_parameter_value().integer_value
 
         self.declare_parameter("camera_baseline", rclpy.Parameter.Type.DOUBLE)
         self.baseline = self.get_parameter("camera_baseline").get_parameter_value().double_value
-
-        while not self.recieved_camera_info and self.camera_info is None:
-            self.get_logger().info("Waiting for camera info...")
-            rclpy.spin_once(self, timeout_sec=0.1)
-        self.camera_info_sub.destroy()
-        
-        self.scale_u = float(self.camera_info.width / u_dim)
-        self.scale_v = float(self.camera_info.height / v_dim)
 
         self.declare_parameter("imageL_sub_topic", rclpy.Parameter.Type.STRING)
         self.declare_parameter("imageR_sub_topic", rclpy.Parameter.Type.STRING)
@@ -114,6 +106,9 @@ class MACVONode(Node):
         self.camera_info = msg
         self.image_width  = msg.width
         self.image_height = msg.height
+        self.scale_u = float(self.image_width / self.u_dim)
+        self.scale_v = float(self.image_height / self.v_dim)
+        
         self.recieved_camera_info = True
         self.get_logger().info(f"Camera info received!")
 
@@ -194,7 +189,7 @@ class MACVONode(Node):
             self.img_pipes.publish(msg)
 
     def receive_frame(self, msg_L: Image, msg_R: Image) -> None:
-        if self.frame is None or self.bridge is None:
+        if self.frame is None or self.bridge is None or self.recieved_camera_info is False:
             self.get_logger().error("MACVO Node not initialized yet, skipping frame")
             return
         
