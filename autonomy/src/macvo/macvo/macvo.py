@@ -94,17 +94,18 @@ class MACVONode(Node):
         u_dim = self.get_parameter("inference_dim_u").get_parameter_value().integer_value
         v_dim = self.get_parameter("inference_dim_v").get_parameter_value().integer_value
 
-        self.camera_info = None
         self.declare_parameter("camera_baseline", rclpy.Parameter.Type.DOUBLE)
         self.baseline = self.get_parameter("camera_baseline").get_parameter_value().double_value
 
+	# Wait for camera info to be recieved
+	self.camera_info = None
+	self.recieved_camera_info = False
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
         camera_info_sub_topic = self.get_parameter("camera_info_sub_topic").get_parameter_value().string_value
         self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
         while not self.recieved_camera_info and self.camera_info is None:
             self.get_logger().info("Waiting for camera info...")
             rclpy.spin_once(self, timeout_sec=0.1)
-
         self.camera_info_sub.destroy()
         
         self.time  , self.prev_time  = None, None

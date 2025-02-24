@@ -8,4 +8,4 @@
     img_pub_topic: "/pose_cam/visual_odometry_img"
     inference_dim_u: 450
     inference_dim_v: 350
-    baseline: 0.12
+    camera_baseline: 0.12
