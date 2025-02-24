@@ -41,3 +41,9 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dear
 sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 
+# generate ssh key for github
+ssh-keygen -t rsa -b 4096 -C "tharp@andrew.cmu.edu"
+ssh-add ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub
+
+
