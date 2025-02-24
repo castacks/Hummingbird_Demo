@@ -37,44 +37,32 @@ class MACVONode(Node):
         self.bridge = None
         self.time = None
         self.prev_time = None
-        self.frame = None
-        self.camera_info = None
         self.baseline = None
         self.prev_frame = None
         self.odometry = None
+        self.frame = "map"
+        self.camera_info = None 
+        self.recieved_camera_info = False
+        self.meta = None
+        self.bridge = CvBridge()
 
-        # Declare subscriptions and publishers ----------------
-        self.declare_parameter("imageL_sub_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("imageR_sub_topic", rclpy.Parameter.Type.STRING)
-        imageL_topic = self.get_parameter("imageL_sub_topic").get_parameter_value().string_value
-        imageR_topic = self.get_parameter("imageR_sub_topic").get_parameter_value().string_value
-        self.imageL_sub = Subscriber(self, Image, imageL_topic, qos_profile=1)
-        self.imageR_sub = Subscriber(self, Image, imageR_topic, qos_profile=1)
-
-        self.sync_stereo = ApproximateTimeSynchronizer(
-            [self.imageL_sub, self.imageR_sub], queue_size=2, slop=0.1
-        )
-        self.sync_stereo.registerCallback(self.receive_frame)
-        
+        # Declare publishers ----------------
         self.declare_parameter("pose_pub_topic", rclpy.Parameter.Type.STRING)
         pose_topic = self.get_parameter("pose_pub_topic").get_parameter_value().string_value
         self.pose_pipe  = self.create_publisher(PoseStamped, pose_topic, qos_profile=1)
         
         self.declare_parameter("point_pub_topic", rclpy.Parameter.Type.STRING)
         point_topic = self.get_parameter("point_pub_topic").get_parameter_value().string_value
-        if point_topic is not None:
-            self.point_pipe = self.create_publisher(PointCloud, point_topic, qos_profile=1)
-        else:
-            self.point_pipe = None
+        self.point_pipe = self.create_publisher(PointCloud, point_topic, qos_profile=1)
         
         self.declare_parameter("img_pub_topic", rclpy.Parameter.Type.STRING)
         img_stream = self.get_parameter("img_pub_topic").get_parameter_value().string_value
-        if img_stream is not None:
-            self.img_pipes = self.create_publisher(Image, img_stream, qos_profile=1)
-        else:
-            self.img_pipes = None
-
-        self.frame = "map"
+        self.img_pipes = self.create_publisher(Image, img_stream, qos_profile=1)
+        
+        # Wait for camera info to be recieved   
+        self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
+        camera_info_sub_topic = self.get_parameter("camera_info_sub_topic").get_parameter_value().string_value
+        self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
         
         # Load the MACVO model ------------------------------------
         self.declare_parameter("model_config", rclpy.Parameter.Type.STRING)
@@ -97,23 +85,25 @@ class MACVONode(Node):
         self.declare_parameter("camera_baseline", rclpy.Parameter.Type.DOUBLE)
         self.baseline = self.get_parameter("camera_baseline").get_parameter_value().double_value
 
-	# Wait for camera info to be recieved
-        self.camera_info = None 
-        self.recieved_camera_info = False
-        self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
-        camera_info_sub_topic = self.get_parameter("camera_info_sub_topic").get_parameter_value().string_value
-        self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
         while not self.recieved_camera_info and self.camera_info is None:
             self.get_logger().info("Waiting for camera info...")
             rclpy.spin_once(self, timeout_sec=0.1)
         self.camera_info_sub.destroy()
         
-        self.time  , self.prev_time  = None, None
-        self.meta = None
-
-        self.bridge = CvBridge()
         self.scale_u = float(self.camera_info.width / u_dim)
         self.scale_v = float(self.camera_info.height / v_dim)
+
+        self.declare_parameter("imageL_sub_topic", rclpy.Parameter.Type.STRING)
+        self.declare_parameter("imageR_sub_topic", rclpy.Parameter.Type.STRING)
+        imageL_topic = self.get_parameter("imageL_sub_topic").get_parameter_value().string_value
+        imageR_topic = self.get_parameter("imageR_sub_topic").get_parameter_value().string_value
+        self.imageL_sub = Subscriber(self, Image, imageL_topic, qos_profile=1)
+        self.imageR_sub = Subscriber(self, Image, imageR_topic, qos_profile=1)
+
+        self.sync_stereo = ApproximateTimeSynchronizer(
+            [self.imageL_sub, self.imageR_sub], queue_size=2, slop=0.1
+        )
+        self.sync_stereo.registerCallback(self.receive_frame)
 
         # self.rot_correction_matrix = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         # self.rot_correction_matrix = np.eye(3)
