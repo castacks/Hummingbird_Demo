@@ -2,6 +2,7 @@
 
 # Install ZED SDK
 sudo apt update
+sudo apt install terminator
 sudo apt install -y zstd libqt5network5 libqt5opengl5 libqt5sql5 libqt5xml5 cuda
 wget -O ZED_SDK.run https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons
 chmod +x ZED_SDK.run
