@@ -29,7 +29,7 @@ sudo apt-get install -y docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy --allow-down
 
 sudo groupadd docker
 sudo usermod -aG docker $USER
-newgrp docker
+newgrp docker > /dev/null 2>&1 || true
 
 # Install NVIDIA Container Toolkit
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
@@ -40,8 +40,26 @@ sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 
 # generate ssh key for github
-ssh-keygen -t rsa -b 4096 -C "tharp@andrew.cmu.edu"
-ssh-add ~/.ssh/id_rsa
-cat ~/.ssh/id_rsa.pub
+EMAIL="tharp@andrew.cmu.edu"
+KEY_PATH="$HOME/.ssh/id_rsa"
+
+# Check if the key already exists
+if [[ -f "$KEY_PATH" ]]; then
+    echo "SSH key already exists at $KEY_PATH. Skipping key generation."
+else
+    # Generate SSH key (no passphrase, overwrite without asking)
+    ssh-keygen -t rsa -b 4096 -C "$EMAIL" -f "$KEY_PATH" -N ""
+    echo "SSH key generated successfully."
+fi
+
+# Start SSH agent if not already running
+eval "$(ssh-agent -s)"
+
+# Add private key to SSH agent
+ssh-add "$KEY_PATH"
+
+# Display public key
+echo "Here is your SSH public key:"
+cat "$KEY_PATH.pub"
 
 
