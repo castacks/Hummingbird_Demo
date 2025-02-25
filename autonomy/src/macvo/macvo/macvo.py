@@ -65,6 +65,9 @@ class MACVONode(Node):
         self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
         
         # Load the MACVO model ------------------------------------
+        # check device 
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.get_logger().info("Using device: " + str(device) + " for MACVO, number of devices: " + str(torch.cuda.device_count()))
         self.declare_parameter("model_config", rclpy.Parameter.Type.STRING)
         model_config = self.get_parameter("model_config").get_parameter_value().string_value
         self.get_logger().info(f"Loading macvo model from {model_config}, this might take a while...")
@@ -234,7 +237,7 @@ class MACVONode(Node):
             self.get_logger().info(f"First frame processed in {time_diff:.2f} seconds.")
         else:
             self.get_logger().info(f"Frame {self.frame_idx} processed in {frame_time_diff}")
-            
+
         self.frame_idx += 1
 
 def main():
