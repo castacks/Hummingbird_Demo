@@ -227,11 +227,14 @@ class MACVONode(Node):
         start_time = self.get_clock().now()
         self.odometry.run(frame)
         end_time = self.get_clock().now()   
+        frame_time_diff = (end_time - start_time).nanoseconds / 1e9
 
         if self.frame_idx == 0:
             time_diff = (end_time - first_frame_time).nanoseconds / 1e9
             self.get_logger().info(f"First frame processed in {time_diff:.2f} seconds.")
-        self.get_logger().info(f"Frame {self.frame_idx} processed in {end_time - start_time}")
+        else:
+            self.get_logger().info(f"Frame {self.frame_idx} processed in {frame_time_diff}")
+            
         self.frame_idx += 1
 
 def main():
