@@ -8,7 +8,6 @@ wget -O ZED_SDK.run https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons
 chmod +x ZED_SDK.run
 ./ZED_SDK.run --silent
 
-
 # Add Docker's official GPG key:
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
@@ -31,7 +30,6 @@ sudo apt-get install -y docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy --allow-down
 sudo groupadd docker
 sudo usermod -aG docker $USER
 newgrp docker
-
 
 # Install NVIDIA Container Toolkit
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
