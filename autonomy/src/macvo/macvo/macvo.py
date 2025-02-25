@@ -125,7 +125,7 @@ class MACVONode(Node):
         out_msg = to_stamped_pose(pose, frame, time)
 
         # Correction for the camera coordinate frame
-        out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z = np.dot(self.rot_correction_matrix, np.array([out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z]))
+        # out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z = np.dot(self.rot_correction_matrix, np.array([out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z]))
         
         self.pose_pipe.publish(out_msg)
    
@@ -149,8 +149,8 @@ class MACVONode(Node):
         )
 
         # Correction for the camera coordinate frame
-        for pt in out_msg.points:
-            pt.x, pt.y, pt.z = np.dot(self.rot_correction_matrix, np.array([pt.x, pt.y, pt.z]))
+        # for pt in out_msg.points:
+        #     pt.x, pt.y, pt.z = np.dot(self.rot_correction_matrix, np.array([pt.x, pt.y, pt.z]))
 
         self.point_pipe.publish(out_msg)
   
@@ -198,7 +198,7 @@ class MACVONode(Node):
             return
         
         if self.frame_idx == 0:
-            self.get_logger().info("Inferencing first frame, please wait...")
+            self.get_logger().info(f"Inferencing first frame with scale ({self.scale_u}, {self.scale_v}), please wait...")
             first_frame_time = self.get_clock().now()
         self.prev_time = self.time
         self.time = msg_L.header.stamp
