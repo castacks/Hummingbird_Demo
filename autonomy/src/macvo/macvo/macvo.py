@@ -197,6 +197,9 @@ class MACVONode(Node):
             self.get_logger().error("MACVO Node not initialized yet, skipping frame")
             return
         
+        if self.frame_idx == 0:
+            self.get_logger().info("Inferencing first frame, please wait...")
+            first_frame_time = self.get_clock().now()
         self.prev_time = self.time
         self.time = msg_L.header.stamp
         imageL = self.bridge.imgmsg_to_cv2(msg_L, desired_encoding="passthrough")
@@ -224,7 +227,11 @@ class MACVONode(Node):
         start_time = self.get_clock().now()
         self.odometry.run(frame)
         end_time = self.get_clock().now()   
-        # self.get_logger().info(f"Frame {self.frame_idx} processed in {end_time - start_time}")
+
+        if self.frame_idx == 0:
+            time_diff = (end_time - first_frame_time).nanoseconds / 1e9
+            self.get_logger().info(f"First frame processed in {time_diff:.2f} seconds.")
+        self.get_logger().info(f"Frame {self.frame_idx} processed in {end_time - start_time}")
         self.frame_idx += 1
 
 def main():
