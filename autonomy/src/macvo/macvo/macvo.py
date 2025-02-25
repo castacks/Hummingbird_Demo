@@ -75,7 +75,7 @@ class MACVONode(Node):
         self.odometry.register_on_optimize_finish(self.publish_latest_points)
         self.odometry.register_on_optimize_finish(self.publish_latest_matches)
         end_time = self.get_clock().now()
-        time_diff = end_time - start_time
+        time_diff = (end_time - start_time).nanoseconds / 1e9
         self.get_logger().info(f"MACVO Model loaded in {time_diff:.2f} seconds. Initializing MACVO node ...")
 
         self.frame_idx  = 0
