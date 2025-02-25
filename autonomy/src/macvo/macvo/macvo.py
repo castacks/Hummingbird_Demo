@@ -68,12 +68,15 @@ class MACVONode(Node):
         self.declare_parameter("model_config", rclpy.Parameter.Type.STRING)
         model_config = self.get_parameter("model_config").get_parameter_value().string_value
         self.get_logger().info(f"Loading macvo model from {model_config}, this might take a while...")
+        start_time = self.get_clock().now()
         cfg, _ = load_config(Path(model_config))
         self.odometry   = MACVO.from_config(cfg)
         self.odometry.register_on_optimize_finish(self.publish_latest_pose)
         self.odometry.register_on_optimize_finish(self.publish_latest_points)
         self.odometry.register_on_optimize_finish(self.publish_latest_matches)
-        self.get_logger().info(f"MACVO Model loaded successfully! Initializing MACVO node ...")
+        end_time = self.get_clock().now()
+        time_diff = end_time - start_time
+        self.get_logger().info(f"MACVO Model loaded in {time_diff:.2f} seconds. Initializing MACVO node ...")
 
         self.frame_idx  = 0
 
@@ -103,14 +106,15 @@ class MACVONode(Node):
         self.get_logger().info(f"MACVO Node initialized with camera config: {model_config}")
 
     def get_camera_info(self, msg: CameraInfo) -> None:
-        self.camera_info = msg
-        self.image_width  = msg.width
-        self.image_height = msg.height
-        self.scale_u = float(self.image_width / self.u_dim)
-        self.scale_v = float(self.image_height / self.v_dim)
-        
-        self.recieved_camera_info = True
-        self.get_logger().info(f"Camera info received!")
+        if self.recieved_camera_info == False:
+            self.camera_info = msg
+            self.image_width  = msg.width
+            self.image_height = msg.height
+            self.scale_u = float(self.image_width / self.u_dim)
+            self.scale_v = float(self.image_height / self.v_dim)
+            
+            self.recieved_camera_info = True
+            self.get_logger().info(f"Camera info received!")
 
     def publish_latest_pose(self, system: MACVO):
         pose = system.gmap.frames.pose[-1]
