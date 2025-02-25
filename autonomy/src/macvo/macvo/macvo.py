@@ -67,7 +67,7 @@ class MACVONode(Node):
         # Load the MACVO model ------------------------------------
         # check device 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.get_logger().info("Using device: " + str(device) + " for MACVO, number of devices: " + str(torch.cuda.device_count()))
+        self.get_logger().info("Using device: " + str(device) + " , number of devices: " + str(torch.cuda.device_count()))
         self.declare_parameter("model_config", rclpy.Parameter.Type.STRING)
         model_config = self.get_parameter("model_config").get_parameter_value().string_value
         self.get_logger().info(f"Loading macvo model from {model_config}, this might take a while...")
