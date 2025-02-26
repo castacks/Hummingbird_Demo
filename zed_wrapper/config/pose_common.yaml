@@ -2,7 +2,7 @@
 # Common parameters to Stereolabs ZED and ZED mini cameras
 
 ---
-/**:
+/pose_cam/zed_node:
     ros__parameters:
         use_sim_time: false # Set to `true` only if there is a publisher for the simulated clock to the `/clock` topic. Normally used in simulation mode.
 
