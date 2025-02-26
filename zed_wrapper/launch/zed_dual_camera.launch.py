@@ -1,5 +1,7 @@
 import os
 
+from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -34,6 +36,7 @@ def generate_launch_description():
                 'camera_name': 'pose_cam',
                 'camera_model': 'zedx',
                 'serial_number': LaunchConfiguration('pose_cam_serial'),
+                'config_file': os.path.join(get_package_share_directory('zed_wrapper'),'config','pose_common.yaml'),
             }.items()
         ),
  
@@ -44,6 +47,7 @@ def generate_launch_description():
                 'camera_name': 'wire_cam',
                 'camera_model': 'zedx',
                 'serial_number': LaunchConfiguration('wire_cam_serial'),
+                'config_file': os.path.join(get_package_share_directory('zed_wrapper'),'config','wire_common.yaml'),
             }.items()
         ),
     ])
