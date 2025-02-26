@@ -2,7 +2,7 @@
 # Common parameters to Stereolabs ZED and ZED mini cameras
 
 ---
-/wire_cam/zed_node:
+/**:
     ros__parameters:
         use_sim_time: false # Set to `true` only if there is a publisher for the simulated clock to the `/clock` topic. Normally used in simulation mode.
 
@@ -63,7 +63,7 @@
             remove_saturated_areas: true # [DYNAMIC]
 
         pos_tracking:
-            pos_tracking_enabled: false # True to enable positional tracking from start
+            pos_tracking_enabled: true # True to enable positional tracking from start
             pos_tracking_mode: "GEN_1" # Matches the ZED SDK setting: 'GEN_1', 'GEN_2'
             imu_fusion: true # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
             publish_tf: false # [usually overwritten by launch file] publish `odom -> camera_link` TF
