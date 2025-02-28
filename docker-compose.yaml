@@ -105,6 +105,8 @@ services:
       - DISPLAY
       - QT_X11_NO_MITSHM=1
       - START_TRACKING=${START_TRACKING}
+      - RECORD=${RECORD}
+      - LOCAL_VO=${LOCAL_VO}
     deploy:
       # let it use the GPU
       resources:
