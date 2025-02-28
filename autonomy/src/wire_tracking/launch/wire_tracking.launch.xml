@@ -13,7 +13,7 @@
     name="rviz2" 
     args="-d $(find-pkg-share wire_tracking)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
     
-  <node pkg="macvo" exec="macvo" if="$(env MACVO)" output="screen">
+  <node pkg="macvo" exec="macvo" if="$(env LOCAL_VO)" output="screen">
       <param name="model_config" value="$(find-pkg-share macvo)/config/model_config.yaml"/>
       <param from="$(find-pkg-share macvo)/config/interface_config.yaml"/>
   </node>
@@ -24,6 +24,6 @@
      /wire_cam/zed_node/left/camera_info 
      /wire_cam/zed_node/pose 
      /wire_cam/zed_node/depth/depth_registered 
-     /pose_cam/zed_node/pose" output="log" if="$(env RECORD)/>
+     /pose_cam/zed_node/pose" output="log" if="$(env RECORD)"/>
 
 </launch>
