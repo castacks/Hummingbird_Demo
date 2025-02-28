@@ -7,6 +7,7 @@ sudo apt install -y zstd libqt5network5 libqt5opengl5 libqt5sql5 libqt5xml5 cuda
 wget -O ZED_SDK.run https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons
 chmod +x ZED_SDK.run
 ./ZED_SDK.run -- silent
+rm ZED_SDK.run
 
 echo "xhost +" > ~/.bashrc
 
@@ -29,7 +30,7 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 sudo apt-get install -y docker-ce=5:27.5.1-1~ubuntu.22.04~jammy --allow-downgrades
 sudo apt-get install -y docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy --allow-downgrades
 
-sudo groupadd docker
+sudo groupadd docker > /dev/null 2>&1 || true
 sudo usermod -aG docker $USER
 newgrp docker > /dev/null 2>&1 || true
 
