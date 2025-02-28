@@ -22,8 +22,6 @@
      /wire_cam/zed_node/left/image_rect_color 
      /wire_cam/detection_debug 
      /wire_cam/zed_node/left/camera_info 
-     /wire_cam/zed_node/pose 
-     /wire_cam/zed_node/depth/depth_registered 
-     /pose_cam/zed_node/pose" output="log" if="$(env RECORD)"/>
+     /wire_cam/zed_node/depth/depth_registered" output="log" if="$(env RECORD)"/>
 
 </launch>
