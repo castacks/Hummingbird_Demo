@@ -36,7 +36,7 @@ def generate_launch_description():
                 'camera_name': 'pose_cam',
                 'camera_model': 'zedx',
                 'serial_number': LaunchConfiguration('pose_cam_serial'),
-                'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','pose_common.yaml'),
+               'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','pose_common.yaml'),
             }.items()
         ),
  
@@ -47,7 +47,7 @@ def generate_launch_description():
                 'camera_name': 'wire_cam',
                 'camera_model': 'zedx',
                 'serial_number': LaunchConfiguration('wire_cam_serial'),
-                'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','wire_common.yaml'),
+               'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','wire_common.yaml'),
             }.items()
         ),
     ])

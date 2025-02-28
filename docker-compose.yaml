@@ -64,9 +64,10 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
-      - ${HOME}/zed_docker_ai/:/usr/local/zed/resources/
+      - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
       - ./zed_wrapper/config/:/root/ros2_ws/src/zed-ros2-wrapper/zed_wrapper/config/
+      - ./zed_wrapper/launch/:/root/ros2_ws/src/zed-ros2-wrapper/zed_wrapper/launch/
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
@@ -117,4 +118,4 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ./autonomy/:/root/ros2_ws/:rw
-      - ./data_collection:/root/data_collection/:rw
+      - /media/airlab/hummingbird/:/root/data_collection/:rw

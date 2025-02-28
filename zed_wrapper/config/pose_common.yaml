@@ -21,7 +21,7 @@
             camera_flip: false
             self_calib: true # Enable the self-calibration process at camera opening. See https://www.stereolabs.com/docs/api/structsl_1_1InitParameters.html#affeaa06cfc1d849e311e484ceb8edcc5
             serial_number: 0 # usually overwritten by launch file
-            pub_resolution: 'OPTIMIZED' # The resolution used for output. 'NATIVE' to use the same `general.grab_resolution` - `OPTIMIZED` Automatically selects the most efficient resolution based on the NEURAL depth mode native output for optimal performance - [obsolete] `CUSTOM`  to apply the `general.pub_downscale_factor` downscale factory to reduce bandwidth in transmission 
+            pub_resolution: 'CUSTOM' # The resolution used for output. 'NATIVE' to use the same `general.grab_resolution` - `OPTIMIZED` Automatically selects the most efficient resolution based on the NEURAL depth mode native output for optimal performance - [obsolete] `CUSTOM`  to apply the `general.pub_downscale_factor` downscale factory to reduce bandwidth in transmission 
             pub_downscale_factor: 4.0 # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM' or 'OPTIMIZED'
             pub_frame_rate: 60.0 # frequency of publishing of visual images and depth images
             gpu_id: -1
