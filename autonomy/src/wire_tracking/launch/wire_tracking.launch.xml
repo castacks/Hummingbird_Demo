@@ -13,7 +13,7 @@
     name="rviz2" 
     args="-d $(find-pkg-share wire_tracking)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
     
-  <node pkg="macvo" exec="macvo" if="$(env LOCAL_VO)" output="screen">
+  <node pkg="macvo" exec="macvo" if="$(env LOCAL_VO)" output="log">
       <param name="model_config" value="$(find-pkg-share macvo)/config/model_config.yaml"/>
       <param from="$(find-pkg-share macvo)/config/interface_config.yaml"/>
   </node>
