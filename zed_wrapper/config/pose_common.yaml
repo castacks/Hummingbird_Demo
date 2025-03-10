@@ -22,7 +22,7 @@
             self_calib: false # Enable the self-calibration process at camera opening. See https://www.stereolabs.com/docs/api/structsl_1_1InitParameters.html#affeaa06cfc1d849e311e484ceb8edcc5
             serial_number: 0 # usually overwritten by launch file
             pub_resolution: 'CUSTOM' # The resolution used for output. 'NATIVE' to use the same `general.grab_resolution` - `OPTIMIZED` Automatically selects the most efficient resolution based on the NEURAL depth mode native output for optimal performance - [obsolete] `CUSTOM`  to apply the `general.pub_downscale_factor` downscale factory to reduce bandwidth in transmission 
-            pub_downscale_factor: 4.0 # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM' or 'OPTIMIZED'
+            pub_downscale_factor: 2.0 # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM' or 'OPTIMIZED'
             pub_frame_rate: 60.0 # frequency of publishing of visual images and depth images
             gpu_id: -1
             optional_opencv_calibration_file: '' # Optional path where the ZED SDK can find a file containing the calibration information of the camera computed by OpenCV. Read the ZED SDK documentation for more information: https://www.stereolabs.com/docs/api/structsl_1_1InitParameters.html#a9eab2753374ef3baec1d31960859ba19
@@ -61,7 +61,7 @@
             apply_to_spatial_mapping: false # Apply ROI to spatial mapping processing
 
         depth: # Only stereo cameras
-            depth_mode: 'NONE' # Matches the ZED SDK setting: 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', 'NEURAL_PLUS' - Note: if 'NONE' all the modules that requires depth extraction are disabled by default (Pos. Tracking, Obj. Detection, Mapping, ...)
+            depth_mode: 'ULTRA' # Matches the ZED SDK setting: 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', 'NEURAL_PLUS' - Note: if 'NONE' all the modules that requires depth extraction are disabled by default (Pos. Tracking, Obj. Detection, Mapping, ...)
             depth_stabilization: 0 # Forces positional tracking to start if major than 0 - Range: [0,100]
             openni_depth_mode: false # 'false': 32bit float [meters], 'true': 16bit unsigned int [millimeters]
             point_cloud_freq: 30.0 # [DYNAMIC] - frequency of the pointcloud publishing (equal or less to `grab_frame_rate` value)
@@ -70,9 +70,9 @@
             remove_saturated_areas: true # [DYNAMIC]
 
         pos_tracking: # Only stereo cameras
-            pos_tracking_enabled: false # True to enable positional tracking from start
+            pos_tracking_enabled: true # True to enable positional tracking from start
             pos_tracking_mode: 'GEN_1' # Matches the ZED SDK setting: 'GEN_1', 'GEN_2'
-            imu_fusion: false # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+            imu_fusion: true # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
             publish_tf: false # [usually overwritten by launch file] publish `odom -> camera_link` TF
             publish_map_tf: false # [usually overwritten by launch file] publish `map -> odom` TF
             map_frame: 'map'
