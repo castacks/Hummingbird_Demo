@@ -18,11 +18,5 @@
       <param name="model_config" value="$(find-pkg-share macvo)/config/model_config.yaml"/>
       <param from="$(find-pkg-share macvo)/config/interface_config.yaml"/>
   </node>
-    
-  <executable cmd="ros2 bag record -s mcap -d 60 -o /root/data_collection/wire_tracking_$(env ROSBAG_DATE)
-     /wire_cam/zed_node/left/image_rect_color 
-     /wire_cam/detection_debug 
-     /wire_cam/zed_node/left/camera_info 
-     /wire_cam/zed_node/depth/depth_registered" output="log" if="$(env RECORD)"/>
 
 </launch>
