@@ -92,7 +92,7 @@ services:
          if [ \"$START_TRACKING\" -eq 1 ]; then \
            echo 'Starting Tracking...' && \
            ros2 launch wire_tracking wire_tracking.launch.xml;
-         else [ \"$START_TRACKING\" -eq 0 ]; then \
+         else \
            echo 'Starting Detection...' && \
            ros2 launch wire_detection wire_detection.launch.xml;
          fi"
