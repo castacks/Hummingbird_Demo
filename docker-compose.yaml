@@ -79,7 +79,8 @@ services:
         L4T_MINOR: ${L4T_MINOR}
         L4T_PATCH: ${L4T_PATCH}
     command: >
-      bash -c "source /opt/ros/humble/install/setup.bash && \
+      bash -c "trap 'tmux kill-server' SIGTERM; \ 
+         source /opt/ros/humble/install/setup.bash && \
          if [ ! -d '/root/ros2_ws/install' ]; then \
            colcon build --symlink-install; else echo 'Already built'; fi && \
          source /root/ros2_ws/install/setup.bash && \
@@ -95,7 +96,7 @@ services:
          else \
            echo 'Starting Detection...' && \
            ros2 launch wire_detection wire_detection.launch.xml;
-         fi"
+         fi && wait"
     network_mode: host
     runtime: nvidia
     privileged: true
