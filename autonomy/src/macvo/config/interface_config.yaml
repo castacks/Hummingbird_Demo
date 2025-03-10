@@ -6,6 +6,6 @@
     pose_pub_topic: "/pose_cam/visual_odometry_pose"
     point_pub_topic: "/pose_cam/visual_odometry_points"
     img_pub_topic: "/pose_cam/visual_odometry_img"
-    inference_dim_u: 450
-    inference_dim_v: 350
+    inference_dim_u: 
+    inference_dim_v: 250
     camera_baseline: 0.12

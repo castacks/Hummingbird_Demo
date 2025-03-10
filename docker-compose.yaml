@@ -107,6 +107,7 @@ services:
       - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
       - LOCAL_VO=${LOCAL_VO}
+      - RVIZ=${RVIZ}
     deploy:
       # let it use the GPU
       resources:
