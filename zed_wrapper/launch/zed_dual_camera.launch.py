@@ -41,13 +41,13 @@ def generate_launch_description():
         ),
  
         # Wire camera launch file
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(launch_file_path),
-        #     launch_arguments={
-        #         'camera_name': 'wire_cam',
-        #         'camera_model': 'zedx',
-        #         'serial_number': LaunchConfiguration('wire_cam_serial'),
-        #        'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','wire_common.yaml'),
-        #     }.items()
-        # ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(launch_file_path),
+            launch_arguments={
+                'camera_name': 'wire_cam',
+                'camera_model': 'zedx',
+                'serial_number': LaunchConfiguration('wire_cam_serial'),
+               'config_path': os.path.join(get_package_share_directory('zed_wrapper'),'config','wire_common.yaml'),
+            }.items()
+        ),
     ])
