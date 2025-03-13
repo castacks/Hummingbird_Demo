@@ -2,7 +2,8 @@
   <node 
     pkg="wire_tracking" 
     exec="wire_tracking_node" 
-    name="wire_tracking_node">
+    name="wire_tracking_node"
+    if="$(env WIRE_NODE)">
     <param 
       from="$(find-pkg-share common_utils)/wire_tracking_config.yaml" />
   </node>

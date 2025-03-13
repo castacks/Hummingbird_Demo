@@ -117,7 +117,7 @@ class MACVONode(Node):
             self.scale_v = float(self.image_height / self.v_dim)
             
             self.recieved_camera_info = True
-            self.get_logger().info(f"Camera info received!")
+            self.get_logger().info(f"Camera info received! Image size: {self.image_width}x{self.image_height}, Desired size: {self.u_dim}x{self.v_dim}, Scale: ({self.scale_u}, {self.scale_v})")
 
     def publish_latest_pose(self, system: MACVO):
         pose = system.gmap.frames.pose[-1]

@@ -108,6 +108,7 @@ services:
       - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
       - LOCAL_VO=${LOCAL_VO}
+      - WIRE_NODE=${WIRE_NODE}
       - RVIZ=${RVIZ}
     deploy:
       # let it use the GPU
