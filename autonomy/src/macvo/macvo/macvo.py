@@ -3,17 +3,20 @@ import torch
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
+import pypose as pp
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+from ament_index_python.packages import get_package_share_directory
+from builtin_interfaces.msg import Time
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from torchvision.transforms.functional import center_crop, resize
 import os, sys
 import argparse
+import logging
 
 from .MessageFactory import to_stamped_pose, from_image, to_pointcloud, to_image
 
@@ -23,12 +26,17 @@ sys.path.insert(0, src_path)
 if TYPE_CHECKING:
     # To make static type checker happy : )
     from src.Odometry.MACVO import MACVO
-    from src.DataLoader import SourceDataFrame, MetaInfo
+    from src.DataLoader import StereoFrame, StereoData, SmartResizeFrame
     from src.Utility.Config import load_config
+    from src.Utility.PrettyPrint import Logger
+    from src.Utility.Timer import Timer
 else:
+    import DataLoader
     from Odometry.MACVO import MACVO                
-    from DataLoader import SourceDataFrame, MetaInfo
+    from DataLoader import StereoFrame, StereoData, SmartResizeFrame
     from Utility.Config import load_config
+    from Utility.PrettyPrint import Logger
+    from Utility.Timer import Timer
 
 class MACVONode(Node):
     def __init__(self):
@@ -68,15 +76,17 @@ class MACVONode(Node):
         # check device 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.get_logger().info("Using device: " + str(device) + " , number of devices: " + str(torch.cuda.device_count()))
+
         self.declare_parameter("model_config", rclpy.Parameter.Type.STRING)
         model_config = self.get_parameter("model_config").get_parameter_value().string_value
         self.get_logger().info(f"Loading macvo model from {model_config}, this might take a while...")
         start_time = self.get_clock().now()
         cfg, _ = load_config(Path(model_config))
-        self.odometry   = MACVO.from_config(cfg)
-        self.odometry.register_on_optimize_finish(self.publish_latest_pose)
-        self.odometry.register_on_optimize_finish(self.publish_latest_points)
-        self.odometry.register_on_optimize_finish(self.publish_latest_matches)
+        self.odometry = MACVO[StereoFrame].from_config(cfg)
+
+        self.odometry.register_on_optimize_finish(self.publish_data)
+        self.odometry.register_on_optimize_finish(self.publish_matches)
+
         end_time = self.get_clock().now()
         time_diff = (end_time - start_time).nanoseconds / 1e9
         self.get_logger().info(f"MACVO Model loaded in {time_diff:.2f} seconds. Initializing MACVO node ...")
@@ -98,13 +108,12 @@ class MACVONode(Node):
         self.imageL_sub = Subscriber(self, Image, imageL_topic, qos_profile=1)
         self.imageR_sub = Subscriber(self, Image, imageR_topic, qos_profile=1)
 
+        self.frame_fn = SmartResizeFrame({"height": self.u_dim, "width": self.v_dim, "interp": "bilinear"})
+
         self.sync_stereo = ApproximateTimeSynchronizer(
             [self.imageL_sub, self.imageR_sub], queue_size=2, slop=0.1
         )
         self.sync_stereo.registerCallback(self.receive_frame)
-
-        # self.rot_correction_matrix = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-        # self.rot_correction_matrix = np.eye(3)
 
         self.get_logger().info(f"MACVO Node initialized with camera config: {model_config}")
 
@@ -113,67 +122,37 @@ class MACVONode(Node):
             self.camera_info = msg
             self.image_width  = msg.width
             self.image_height = msg.height
-            self.scale_u = float(self.image_width / self.u_dim)
-            self.scale_v = float(self.image_height / self.v_dim)
-            
+
             self.recieved_camera_info = True
-            self.get_logger().info(f"Camera info received!")
+            self.get_logger().info(f"Camera info received! Image size: {self.image_width}x{self.image_height}")
 
-    def publish_latest_pose(self, system: MACVO):
-        pose = system.gmap.frames.pose[-1]
-        frame = self.frame
-        time  = self.time if self.prev_time is None else self.prev_time
-        assert frame is not None and time is not None
+    def publish_data(self, system: MACVO):
+        # Latest pose
+        pose    = pp.SE3(system.graph.frames.data["pose"][-1])
+        time_ns = int(system.graph.frames.data["time_ns"][-1].item())
+        time = Time()
+        time.sec = time_ns // 1_000_000_000
+        time.nanosec = time_ns % 1_000_000_000
+        pose_msg = to_stamped_pose(pose, self.coord_frame, time)
         
-        out_msg = to_stamped_pose(pose, frame, time)
+        # Latest map
+        if system.mapping:
+            points = system.graph.get_frame2map(system.graph.frames[-2:-1])
+        else:
+            points = system.graph.get_match2point(system.graph.get_frame2match(system.graph.frames[-1:]))
 
-        # Correction for the camera coordinate frame
-        # out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z = np.dot(self.rot_correction_matrix, np.array([out_msg.pose.position.x, out_msg.pose.position.y, out_msg.pose.position.z]))
-        
-        self.pose_pipe.publish(out_msg)
-   
-    def publish_latest_points(self, system: MACVO):
-        if self.point_pipe is None: return
-        
-        latest_frame  = system.gmap.frames[-1]
-        latest_points = system.gmap.get_frame_points(latest_frame)
-        latest_obs    = system.gmap.get_frame_observes(latest_frame)
-        
-        frame = self.frame
-        time  = self.time if self.prev_time is None else self.prev_time
-        assert frame is not None and time is not None
-        
-        out_msg = to_pointcloud(
-            position  = latest_points.position,
-            keypoints = latest_obs.pixel_uv,
-            frame_id  = frame,
-            colors    = latest_points.color,
-            time      = time
+        map_pc_msg = to_pointcloud(
+            position  = points.data["pos_Tw"],
+            keypoints = None,
+            frame_id  = self.coord_frame,
+            colors    = points.data["color"],
+            time      = time,
         )
 
-        # Correction for the camera coordinate frame
-        # for pt in out_msg.points:
-        #     pt.x, pt.y, pt.z = np.dot(self.rot_correction_matrix, np.array([pt.x, pt.y, pt.z]))
-
-        self.point_pipe.publish(out_msg)
-  
-    def publish_latest_stereo(self, system: MACVO):
-        if self.img_pipes is None: return
-        
-        source = system.prev_frame
-        if source is None: return
-        frame = self.frame
-        time  = self.time if self.prev_time is None else self.prev_time
-        assert frame is not None and time is not None
-        
-        img = (source.imageL[0].permute(1, 2, 0).numpy() * 255).copy().astype(np.uint8)
-        msg = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
-        msg.header.frame_id = frame
-        msg.header.stamp = time
-
-        self.img_pipes.publish(msg)
-    
-    def publish_latest_matches(self, system: MACVO):
+        self.pose_send.publish(pose_msg)
+        self.map_send.publish(map_pc_msg)
+   
+    def publish_matches(self, system: MACVO):
         if self.img_pipes is None: return
 
         source = system.prev_frame
@@ -183,8 +162,7 @@ class MACVONode(Node):
         assert frame is not None and time is not None
         latest_frame  = system.gmap.frames[-1]
 
-        # pixels are given from the reduced image size, need to be scaled back to original size
-        pixels_uv    = system.gmap.get_frame_observes(latest_frame).pixel_uv.int().numpy()
+        pixels_uv    = system.gmap.get_frame_observes(latest_frame).pixel1_uv.int().numpy()
         img = (source.imageL[0].permute(1, 2, 0).numpy() * 255).copy().astype(np.uint8)
         if pixels_uv.size > 0:
             for i in range(pixels_uv.shape[0]):
@@ -195,50 +173,34 @@ class MACVONode(Node):
             msg.header.stamp = time
             self.img_pipes.publish(msg)
 
-    def receive_frame(self, msg_L: Image, msg_R: Image) -> None:
-        if self.frame is None or self.bridge is None or self.recieved_camera_info is False:
-            self.get_logger().error("MACVO Node not initialized yet, skipping frame")
-            return
+    def receive_stereo(self, msg_imageL: Image, msg_imageR: Image) -> None:
+        self.get_logger().info(f"{self.odometry.graph}")
+        imageL, timestamp = from_image(msg_imageL), msg_imageL.header.stamp
+        imageR            = from_image(msg_imageR)
         
-        if self.frame_idx == 0:
-            self.get_logger().info(f"Inferencing first frame with scale ({self.scale_u}, {self.scale_v}), please wait...")
-            first_frame_time = self.get_clock().now()
-        self.prev_time = self.time
-        self.time = msg_L.header.stamp
-        imageL = self.bridge.imgmsg_to_cv2(msg_L, desired_encoding="passthrough")
-        imageR = self.bridge.imgmsg_to_cv2(msg_R, desired_encoding="passthrough")
-
-        camera_fx, camera_fy = self.camera_info.k[0], self.camera_info.k[4]
-        camera_cx, camera_cy = self.camera_info.k[2], self.camera_info.k[5]
-        meta = MetaInfo(
-            idx=self.frame_idx,
-            baseline=self.baseline,
-            width=self.camera_info.width,
-            height=self.camera_info.height,
-            K=torch.tensor([[camera_fx, 0., camera_cx],
-                            [0., camera_fy, camera_cy],
-                            [0., 0., 1.]]).float())
-        
-        frame = SourceDataFrame(
-                meta=meta,
+        # Instantiate a frame and scale to the desired height & width
+        stereo_frame = self.frame_fn(StereoFrame(
+            idx    =[self.frame_id],
+            time_ns=[timestamp.nanosec],
+            stereo =StereoData(
+                T_BS=pp.identity_SE3(1),
+                K   =torch.tensor([[
+                    [self.camera.fx, 0.            , self.camera.cx],
+                    [0.            , self.camera.fy, self.camera.cy],
+                    [0.            , 0.            , 1.            ]
+                ]]),
+                baseline=torch.tensor([self.camera.bl]),
+                time_ns=[timestamp.nanosec],
+                height=imageL.shape[0],
+                width=imageL.shape[1],
                 imageL=torch.tensor(imageL)[..., :3].float().permute(2, 0, 1).unsqueeze(0) / 255.,
                 imageR=torch.tensor(imageR)[..., :3].float().permute(2, 0, 1).unsqueeze(0) / 255.,
-                imu=None,
-                gtFlow=None, gtDepth=None, gtPose=None, flowMask=None
-            ).resize_image(scale_u=self.scale_u, scale_v=self.scale_v)
+            )
+        ))
+        self.odometry.run(stereo_frame)
         
-        start_time = self.get_clock().now()
-        self.odometry.run(frame)
-        end_time = self.get_clock().now()   
-        frame_time_diff = (end_time - start_time).nanoseconds / 1e9
-
-        if self.frame_idx == 0:
-            time_diff = (end_time - first_frame_time).nanoseconds / 1e9
-            self.get_logger().info(f"First frame processed in {time_diff:.2f} seconds.")
-        else:
-            self.get_logger().info(f"Frame {self.frame_idx} processed in {frame_time_diff}")
-
-        self.frame_idx += 1
+        # Pose-processing
+        self.frame_id += 1
 
 def main():
     rclpy.init()
