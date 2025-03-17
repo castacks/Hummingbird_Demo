@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-package_name = 'visual_servoing_python'  # This should match your package directory name
+package_name = 'visual_servoing'  # This should match your package directory name
 
 setup(
     name=package_name,
@@ -21,7 +21,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'visual_servo_node = visual_servoing_python.visual_servo_node:main',  # Point to the main function
+            'visual_servo_node = visual_servoing.visual_servo_node:main',  # Point to the main function
         ],
     },
 )

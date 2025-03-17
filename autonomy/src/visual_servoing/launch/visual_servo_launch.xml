@@ -1,10 +1,10 @@
 <launch>
   <node 
-    pkg="visual_servoing_python" 
+    pkg="visual_servoing" 
     exec="visual_servo_node" 
     name="visual_servo_node">
     <param 
-      from="$(find-pkg-share visual_servoing_python)/visual_servo_config.yaml" />
+      from="$(find-pkg-share visual_servoing)/visual_servo_config.yaml" />
     <remap 
       from="camera_info" 
       to="/$(env ROBOT_NAME)/sensors/gripper_cam/camera_info" />

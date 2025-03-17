@@ -75,3 +75,5 @@ RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_Fron
 WORKDIR /root/ros2_ws/
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
+
+RUN pip uninstall matplotlib -y

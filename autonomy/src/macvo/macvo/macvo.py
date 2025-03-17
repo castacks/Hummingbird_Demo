@@ -9,14 +9,11 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-from ament_index_python.packages import get_package_share_directory
 from builtin_interfaces.msg import Time
 
 from pathlib import Path
 from typing import TYPE_CHECKING
 import os, sys
-import argparse
-import logging
 
 from .MessageFactory import to_stamped_pose, from_image, to_pointcloud, to_image
 
@@ -28,19 +25,17 @@ if TYPE_CHECKING:
     from src.Odometry.MACVO import MACVO
     from src.DataLoader import StereoFrame, StereoData, SmartResizeFrame
     from src.Utility.Config import load_config
-    from src.Utility.PrettyPrint import Logger
-    from src.Utility.Timer import Timer
 else:
     import DataLoader
     from Odometry.MACVO import MACVO                
     from DataLoader import StereoFrame, StereoData, SmartResizeFrame
     from Utility.Config import load_config
-    from Utility.PrettyPrint import Logger
-    from Utility.Timer import Timer
 
 class MACVONode(Node):
     def __init__(self):
         super().__init__("macvo_node")
+
+        self.get_logger().info("Initializing MACVO Node ...")
 
         self.bridge = None
         self.time = None
