@@ -134,33 +134,26 @@ def to_image(arr: np.ndarray, frame_id: str, time: Time, encoding: str = "bgra8"
     return im
 
 
-def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor, colors: torch.Tensor, frame_id: str, time: Time) -> sensor_msgs.PointCloud:
+def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor | None, colors: torch.Tensor, frame_id: str, time: Time) -> sensor_msgs.PointCloud:
     """
     position    should be a Nx3 pytorch Tensor (dtype=float)
     keypoints   should be a Nx2 pytorch Tensor (dtype=float)
     """
-    assert position.size(0) == keypoints.size(0)
     
     out_msg     = sensor_msgs.PointCloud()
     position_   = position.detach().cpu().numpy()
-    keypoints_  = keypoints.detach().cpu().numpy()
     colors_      = colors.detach().cpu().numpy()
     
     out_msg.header = std_msgs.Header()
     out_msg.header.stamp    = time
     out_msg.header.frame_id = frame_id
     
+    
     out_msg.points = [
         geometry_msgs.Point32(x=float(position_[pt_idx, 0]), y=float(position_[pt_idx, 1]), z=float(position_[pt_idx, 2]))
         for pt_idx in range(position.size(0))
     ]
     out_msg.channels = [
-        sensor_msgs.ChannelFloat32(
-            name="kp_u", values=keypoints_[..., 0].tolist()
-        ),
-        sensor_msgs.ChannelFloat32(
-            name="kp_v", values=keypoints_[..., 1].tolist()
-        ),
         sensor_msgs.ChannelFloat32(
             name="r" , values=colors_[..., 0].tolist()
         ),
@@ -171,5 +164,15 @@ def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor, colors: torch
             name="b" , values=colors_[..., 2].tolist()
         )
     ]
+    
+    if keypoints is not None:
+        assert position.size(0) == keypoints.size(0)
+        keypoints_  = keypoints.detach().cpu().numpy()
+        out_msg.channels.append(sensor_msgs.ChannelFloat32(
+            name="kp_u", values=keypoints_[..., 0].tolist()
+        ))
+        out_msg.channels.append(sensor_msgs.ChannelFloat32(
+            name="kp_v", values=keypoints_[..., 1].tolist()
+        ))
     
     return out_msg
