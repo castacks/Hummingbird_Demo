@@ -36,6 +36,9 @@ RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_rel
 RUN pip3 install protobuf
 
 WORKDIR /root/ros2_ws/
+RUN source /opt/ros/$ROS_DISTRO/setup.bash && \
+  rosdep init && \
+  rosdep update
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
 
