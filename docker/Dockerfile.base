@@ -1,0 +1,129 @@
+ARG L4T_MAJOR=${L4T_MAJOR}
+ARG L4T_MINOR=${L4T_MINOR}
+ARG L4T_PATCH=${L4T_PATCH}
+ARG L4T_VERSION=l4t-r${L4T_MAJOR}.${L4T_MINOR}.${L4T_PATCH}
+ARG IMAGE_NAME=dustynv/ros:humble-desktop-${L4T_VERSION}
+
+FROM ${IMAGE_NAME}
+
+ARG L4T_MAJOR=${L4T_MAJOR}
+ARG L4T_MINOR=${L4T_MINOR}
+ARG L4T_PATCH=${L4T_PATCH}
+
+ENV DEBIAN_FRONTEND noninteractive
+
+ARG ROS2_DIST=humble  
+
+ENV ROS_DISTRO ${ROS2_DIST}
+
+# Base dependencies -----------------------------
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
+  apt-get update || true && apt-get install -y --no-install-recommends apt-utils dialog && \
+  rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Europe/Paris
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \ 
+  apt-get update && \
+  apt-get install --yes lsb-release wget less udev sudo build-essential cmake python3 python3-dev python3-pip python3-wheel git jq libpq-dev zstd usbutils vim && \    
+  rm -rf /var/lib/apt/lists/*
+  
+RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release && \
+  apt-get update -y || true && \
+  apt-get install -y --no-install-recommends zstd wget less cmake curl gnupg2 tmux \
+  build-essential python3 python3-pip python3-dev python3-setuptools libusb-1.0-0-dev -y
+  
+RUN pip3 install protobuf
+
+WORKDIR /root/ros2_ws/
+RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
+RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
+
+# RTI Connext DDS --------------------------------------------------------------------------------------------------------------------------------------
+ARG CONNEXTDDS_HOST_VERSION=7.3.0
+ARG CONNEXTDDS_ARCH=armv8Linux4gcc7.3.0
+ARG CONNEXTDDS_INSTALL_PREFIX=/opt
+
+# Version error checking
+RUN case "6.1.2 7.3.0" in \
+    *"${CONNEXTDDS_HOST_VERSION}"*) ;; \
+    *) \
+        exit 1;; \
+    esac
+
+ENV CONNEXTDDS_HOST_DIR=rti_connext_dds-${CONNEXTDDS_HOST_VERSION}
+ENV CONNEXTDDS_DIR="${CONNEXTDDS_INSTALL_PREFIX}/${CONNEXTDDS_HOST_DIR}"
+
+RUN mkdir -p ${CONNEXTDDS_INSTALL_PREFIX}
+
+RUN pip install minio
+COPY ./download_from_minio.py /tmp
+RUN python3 /tmp/download_from_minio.py --file "rti_connextdds/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" \
+            --destination "/tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" && \
+    sudo tar xvf tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar -C ${CONNEXTDDS_INSTALL_PREFIX}
+
+# Add to root bashrc file for development and debugging
+RUN mkdir -p /tmp/image_bashrc_files && touch /tmp/image_bashrc_files/rti.sh
+RUN echo "source ${CONNEXTDDS_DIR}/resource/scripts/rtisetenv_${CONNEXTDDS_ARCH}.bash" >> /tmp/image_bashrc_files/rti.sh
+
+# Clone rmw_connextdds to have ROS RMW interface with RTI DDS. Default to
+# cloning the branch corresponding to the ROS_DISTRO. Unless it is "rolling",
+# where the branch will be "master" or build args provided
+ARG RMW_CONNEXTDDS_DIR=/opt/rmw_connextdds
+ENV RMW_CONNEXTDDS_DIR=${RMW_CONNEXTDDS_DIR}
+ARG RMW_CONNEXTDDS_URL=https://github.com/ros2/rmw_connextdds
+ARG RMW_CONNEXTDDS_BRANCH=
+RUN if [ -n "${RMW_CONNEXTDDS_BRANCH}" ]; then \
+      rmw_branch="${RMW_CONNEXTDDS_BRANCH}"; \
+    elif [ "${ROS_DISTRO}" = "rolling" ]; then\
+      rmw_branch="master";\
+    else\
+      rmw_branch="${ROS_DISTRO}";\
+    fi \
+    && git clone -b ${ROS_DISTRO} ${RMW_CONNEXTDDS_URL} ${RMW_CONNEXTDDS_DIR}
+
+# Checkout specific working commits if using humble. These are chosen from experimentation.
+# Latest humble (2d794c7) works for 7.3.0, but only (1252ed8) works for 6.1.2.
+# Also cherry-pick this change https://github.com/ros2/rmw_connextdds/pull/26 which changes
+# reliable heartbeat period from 3s -> 0.1s
+# This cherry-pick usually requires a user and email. Since this is docker, I chose to set
+# --no-commit which will not require it. Downside: the changes are present but unstaged, so
+# there is no knowing what commit you are really on, if you are developing inside the container.
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+    && cd ${RMW_CONNEXTDDS_DIR} \
+    && if [ "${ROS_DISTRO}" = "humble" ]; then \
+           if [ "${CONNEXTDDS_HOST_VERSION}" = "6.1.2" ]; then \
+               git checkout 1252ed8;\
+           elif [ "${CONNEXTDDS_HOST_VERSION}" = "7.3.0" ]; then \
+               git checkout 2d794c7;\
+           fi \
+       fi \
+    && git cherry-pick --no-commit b57d032 \
+    && if [ -n "${CONNEXTDDS_ARCH}" ]; then \
+        build_args="--cmake-args -DCONNEXTDDS_ARCH=${CONNEXTDDS_ARCH} -DCMAKE_BUILD_TYPE=Release";\
+    fi \
+    && MAKEFLAGS=-j$(nproc) colcon build --symlink-install ${build_args}
+
+ENV RMW_IMPLEMENTATION=rmw_connextdds
+
+# Add to .bashrc for development and debugging
+RUN echo "source ${RMW_CONNEXTDDS_DIR}/install/setup.bash\n" >> /tmp/image_bashrc_files/rti.sh && \
+    echo "export RMW_IMPLEMENTATION=rmw_connextdds" >> /tmp/image_bashrc_files/rti.sh
+
+# Provide QoS Default. This will be located and sourced in CONNEXTDDS_DIR. If
+# # custom path or profile provided, it will override the default.
+ARG QOS_PROFILE_FILE=rti_sensor_qos_profile.xml
+ARG QOS_PROFILE_BASE_DIR=${CONNEXTDDS_DIR}
+
+ENV QOS_PROFILE_FILE=${QOS_PROFILE_FILE}
+ENV QOS_PROFILE_BASE_DIR=${QOS_PROFILE_BASE_DIR}
+
+ARG QOS_PROFILE_PATH=
+COPY ${QOS_PROFILE_PATH} "${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
+
+# Add to default registries
+ENV NDDS_QOS_PROFILES="${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
+RUN echo "export NDDS_QOS_PROFILES=${NDDS_QOS_PROFILES}" >> /tmp/image_bashrc_files/rti.sh
+
+# Update root bashrc in case individually deployed
+RUN echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> /root/.bashrc

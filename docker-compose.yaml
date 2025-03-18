@@ -1,34 +1,41 @@
+x-common-attributes: &common-attributes
+  network_mode: host
+  runtime: nvidia
+  privileged: true
+  ipc: host
+  pid: host
+  stdin_open: true
+  tty: true
 services:
+  base:
+    image: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile.base
+      args:
+        L4T_MAJOR: ${L4T_MAJOR}
+        L4T_MINOR: ${L4T_MINOR}
+        L4T_PATCH: ${L4T_PATCH}
+    <<: *common-attributes
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev 
+      - /tmp:/tmp 
   rtsp:
     image: tharp789/hummingbird_demo:rtsp-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build:
       context: ./
       dockerfile: docker/Dockerfile.rtsp
       args:
-        L4T_MAJOR: ${L4T_MAJOR}
-        L4T_MINOR: ${L4T_MINOR}
-        L4T_PATCH: ${L4T_PATCH}
+        BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                if [ ! -d "/root/ros2_ws/install" ]; then \
                colcon build --symlink-install; else echo 'Already built'; fi && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch image2rtsp dual_image2rtsp.launch.py && sleep infinity"
-    network_mode: host
-    runtime: nvidia
-    privileged: true
-    ipc: host
-    pid: host
-    environment:
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - DISPLAY
-      - QT_X11_NO_MITSHM=1
-    stdin_open: true  # Equivalent to -it for interactive terminal
-    tty: true  # Ensures that a pseudo-terminal is allocated
+    <<: *common-attributes
     volumes:
-      - /dev:/dev 
-      - /tmp:/tmp 
-      - /tmp/.X11-unix:/tmp/.X11-unix
       - ./image2rtsp/:/root/ros2_ws/:rw
   
   zed_wrapper:
@@ -37,31 +44,17 @@ services:
       context: ./
       dockerfile: docker/Dockerfile.zed-dev
       args:
-        L4T_MAJOR: ${L4T_MAJOR}
-        L4T_MINOR: ${L4T_MINOR}
-        L4T_PATCH: ${L4T_PATCH}
+        BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
-    network_mode: host
-    runtime: nvidia
-    privileged: true
-    ipc: host
-    pid: host
     environment:
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - DISPLAY
-      - QT_X11_NO_MITSHM=1
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
-    stdin_open: true  # Equivalent to -it for interactive terminal
-    tty: true  # Ensures that a pseudo-terminal is allocated
+    <<: *common-attributes
     volumes:
-      - /dev:/dev 
-      - /tmp:/tmp 
-      - /tmp/.X11-unix:/tmp/.X11-unix
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
@@ -75,9 +68,7 @@ services:
       context: ./ 
       dockerfile: docker/Dockerfile.autonomy
       args:
-        L4T_MAJOR: ${L4T_MAJOR}
-        L4T_MINOR: ${L4T_MINOR}
-        L4T_PATCH: ${L4T_PATCH}
+        BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     command: >
       bash -c "trap 'tmux kill-server' SIGTERM; \ 
          source /opt/ros/humble/install/setup.bash && \
@@ -97,15 +88,7 @@ services:
            echo 'Starting Detection...' && \
            ros2 launch wire_detection wire_detection.launch.xml;
          fi && wait"
-    network_mode: host
-    runtime: nvidia
-    privileged: true
-    ipc: host
-    pid: host
     environment:
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - DISPLAY
-      - QT_X11_NO_MITSHM=1
       - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
       - LOCAL_VO=${LOCAL_VO}
@@ -119,9 +102,7 @@ services:
             - driver: nvidia # https://stackoverflow.com/a/70761193
               count: 1
               capabilities: [ gpu ]
-    stdin_open: true  # Equivalent to -it for interactive terminal
-    tty: true  # Ensures that a pseudo-terminal is allocated
+    <<: *common-attributes
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
       - ./autonomy/:/root/ros2_ws/:rw
       - ${STORAGE_PATH}:/root/data_collection/:rw
