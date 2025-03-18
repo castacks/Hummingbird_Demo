@@ -68,7 +68,6 @@ class MACVONode(Node):
         self.camera_info_sub = self.create_subscription(CameraInfo, camera_info_sub_topic, self.get_camera_info, qos_profile=1)
         
         # Load the MACVO model ------------------------------------
-        # check device 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.get_logger().info("Using device: " + str(device) + " , number of devices: " + str(torch.cuda.device_count()))
 
