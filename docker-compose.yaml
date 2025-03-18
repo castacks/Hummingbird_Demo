@@ -28,6 +28,8 @@ services:
       dockerfile: docker/Dockerfile.rtsp
       args:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
+    depends_on:
+    - base
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                if [ ! -d "/root/ros2_ws/install" ]; then \
@@ -45,6 +47,8 @@ services:
       dockerfile: docker/Dockerfile.zed-dev
       args:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
+    depends_on:
+    - base
     command: >
       bash -c "source /opt/ros/humble/install/setup.bash && \
                source /root/ros2_ws/install/local_setup.bash && \
@@ -69,6 +73,8 @@ services:
       dockerfile: docker/Dockerfile.autonomy
       args:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
+    depends_on:
+    - base
     command: >
       bash -c "trap 'tmux kill-server' SIGTERM; \ 
          source /opt/ros/humble/install/setup.bash && \

@@ -12,9 +12,9 @@ ARG L4T_PATCH=${L4T_PATCH}
 
 ENV DEBIAN_FRONTEND noninteractive
 
-ARG ROS2_DIST=humble  
+ARG ROS2_DISTRO=humble  
 
-ENV ROS_DISTRO ${ROS2_DIST}
+ENV ROS_DISTRO ${ROS2_DISTRO}
 
 # Base dependencies -----------------------------
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
@@ -36,8 +36,8 @@ RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_rel
 RUN pip3 install protobuf
 
 WORKDIR /root/ros2_ws/
-RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
-RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
+RUN echo "source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
 
 # RTI Connext DDS --------------------------------------------------------------------------------------------------------------------------------------
 ARG CONNEXTDDS_HOST_VERSION=7.3.0
@@ -57,10 +57,9 @@ ENV CONNEXTDDS_DIR="${CONNEXTDDS_INSTALL_PREFIX}/${CONNEXTDDS_HOST_DIR}"
 RUN mkdir -p ${CONNEXTDDS_INSTALL_PREFIX}
 
 RUN pip install minio
-COPY ./download_from_minio.py /tmp
-RUN python3 /tmp/download_from_minio.py --file "rti_connextdds/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" \
-            --destination "/tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" && \
-    sudo tar xvf tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar -C ${CONNEXTDDS_INSTALL_PREFIX}
+COPY docker/download_from_minio.py /tmp
+RUN python3 /tmp/download_from_minio.py --file "rti_connextdds/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" --destination "/tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar" 
+RUN tar xvf /tmp/rti_package_${CONNEXTDDS_HOST_VERSION}.tar -C ${CONNEXTDDS_INSTALL_PREFIX}
 
 # Add to root bashrc file for development and debugging
 RUN mkdir -p /tmp/image_bashrc_files && touch /tmp/image_bashrc_files/rti.sh
