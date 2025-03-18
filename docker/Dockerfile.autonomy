@@ -65,15 +65,24 @@ RUN pip3 install --no-cache-dir --ignore-installed \
   timm==0.9.12 \
   rerun-sdk==0.17 \
   yacs \
-  wandb
+  wandb \ 
+  cupy-cuda12x \
+  opencv-python-headless \
+  onnx 
+  # xformers==0.0.27.post2 
+
+RUN pip uninstall matplotlib -y
 
 WORKDIR /root/model_weights
 RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth" && \ 
     mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth /root/model_weights/MACVO_FrontendCov.pth && \
     rm -rf /root/model_weights/github.com
 
+RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl" && \ 
+    mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl /root/model_weights/MACVO_posenet.pkl && \
+    rm -rf /root/model_weights/github.com
+    
 WORKDIR /root/ros2_ws/
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
 
-RUN pip uninstall matplotlib -y

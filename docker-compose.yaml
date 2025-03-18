@@ -92,11 +92,14 @@ services:
          fi && \
          if [ \"$START_TRACKING\" -eq 1 ]; then \
            echo 'Starting Tracking...' && \
-           ros2 launch wire_tracking wire_tracking.launch.xml;
+           ros2 launch wire_tracking wire_tracking.launch.xml; \
          else \
            echo 'Starting Detection...' && \
            ros2 launch wire_detection wire_detection.launch.xml;
          fi && wait"
+
+# ros2 launch wire_tracking wire_tracking.launch.xml
+# python3 /root/ros2_ws/build/macvo/macvo/test_import.py
     network_mode: host
     runtime: nvidia
     privileged: true
