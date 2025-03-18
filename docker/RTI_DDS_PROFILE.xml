@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://community.rti.com/schema/6.1.2/rti_dds_qos_profiles.xsd">
+    <qos_library name="airlab_qos_library">
+        <qos_profile name="sensors_profile" base_name="BuiltinQosLib::Generic.BestEffort"
+            is_default_qos="true">
+            <datawriter_qos>
+                <publish_mode>
+                    <kind>ASYNCHRONOUS_PUBLISH_MODE_QOS</kind>
+                </publish_mode>
+            </datawriter_qos>
+            <datareader_qos>
+                <resource_limits>
+                    <max_samples>LENGTH_UNLIMITED</max_samples>
+                </resource_limits>
+            </datareader_qos>
+            <!-- Section 19.4 in the documentation. PDF page 906, paper page 880. -->
+            <!-- https://community.rti.com/static/documentation/connext-dds/6.1.2/doc/manuals/connext_dds_professional/users_manual/RTI_ConnextDDS_CoreLibraries_UsersManual.pdf -->
+            <domain_participant_qos>
+                <transport_builtin>
+                    <mask>SHMEM|UDPv4</mask>
+                </transport_builtin>
+                <discovery>
+                    <initial_peers>
+                        <element>localhost</element>
+                    </initial_peers>
+                </discovery>
+                <property>
+                    <value>
+                        <element>
+                            <name>dds.transport.shmem.builtin.received_message_count_max</name>
+                            <!-- 1024 x 1024 -->
+                            <value>1048576</value>
+                        </element>
+                        <element>
+                            <name>dds.transport.shmem.builtin.receive_buffer_size</name>
+                            <!-- RTI document says that buffer size is in bytes. -->
+                            <!-- Set to 1GB, INT_MAX might be 32bit integer with a max of 2^31-1=2147483647 -->
+                            <!--   9876543210 -->
+                            <value>1073741824</value>
+                        </element>
+                    </value>
+                </property>
+            </domain_participant_qos>
+        </qos_profile>
+    </qos_library>
+</dds>

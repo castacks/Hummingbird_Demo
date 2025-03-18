@@ -1,58 +1,17 @@
-ARG L4T_MAJOR=${L4T_MAJOR}
-ARG L4T_MINOR=${L4T_MINOR}
-ARG L4T_PATCH=${L4T_PATCH}
-ARG L4T_VERSION=l4t-r${L4T_MAJOR}.${L4T_MINOR}.${L4T_PATCH}
-ARG IMAGE_NAME=dustynv/ros:humble-desktop-${L4T_VERSION}
-
-FROM ${IMAGE_NAME}
-
-ARG L4T_MAJOR=${L4T_MAJOR}
-ARG L4T_MINOR=${L4T_MINOR}
-ARG L4T_PATCH=${L4T_PATCH}
-
-ARG ROS2_DIST=humble
-
-# ZED ROS2 Wrapper dependencies version
-ARG XACRO_VERSION=2.0.8
-ARG DIAGNOSTICS_VERSION=3.0.0
-ARG AMENT_LINT_VERSION=0.12.4
-ARG GEOGRAPHIC_INFO_VERSION=1.0.4
-ARG ROBOT_LOCALIZATION_VERSION=3.4.2
-
-ENV DEBIAN_FRONTEND noninteractive
+FROM ${BASE_IMAGE}
 
 # ZED SDK link
 ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t$L4T_MAJOR.$L4T_MINOR/jetsons"
 
-# Disable apt-get warnings
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
-  apt-get update || true && apt-get install -y --no-install-recommends apt-utils dialog && \
-  rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --yes libgeographic-dev libdraco-dev zlib1g-dev -y 
 
-ENV TZ=Europe/Paris
-
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \ 
-  apt-get update && \
-  apt-get install --yes lsb-release wget less udev sudo build-essential cmake python3 python3-dev python3-pip python3-wheel git jq libpq-dev zstd usbutils vim && \    
-  rm -rf /var/lib/apt/lists/*
-
-RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release && \
-  apt-get update -y || true && \
-  apt-get install -y --no-install-recommends zstd wget less cmake curl gnupg2 \
-  build-essential python3 python3-pip python3-dev python3-setuptools libusb-1.0-0-dev \ 
-  libgeographic-dev libdraco-dev zlib1g-dev -y && \
-  pip install protobuf && \
-  wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run \
-  ${ZED_SDK_URL} && \
+RUN wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run ${ZED_SDK_URL} && \
   chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent && \
   rm -rf /usr/local/zed/resources/* && \
   rm -rf ZED_SDK_Linux_JP.run && \
   rm -rf /var/lib/apt/lists/*
 
-# Install the ZED ROS2 Wrapper
-ENV ROS_DISTRO ${ROS2_DIST}
-
-# Copy the sources in the Docker image
+# ZED ROS2 Wrapper dependencies version
 WORKDIR /root/ros2_ws/src/
 ARG XACRO_VERSION=2.0.8
 ARG DIAGNOSTICS_VERSION=4.0.0
@@ -103,7 +62,3 @@ RUN /bin/bash -c "source /opt/ros/$ROS_DISTRO/install/setup.bash && source insta
   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
   ' --no-warn-unused-cli' "
-
-WORKDIR /root/ros2_ws
-RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
-RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
