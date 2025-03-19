@@ -9,7 +9,7 @@ chmod +x ZED_SDK.run
 ./ZED_SDK.run -- silent
 rm ZED_SDK.run
 
-echo "xhost +" > ~/.bashrc
+echo "xhost +" >> ~/.bashrc
 
 # Add Docker's official GPG key:
 sudo apt-get update
