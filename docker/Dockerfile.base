@@ -57,6 +57,7 @@ RUN case "6.1.2 7.3.0" in \
 ENV CONNEXTDDS_HOST_DIR=rti_connext_dds-${CONNEXTDDS_HOST_VERSION}
 ENV CONNEXTDDS_DIR="${CONNEXTDDS_INSTALL_PREFIX}/${CONNEXTDDS_HOST_DIR}"
 
+# Download installation package and supplementary files using minio
 RUN mkdir -p ${CONNEXTDDS_INSTALL_PREFIX}
 
 RUN pip install minio
