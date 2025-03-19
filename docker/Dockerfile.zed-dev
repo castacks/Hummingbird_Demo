@@ -12,13 +12,6 @@ ARG L4T_PATCH=${L4T_PATCH}
 
 ARG ROS2_DIST=humble
 
-# ZED ROS2 Wrapper dependencies version
-ARG XACRO_VERSION=2.0.8
-ARG DIAGNOSTICS_VERSION=3.0.0
-ARG AMENT_LINT_VERSION=0.12.4
-ARG GEOGRAPHIC_INFO_VERSION=1.0.4
-ARG ROBOT_LOCALIZATION_VERSION=3.4.2
-
 ENV DEBIAN_FRONTEND noninteractive
 
 # ZED SDK link
@@ -52,7 +45,7 @@ RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_rel
 # Install the ZED ROS2 Wrapper
 ENV ROS_DISTRO ${ROS2_DIST}
 
-# Copy the sources in the Docker image
+# ZED ROS2 Wrapper dependencies version
 WORKDIR /root/ros2_ws/src/
 ARG XACRO_VERSION=2.0.8
 ARG DIAGNOSTICS_VERSION=4.0.0

@@ -32,7 +32,7 @@ sudo apt-get install -y docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy --allow-down
 
 sudo groupadd docker > /dev/null 2>&1 || true
 sudo usermod -aG docker $USER
-newgrp docker > /dev/null 2>&1 || true
+newgrp docker 
 
 # Install NVIDIA Container Toolkit
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
