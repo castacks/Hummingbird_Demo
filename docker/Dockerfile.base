@@ -16,6 +16,10 @@ ARG ROS2_DISTRO=humble
 
 ENV ROS_DISTRO ${ROS2_DISTRO}
 
+ENV L4T_MAJOR=${L4T_MAJOR}
+ENV L4T_MINOR=${L4T_MINOR}
+ENV L4T_PATCH=${L4T_PATCH}
+
 # Base dependencies -----------------------------
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 42D5A192B819C5DA || true && \
   apt-get update || true && apt-get install -y --no-install-recommends apt-utils dialog && \
@@ -36,11 +40,8 @@ RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_rel
 RUN pip3 install protobuf
 
 WORKDIR /root/ros2_ws/
-RUN source /opt/ros/$ROS_DISTRO/setup.bash && \
-  rosdep init && \
-  rosdep update
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
-RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
+RUN echo "source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
 
 # RTI Connext DDS --------------------------------------------------------------------------------------------------------------------------------------
 ARG CONNEXTDDS_HOST_VERSION=7.3.0
@@ -91,7 +92,7 @@ RUN if [ -n "${RMW_CONNEXTDDS_BRANCH}" ]; then \
 # This cherry-pick usually requires a user and email. Since this is docker, I chose to set
 # --no-commit which will not require it. Downside: the changes are present but unstaged, so
 # there is no knowing what commit you are really on, if you are developing inside the container.
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+RUN . /opt/ros/${ROS_DISTRO}/install/setup.sh \
     && cd ${RMW_CONNEXTDDS_DIR} \
     && if [ "${ROS_DISTRO}" = "humble" ]; then \
            if [ "${CONNEXTDDS_HOST_VERSION}" = "6.1.2" ]; then \
@@ -109,7 +110,7 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
 ENV RMW_IMPLEMENTATION=rmw_connextdds
 
 # Add to .bashrc for development and debugging
-RUN echo "source ${RMW_CONNEXTDDS_DIR}/install/setup.bash\n" >> /tmp/image_bashrc_files/rti.sh && \
+RUN echo "source ${RMW_CONNEXTDDS_DIR}/install/setup.bash" >> /tmp/image_bashrc_files/rti.sh && \
     echo "export RMW_IMPLEMENTATION=rmw_connextdds" >> /tmp/image_bashrc_files/rti.sh
 
 # Provide QoS Default. This will be located and sourced in CONNEXTDDS_DIR. If
@@ -128,4 +129,4 @@ ENV NDDS_QOS_PROFILES="${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
 RUN echo "export NDDS_QOS_PROFILES=${NDDS_QOS_PROFILES}" >> /tmp/image_bashrc_files/rti.sh
 
 # Update root bashrc in case individually deployed
-RUN echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> /root/.bashrc
+RUN echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> ~/.bashrc

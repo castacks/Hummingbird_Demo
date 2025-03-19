@@ -1,3 +1,3 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
