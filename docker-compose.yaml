@@ -20,8 +20,7 @@ services:
         L4T_MAJOR: ${L4T_MAJOR}
         L4T_MINOR: ${L4T_MINOR}
         L4T_PATCH: ${L4T_PATCH}
-    profiles:
-      - base-build
+
   rtsp:
     image: tharp789/hummingbird_demo:rtsp-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build:
