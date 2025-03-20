@@ -53,21 +53,19 @@ RUN apt-get update && apt-get install libgeographic-dev libdraco-dev zlib1g-dev 
 
 # Build the dependencies and the ZED ROS2 Wrapper
 WORKDIR /root/ros2_ws
-RUN /bin/bash -c "source ~/.bashrc && source /opt/ros/$ROS_DISTRO/install/setup.bash && colcon build --symlink-install"
+RUN /bin/bash -c "source ~/.bashrc && source /opt/ros/$ROS_DISTRO/install/setup.bash && \
+colcon build --cmake-force-configure --parallel-workers $(nproc) --symlink-install \
+  --event-handlers console_direct+ --base-paths src \
+  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+  ' --no-warn-unused-cli' "
 
-# RUN /bin/bash -c "source ~/.bashrc && source /opt/ros/$ROS_DISTRO/install/setup.bash && \
-# colcon build --cmake-force-configure --parallel-workers $(nproc) --symlink-install \
-#   --event-handlers console_direct+ --base-paths src \
-#   --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
-#   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
-#   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
-#   ' --no-warn-unused-cli' "
-
-# COPY ./zed_wrapper/ /root/ros2_ws/src/zed_wrapper/
-# RUN /bin/bash -c "source ~/.bashrc && source /opt/ros/$ROS_DISTRO/install/setup.bash && source install/setup.bash && \
-#   colcon build --parallel-workers $(nproc) --symlink-install --packages-select zed_wrapper \
-#   --event-handlers console_direct+ --base-paths src \
-#   --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
-#   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
-#   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
-#   ' --no-warn-unused-cli' "
+COPY ./zed_wrapper/ /root/ros2_ws/src/zed_wrapper/
+RUN /bin/bash -c "source ~/.bashrc && source /opt/ros/$ROS_DISTRO/install/setup.bash && source install/setup.bash && \
+  colcon build --parallel-workers $(nproc) --symlink-install --packages-select zed_wrapper \
+  --event-handlers console_direct+ --base-paths src \
+  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+  ' --no-warn-unused-cli' "
