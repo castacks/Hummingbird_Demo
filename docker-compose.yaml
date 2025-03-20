@@ -20,7 +20,6 @@ services:
         L4T_MAJOR: ${L4T_MAJOR}
         L4T_MINOR: ${L4T_MINOR}
         L4T_PATCH: ${L4T_PATCH}
-    <<: *common-attributes
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /dev:/dev 
@@ -40,8 +39,17 @@ services:
                colcon build --symlink-install; else echo 'Already built'; fi && \
                source /root/ros2_ws/install/local_setup.bash && \
                ros2 launch image2rtsp dual_image2rtsp.launch.py && sleep infinity"
-    <<: *common-attributes
+    network_mode: host
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    stdin_open: true
+    tty: true
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev 
+      - /tmp:/tmp 
       - ./image2rtsp/:/root/ros2_ws/:rw
   
   zed_wrapper:
@@ -61,8 +69,18 @@ services:
     environment:
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
-    <<: *common-attributes
+
+    network_mode: host
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    stdin_open: true
+    tty: true
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev 
+      - /tmp:/tmp 
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
@@ -114,7 +132,16 @@ services:
             - driver: nvidia # https://stackoverflow.com/a/70761193
               count: 1
               capabilities: [ gpu ]
-    <<: *common-attributes
+    network_mode: host
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    stdin_open: true
+    tty: true
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev 
+      - /tmp:/tmp 
       - ./autonomy/:/root/ros2_ws/:rw
       - ${STORAGE_PATH}:/root/data_collection/:rw
