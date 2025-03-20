@@ -40,7 +40,7 @@ def generate_launch_description():
             }.items()
         ),
  
-        Wire camera launch file
+        # Wire camera launch file
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(launch_file_path),
             launch_arguments={
