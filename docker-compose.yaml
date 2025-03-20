@@ -6,6 +6,10 @@ x-common-attributes: &common-attributes
   pid: host
   stdin_open: true
   tty: true
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - /dev:/dev 
+    - /tmp:/tmp 
 services:
   base:
     image: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
