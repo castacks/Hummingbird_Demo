@@ -56,5 +56,3 @@ RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
 
 RUN pip uninstall matplotlib -y
-
-RUN apt update && sudo apt install -q -y ros-humble-rmw-connextdds rti-connext-dds-6.0.1
