@@ -27,9 +27,6 @@ sudo apt-get update
 
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-sudo apt-get install -y docker-ce=5:27.5.1-1~ubuntu.22.04~jammy --allow-downgrades
-sudo apt-get install -y docker-ce-cli=5:27.5.1-1~ubuntu.22.04~jammy --allow-downgrades
-
 sudo groupadd docker > /dev/null 2>&1 || true
 sudo usermod -aG docker $USER
 newgrp docker > /dev/null 2>&1 || true
@@ -44,6 +41,7 @@ sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 
+pip install jetson-stats
 
 # generate ssh key for github
 EMAIL="tharp@andrew.cmu.edu"
