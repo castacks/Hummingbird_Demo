@@ -66,6 +66,7 @@ services:
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
     network_mode: host
@@ -114,9 +115,11 @@ services:
            echo 'Starting Detection...' && \
            ros2 launch wire_detection wire_detection.launch.xml;
          fi && wait"
-  # ros2 launch wire_tracking wire_tracking.launch.xml
-  # python3 /root/ros2_ws/build/macvo/macvo/test_import.py
+
     environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
       - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
       - LOCAL_VO=${LOCAL_VO}
