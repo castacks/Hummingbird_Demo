@@ -112,8 +112,10 @@ services:
            echo 'Starting Tracking...' && \
            ros2 launch wire_tracking wire_tracking.launch.xml; \
          else \
-           echo 'Starting Detection...' && \
-           ros2 launch wire_detection wire_detection.launch.xml;
+          if [ \"WIRE_NODE\" -eq 1 ]; then \
+            echo 'Starting Detection...' && \
+            ros2 launch wire_detection wire_detection.launch.xml; \
+          fi; \
          fi && sleep infinity"
 
     environment:
