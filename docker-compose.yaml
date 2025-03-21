@@ -59,8 +59,7 @@ services:
     depends_on:
     - base
     command: >
-      bash -c "source /opt/ros/humble/install/setup.bash && \
-               source /root/ros2_ws/install/local_setup.bash && \
+      bash -c "source /root/ros2_ws/install/setup.bash && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
     environment:
@@ -98,9 +97,9 @@ services:
     - base
     command: >
       bash -c "trap 'tmux kill-server' SIGTERM; \ 
-         source /opt/ros/humble/install/setup.bash && \
          if [ ! -d '/root/ros2_ws/install' ]; then \
-           colcon build --symlink-install; else echo 'Already built'; fi && \
+           source ~/.bash_profile && colcon build --symlink-install; 
+           else echo 'Already built'; fi && \
          source /root/ros2_ws/install/setup.bash && \
          export ROSBAG_DATE=\"$(date +'%Y-%m-%d_%H-%M-%S')\" && \
          if [ \"$RECORD\" -eq 1 ]; then \
