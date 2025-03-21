@@ -41,7 +41,6 @@ wget https://github.com/4am-robotics/cob_common/archive/refs/tags/2.7.10.tar.gz 
 cp -r cob_common/cob_srvs/ . && \
 rm -rf cob_common
 
-# RUN git clone --branch humble-v4.2.x https://github.com/stereolabs/zed-ros2-wrapper.git && \
 RUN git clone https://github.com/stereolabs/zed-ros2-wrapper.git && \
 cd zed-ros2-wrapper && \
 git checkout a76e3abc3ca324d45cf5236b3c9afffe7d75273d && \
