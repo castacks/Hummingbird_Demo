@@ -41,11 +41,9 @@ class MACVONode(Node):
         self.frame_id = 0  # Frame ID
         self.init_time = None  # ROS2 time stamp
         self.get_logger().set_level(logging.INFO)
-        self.get_logger().info(f"{os.getcwd()}")
         self.declared_parameters = set()
 
         self.get_logger().info("Initializing MACVO Node ...")
-        self.get_logger().info("System path: " + str(sys.path)) 
 
         self.bridge = None
         self.time = None
@@ -84,7 +82,6 @@ class MACVONode(Node):
         original_cwd = os.getcwd()
         try:
             os.chdir(get_package_share_directory(PACKAGE_NAME))
-            self.get_logger().info(get_package_share_directory(PACKAGE_NAME))
             self.odometry = MACVO[StereoFrame].from_config(cfg)
             self.odometry.register_on_optimize_finish(self.publish_data)
         finally:
