@@ -62,6 +62,7 @@ services:
     - base
     command: >
       bash -c "source /root/ros2_ws/install/setup.bash && \
+               source ~/.bash_profile && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
     environment:
