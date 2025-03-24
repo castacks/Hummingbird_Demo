@@ -31,11 +31,14 @@ services:
     depends_on:
     - base
     command: >
-      bash -c "source /opt/ros/humble/install/setup.bash && \
-               if [ ! -d "/root/ros2_ws/install" ]; then \
-               colcon build --symlink-install; else echo 'Already built'; fi && \
-               source /root/ros2_ws/install/local_setup.bash && \
-               ros2 launch image2rtsp dual_image2rtsp.launch.py && sleep infinity"
+      bash -c "source /root/ros2_ws/install/setup.bash && \
+              ros2 launch image2rtsp dual_image2rtsp.launch.py && \
+              sleep infinity"
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
     network_mode: host
     runtime: nvidia
     privileged: true
@@ -44,11 +47,10 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /dev:/dev 
       - /tmp:/tmp 
-      - ./image2rtsp/:/root/ros2_ws/:rw
-  
+      - /dev:/dev 
+      - ./rti_sensor_qos_profile.xml:/root/rti_sensor_qos_profile.xml 
+        
   zed_wrapper:
     image: tharp789/hummingbird_demo:zed-wrapper-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build: 
@@ -66,6 +68,7 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
       - POSE_CAM_SERIAL=${POSE_CAM_SERIAL}
       - WIRE_CAM_SERIAL=${WIRE_CAM_SERIAL}
     network_mode: host
@@ -78,6 +81,7 @@ services:
     volumes:
       - /tmp:/tmp 
       - /dev:/dev 
+      - ./rti_sensor_qos_profile.xml:/root/rti_sensor_qos_profile.xml 
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
@@ -110,7 +114,7 @@ services:
            echo 'Starting Tracking...' && \
            ros2 launch wire_tracking wire_tracking.launch.xml; \
          else \
-          if [ \"WIRE_NODE\" -eq 1 ]; then \
+          if [ \"$WIRE_NODE\" -eq 1 ]; then \
             echo 'Starting Detection...' && \
             ros2 launch wire_detection wire_detection.launch.xml; \
           fi; \
@@ -120,6 +124,7 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
       - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
       - LOCAL_VO=${LOCAL_VO}
@@ -141,8 +146,8 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /dev:/dev 
       - /tmp:/tmp 
+      - /dev:/dev 
+      - ./rti_sensor_qos_profile.xml:/root/rti_sensor_qos_profile.xml 
       - ./autonomy/:/root/ros2_ws/:rw
       - ${STORAGE_PATH}:/root/data_collection/:rw

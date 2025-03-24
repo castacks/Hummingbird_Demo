@@ -4,31 +4,29 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 
 def generate_launch_description():
-   config = os.path.join(
+   detection_config = os.path.join(
       get_package_share_directory('image2rtsp'),
       'config',
-      'parameters.yaml'
+      'detection_config.yaml'
       )
-
-   stream1_params = {
-      'topic':'/wire_cam/detection_debug',
-      'port':'8556'
-   }
-   stream2_params = {
-      'topic':'/wire_cam/depth_debug',
-      'port':'8554'
-   }
+      
+   depth_config = os.path.join(
+      get_package_share_directory('image2rtsp'),
+      'config',
+      'depth_config.yaml'
+      )
+      
    return LaunchDescription([
       Node(
          package='image2rtsp',
          executable='image2rtsp',
-         name='image2rtsp',
-         parameters=[config, stream1_params]
+         name='detection_rtsp',
+         parameters=[detection_config]
       ),
       Node(
          package='image2rtsp',
          executable='image2rtsp',
-         name='image2rtsp',
-         parameters=[config, stream2_params]
+         name='depth_rtsp',
+         parameters=[depth_config]
       )
    ])

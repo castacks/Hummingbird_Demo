@@ -116,17 +116,15 @@ RUN echo "source ${RMW_CONNEXTDDS_DIR}/install/setup.bash" >> /tmp/image_bashrc_
 
 # Provide QoS Default. This will be located and sourced in CONNEXTDDS_DIR. If
 # # custom path or profile provided, it will override the default.
-ARG QOS_PROFILE_FILE=rti_sensor_qos_profile.xml
-ARG QOS_PROFILE_BASE_DIR=${CONNEXTDDS_DIR}
 
-ENV QOS_PROFILE_FILE=${QOS_PROFILE_FILE}
-ENV QOS_PROFILE_BASE_DIR=${QOS_PROFILE_BASE_DIR}
-
-COPY docker/rti_sensor_qos_profile.xml "${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
-
-# Add to default registries
-ENV NDDS_QOS_PROFILES="${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
-RUN echo "export NDDS_QOS_PROFILES=${NDDS_QOS_PROFILES}" >> /tmp/image_bashrc_files/rti.sh
+# This should not be run because it will be overridden by docker compose file
+# ARG QOS_PROFILE_FILE=rti_sensor_qos_profile.xml
+# ARG QOS_PROFILE_BASE_DIR=${CONNEXTDDS_DIR}
+# ENV QOS_PROFILE_FILE=${QOS_PROFILE_FILE}
+# ENV QOS_PROFILE_BASE_DIR=${QOS_PROFILE_BASE_DIR}
+# COPY docker/rti_sensor_qos_profile.xml "${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
+# ENV NDDS_QOS_PROFILES="${QOS_PROFILE_BASE_DIR}/${QOS_PROFILE_FILE}"
+# RUN echo "export NDDS_QOS_PROFILES=${NDDS_QOS_PROFILES}" >> /tmp/image_bashrc_files/rti.sh
 
 # Update root bashrc in case individually deployed
 RUN touch ~/.bash_profile && echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> ~/.bash_profile
