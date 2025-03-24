@@ -36,8 +36,6 @@ RUN pip3 install --no-cache-dir --ignore-installed \
   yacs \
   wandb
 
-RUN pip uninstall matplotlib -y
-
 WORKDIR /root/model_weights
 RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth" && \ 
     mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth /root/model_weights/MACVO_FrontendCov.pth && \
