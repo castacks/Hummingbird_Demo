@@ -32,13 +32,9 @@ RUN pip3 install --no-cache-dir --ignore-installed \
   tabulate \
   einops \
   timm==0.9.12 \
-  rerun-sdk==0.17 \
+  rerun-sdk==0.22.0 \
   yacs \
-  wandb \ 
-  cupy-cuda12x \
-  opencv-python-headless \
-  onnx 
-  # xformers==0.0.27.post2 
+  wandb
 
 RUN pip uninstall matplotlib -y
 

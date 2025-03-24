@@ -155,13 +155,13 @@ def to_pointcloud(position: torch.Tensor, keypoints: torch.Tensor | None, colors
     ]
     out_msg.channels = [
         sensor_msgs.ChannelFloat32(
-            name="r" , values=colors_[..., 0].tolist()
+            name="r" , values=colors_[..., 2].tolist()
         ),
         sensor_msgs.ChannelFloat32(
             name="g" , values=colors_[..., 1].tolist()
         ),
         sensor_msgs.ChannelFloat32(
-            name="b" , values=colors_[..., 2].tolist()
+            name="b" , values=colors_[..., 0].tolist()
         )
     ]
     

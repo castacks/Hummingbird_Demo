@@ -54,7 +54,7 @@ Odometry:
     type: CUDAGraph_FlowFormerCovFrontend
     args:
       device: *device
-      weight: /root/model_weights/MACVO_FrontendCov.pth
+      weight: ./model/MACVO_FrontendCov.pth
       dtype: fp32
       max_flow: -1
       enforce_positive_disparity: false
@@ -85,8 +85,10 @@ Odometry:
     args:
   
   optimizer:
-    type: TwoFramePoseOptimizer
+    type: ReprojectOptimizer
     args:
       device: cpu
       vectorize: true
       parallel: true
+      constraint: none
+      use_fancy_cov: false
