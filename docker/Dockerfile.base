@@ -128,3 +128,4 @@ RUN echo "source ${RMW_CONNEXTDDS_DIR}/install/setup.bash" >> /tmp/image_bashrc_
 
 # Update root bashrc in case individually deployed
 RUN touch ~/.bash_profile && echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> ~/.bash_profile
+RUN echo "$(cat /tmp/image_bashrc_files/rti.sh)" >> ~/.bashrc
