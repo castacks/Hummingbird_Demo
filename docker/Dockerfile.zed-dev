@@ -2,8 +2,8 @@ ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
 # ZED SDK link
-# ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t$L4T_MAJOR.$L4T_MINOR/jetsons"
-ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
+ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons"
+# ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
 
 RUN wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run ${ZED_SDK_URL} && \
 chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent && \
