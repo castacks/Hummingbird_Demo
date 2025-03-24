@@ -29,7 +29,8 @@
                     <value>
                         <element>
                             <name>dds.transport.shmem.builtin.received_message_count_max</name>
-                            <value>1024</value>
+                            <!-- 1024 x 1024 -->
+                            <value>1048576</value>
                         </element>
                         <element>
                             <name>dds.transport.shmem.builtin.receive_buffer_size</name>
