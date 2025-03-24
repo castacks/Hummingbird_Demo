@@ -3,6 +3,7 @@
 # Install ZED SDK
 sudo apt update
 sudo apt install -y terminator
+
 sudo apt install -y zstd libqt5network5 libqt5opengl5 libqt5sql5 libqt5xml5 cuda
 wget -O ZED_SDK.run https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons
 chmod +x ZED_SDK.run
@@ -41,7 +42,7 @@ sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 
-pip install jetson-stats
+sudo pip3 install -U jetson-stats
 
 # generate ssh key for github
 EMAIL="tharp@andrew.cmu.edu"

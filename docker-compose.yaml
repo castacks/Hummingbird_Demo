@@ -76,9 +76,8 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /dev:/dev 
       - /tmp:/tmp 
+      - /dev:/dev 
       - /var/nvidia/nvcam/settings/:/var/nvidia/nvcam/settings/
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
