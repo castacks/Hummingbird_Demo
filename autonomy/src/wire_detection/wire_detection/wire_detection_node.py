@@ -67,7 +67,10 @@ class WireDetectorNode(Node):
             self.wire_viz_pub.publish(img_msg)
         
         # publish a point cloud for the wires
-        self.visualize_wire_depth(depth, wire_lines)
+        pc_msg = self.visualize_wire_depth(depth, wire_lines)
+        if pc_msg is not None:
+            pc_msg.header = depth_msg.header
+            self.pc_viz_pub.publish(pc_msg)
 
         depth_viz = wd.create_depth_viz(depth)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
@@ -102,11 +105,28 @@ class WireDetectorNode(Node):
             cv2.circle(img, (int(x), int(y)), 5, blue, -1)
         return img
 
-    def visualize_wire_depth(depth_wire, lines):
+    def visualize_wire_depth(self, depth, seg_mask, wire_lines):
+
         if self.received_camera_info == True:
-            # make an array of all pixels in an image for N x 2
             pc_msg = PointCloud2()
-            pc_msg.header = depth_msg.header
+
+            # for i, (x0, y0, x1, y1) in enumerate(wire_lines):
+            #     line_mask = np.zeros_like(depth, dtype=np.uint8)
+            #     cv2.line(line_mask, (x0, y0), (x1, y1), 1, 1)
+            #     y_indices, x_indices = np.where(line_mask == 1)
+            #     # Filter points that fall within the segmentation mask
+            #     valid_mask = seg_mask[y_indices, x_indices] > 0
+            #     valid_xs = x_indices[valid_mask]
+            #     valid_ys = y_indices[valid_mask]
+            #     valid_depths = depth[y_indices[valid_mask], x_indices[valid_mask]]
+
+            #     # remove nans or infs or 0s
+            #     line_depths = valid_depths[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
+            #     line_xs = valid_xs[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
+            #     line_ys = valid_ys[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
+
+            # make an array of all pixels in an image for N x 2
+
             pc_msg.height = depth.shape[0]
             pc_msg.width = depth.shape[1]
 
@@ -119,7 +139,10 @@ class WireDetectorNode(Node):
             pc_msg.data = np.array([camera_x, camera_y, camera_z], dtype=np.float32).tobytes()
             pc_msg.is_dense = False
 
-            self.pc_viz_pub.publish(pc_msg)
+            return pc_msg
+        else:
+            self.get_logger().info("Camera info not received yet. Cannot publish point cloud.")
+            return None
         
     def set_params(self):
         try:
