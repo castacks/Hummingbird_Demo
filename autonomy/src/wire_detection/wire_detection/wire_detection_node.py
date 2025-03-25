@@ -48,7 +48,7 @@ class WireDetectorNode(Node):
         self.wire_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
         self.seg_mask_viz_pub = self.create_publisher(Image, self.seg_mask_pub_topic, 1)
-        self.pc_viz_pub = self.create_publisher(PointCloud2, self.pc_pub_topic, 1)
+        self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
         self.wire_estimator_pub = self.create_publisher(PointCloud2, self.wire_estimator_pub_topic, 1)
 
         self.get_logger().info("Wire Detection Node initialized")
@@ -72,11 +72,15 @@ class WireDetectorNode(Node):
             self.wire_viz_pub.publish(img_msg)
         
         # publish a point cloud for the wires
-        pc_msg = self.visualize_wire_depth(depth, seg_mask, wire_lines)
+        pc_msg, wire_est_msg = self.visualize_wire_depth(depth, seg_mask, wire_lines)
         if pc_msg is not None:
             pc_msg.header = depth_msg.header
             pc_msg.header.frame_id = "/map"
-            self.pc_viz_pub.publish(pc_msg)
+            self.depth_pc_viz_pub.publish(pc_msg)
+        if wire_est_msg is not None:
+            wire_est_msg.header = depth_msg.header
+            wire_est_msg.header.frame_id = "/map"
+            self.wire_estimator_pub.publish(wire_est_msg)
 
         depth_viz = wd.create_depth_viz(depth)
         img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
@@ -123,7 +127,9 @@ class WireDetectorNode(Node):
             height, width = depth.shape
 
             # Generate pixel coordinates
+            self.get_logger().info(f"Height: {height}, Width: {width}")
             pixels = np.indices((height, width)).reshape(2, -1).T
+            self.get_logger().info(f"Pixels: {pixels}")
             corresponding_depth = depth.flatten()
 
             # Convert image coordinates to camera coordinates
@@ -155,14 +161,15 @@ class WireDetectorNode(Node):
                 
                 for i in range(len(wire_lines)):
                     line_mask = np.zeros_like(depth, dtype=np.uint8)
-                    cv2.line(line_mask, tuple(wire_lines[i][:2]), tuple(wire_lines[i][2:]), 1, 2)
+                    cv2.line(line_mask, tuple(wire_lines[i][:2]), tuple(wire_lines[i][2:]), 1, 1)
                     y_indices, x_indices = np.where(line_mask == 1)
+                    self.get_logger().info(f"Y indices: {y_indices}, X indices: {x_indices}")
                     
                     # Filter points that fall within the segmentation mask
                     valid_mask = seg_mask[y_indices, x_indices] > 0
                     valid_xs = x_indices[valid_mask]
                     valid_ys = y_indices[valid_mask]
-                    valid_depths = depth[y_indices[valid_mask], x_indices[valid_mask]]
+                    valid_depths = depth[valid_ys, valid_xs]
 
                     # remove nans or infs or 0s
                     line_depths = valid_depths[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
@@ -171,7 +178,7 @@ class WireDetectorNode(Node):
 
                     if line_depths.size > 0:
                         cam_points_x, cam_points_y, cam_points_z = ct.image_to_camera(np.hstack((line_xs.reshape(-1, 1), line_ys.reshape(-1, 1))), line_depths, self.camera_vector)
-                        wire_points = np.vstack((wire_points, np.hstack((cam_points_x.reshape(-1, 1), cam_points_y.reshape(-1, 1), cam_points_z.reshape(-1, 1)))))
+                        wire_points = np.vstack((cam_points_x, cam_points_y, cam_points_z)).T
 
                 # Define point cloud fields
                 fields = [
@@ -206,7 +213,7 @@ class WireDetectorNode(Node):
             self.declare_parameter('wire_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('seg_mask_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('pc_pub_topic', rclpy.Parameter.Type.STRING)
+            self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)
             self.declare_parameter('wire_estimator_pub_topic', rclpy.Parameter.Type.STRING)
 
             # Access parameters
@@ -224,7 +231,7 @@ class WireDetectorNode(Node):
             self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.seg_mask_pub_topic = self.get_parameter('seg_mask_pub_topic').get_parameter_value().string_value
-            self.pc_pub_topic = self.get_parameter('pc_pub_topic').get_parameter_value().string_value
+            self.depth_pc_pub_topic = self.get_parameter('depth_pc_pub_topic').get_parameter_value().string_value
             self.wire_estimator_pub_topic = self.get_parameter('wire_estimator_pub_topic').get_parameter_value().string_value
 
         except Exception as e:
