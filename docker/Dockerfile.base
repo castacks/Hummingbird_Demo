@@ -43,6 +43,11 @@ WORKDIR /root/ros2_ws/
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
 
+# Network Tuning
+
+ARG NETWORK_CONFIG=/etc/sysctl.d/rti.conf
+RUN touch 
+
 # RTI Connext DDS --------------------------------------------------------------------------------------------------------------------------------------
 ARG CONNEXTDDS_HOST_VERSION=7.3.0
 ARG CONNEXTDDS_ARCH=armv8Linux4gcc7.3.0

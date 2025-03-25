@@ -51,7 +51,7 @@ class MACVONode(Node):
         self.baseline = None
         self.prev_frame = None
         self.odometry = None
-        self.frame = "map"
+        self.coord_frame = "map"
         self.camera_info = None 
         self.recieved_camera_info = False
         self.meta = None
@@ -60,7 +60,11 @@ class MACVONode(Node):
         # Declare publishers ----------------
         self.declare_parameter("pose_pub_topic", rclpy.Parameter.Type.STRING)
         pose_topic = self.get_parameter("pose_pub_topic").get_parameter_value().string_value
-        self.pose_pipe  = self.create_publisher(PoseStamped, pose_topic, qos_profile=1)
+        self.pose_pub  = self.create_publisher(PoseStamped, pose_topic, qos_profile=1)
+
+        self.declare_parameter("map_pub_topic", rclpy.Parameter.Type.STRING)
+        map_topic = self.get_parameter("map_pub_topic").get_parameter_value().string_value
+        self.map_pub = self.create_publisher(PointCloud, pose_topic, qos_profile=1)
         
         # Wait for camera info to be recieved   
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
@@ -149,8 +153,8 @@ class MACVONode(Node):
             time=time,
         )
 
-        self.pose_send.publish(pose_msg)
-        self.map_send.publish(map_pc_msg)
+        self.pose_pub.publish(pose_msg)
+        self.map_pub.publish(map_pc_msg)
 
     @staticmethod
     def time_to_ns(time: Time) -> int:
@@ -205,7 +209,11 @@ class MACVONode(Node):
                 ),
             )
         )
+        start_time = self.get_clock().now()
         self.odometry.run(stereo_frame)
+        end_time = self.get_clock().now()
+        time_diff = (end_time - start_time).nanoseconds / 1e9
+        self.get_logger().info(f"Frame id {self.frame_id} processed in {time_diff} s")
 
         # Pose-processing
         self.frame_id += 1

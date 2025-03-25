@@ -4,8 +4,8 @@
     imageL_sub_topic: "/pose_cam/zed_node/left/image_rect_color"
     imageR_sub_topic: "/pose_cam/zed_node/right/image_rect_color"
     pose_pub_topic: "/pose_cam/visual_odometry_pose"
-    point_pub_topic: "/pose_cam/visual_odometry_points"
+    map_pub_topic: "/pose_cam/visual_odometry_map"
     img_pub_topic: "/pose_cam/visual_odometry_img"
     inference_dim_u: 320
-    inference_dim_v: 240
+    inference_dim_v: 320
     camera_baseline: 0.12
