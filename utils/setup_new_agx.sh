@@ -44,6 +44,15 @@ sudo systemctl restart docker
 
 sudo pip3 install -U jetson-stats
 
+# Network tuning
+
+touch ./tmp.conf
+echo "net.ipv4.ipfrag_time=3" >> ./tmp.conf
+echo "net.ipv4.ipfrag_high_thresh=134217728" >> ./tmp.conf
+echo "net.core.rmem_max=2147483647" >> ./tmp.conf
+sudo mv ./tmp.conf /etc/sysctl.d/10-rti.conf
+sudo sysctl -p /etc/sysctl.d/10-rti.conf
+
 # generate ssh key for github
 EMAIL="tharp@andrew.cmu.edu"
 KEY_PATH="$HOME/.ssh/id_rsa"
