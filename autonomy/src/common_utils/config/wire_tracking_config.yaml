@@ -14,6 +14,7 @@
     pose_viz_pub_topic: "/wire_cam/pos_debug"
     seg_mask_pub_topic: "/wire_cam/seg_mask"
     pc_pub_topic: "/wire_cam/wire_pointcloud"
+    wire_estimator_pub_topic: "/wire_cam/wire_estimator"
 
     # Wire detection params
     expansion_size: 2

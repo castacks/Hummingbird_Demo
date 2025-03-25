@@ -353,7 +353,6 @@ class WireTrackingNode(Node):
         """
         Computes the average depth of points along a line that are also within the segmentation mask.
         
-
         Returns:
             mean_depth: The average depth of the points along the line that are within the segmentation mask.
         """
