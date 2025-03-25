@@ -29,8 +29,15 @@ class WireDetectorNode(Node):
                                              bin_avg_threshold_multiplier=self.bin_avg_threshold_multiplier)
 
         # Subscribers
-        self.rgb_image_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.image_callback, 1)
-        self.depth_image_sub = self.create_subscription(Image, self.depth_image_sub_topic, self.depth_callback, 1)
+        self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        self.depth_image_sub = Subscriber(self, Image, self.depth_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        self.img_tss = ApproximateTimeSynchronizer(
+            [self.rgb_image_sub, self.depth_image_sub],
+            queue_size=1, 
+            slop=0.2
+        )
+        self.img_tss.registerCallback(self.input_callback)
+
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
         # Publishers
@@ -41,14 +48,16 @@ class WireDetectorNode(Node):
 
         self.get_logger().info("Wire Detection Node initialized")
 
-    def image_callback(self, rgb_msg):
+    def images_callback(self, rgb_msg, depth_msg):
         try:
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
-        debug_image, seg_mask = self.detect_lines_and_update(rgb)
+
+        debug_image, seg_mask, wire_lines = self.detect_lines(rgb)
         self.seg_mask_viz_pub.publish(self.bridge.cv2_to_imgmsg(seg_mask, encoding='mono8'))
         if debug_image is not None:
             img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
@@ -56,15 +65,22 @@ class WireDetectorNode(Node):
         else:
             img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
             self.wire_viz_pub.publish(img_msg)
+        
+        # publish a point cloud for the wires
+        self.visualize_wire_depth(depth, wire_lines)
 
-    def detect_lines_and_update(self, image):
+        depth_viz = wd.create_depth_viz(depth)
+        img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
+        self.depth_viz_pub.publish(img_msg)
+
+    def detect_lines(self, image):
         seg_mask = self.wire_detector.create_seg_mask(image)
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
             debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
 
-            return debug_img, seg_mask
+            return debug_img, seg_mask, wire_lines
         
     def camera_info_callback(self, data):
         self.fx = data.k[0]
@@ -85,13 +101,8 @@ class WireDetectorNode(Node):
             cv2.line(img, (x0, y0), (x1, y1), green, 2)
             cv2.circle(img, (int(x), int(y)), 5, blue, -1)
         return img
-    
-    def depth_callback(self, depth_msg):
-        try:
-            depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
-        except Exception as e:
-            rclpy.logerr("CvBridge Error: {0}".format(e))
-            return
+
+    def visualize_wire_depth(depth_wire, lines):
         if self.received_camera_info == True:
             # make an array of all pixels in an image for N x 2
             pc_msg = PointCloud2()
@@ -109,10 +120,6 @@ class WireDetectorNode(Node):
             pc_msg.is_dense = False
 
             self.pc_viz_pub.publish(pc_msg)
-
-        depth_viz = wd.create_depth_viz(depth)
-        img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
-        self.depth_viz_pub.publish(img_msg)
         
     def set_params(self):
         try:
