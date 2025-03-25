@@ -20,7 +20,7 @@ Odometry:
     # Profiling the system using torch, generate chrome json trace file.
     profile: false
 
-    mapping: true
+    mapping: false
 
   cov:
     obs:
@@ -54,7 +54,7 @@ Odometry:
     type: CUDAGraph_FlowFormerCovFrontend
     args:
       device: *device
-      weight: ./model/MACVO_FrontendCov.pth
+      weight: /root/model_weights/MACVO_FrontendCov.pth
       dtype: fp32
       max_flow: -1
       enforce_positive_disparity: false
