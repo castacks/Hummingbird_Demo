@@ -4,7 +4,8 @@ import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
-from sensor_msgs.msg import Image, PointCloud2, CameraInfo
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
+import sensor_msgs_py.point_cloud2 as pc2
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
@@ -107,37 +108,37 @@ class WireDetectorNode(Node):
         return img
 
     def visualize_wire_depth(self, depth, seg_mask, wire_lines):
-
-        if self.received_camera_info == True:
+        if self.received_camera_info:
             pc_msg = PointCloud2()
 
-            # for i, (x0, y0, x1, y1) in enumerate(wire_lines):
-            #     line_mask = np.zeros_like(depth, dtype=np.uint8)
-            #     cv2.line(line_mask, (x0, y0), (x1, y1), 1, 1)
-            #     y_indices, x_indices = np.where(line_mask == 1)
-            #     # Filter points that fall within the segmentation mask
-            #     valid_mask = seg_mask[y_indices, x_indices] > 0
-            #     valid_xs = x_indices[valid_mask]
-            #     valid_ys = y_indices[valid_mask]
-            #     valid_depths = depth[y_indices[valid_mask], x_indices[valid_mask]]
+            # Get image shape
+            height, width = depth.shape
 
-            #     # remove nans or infs or 0s
-            #     line_depths = valid_depths[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
-            #     line_xs = valid_xs[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
-            #     line_ys = valid_ys[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
+            # Generate pixel coordinates
+            pixels = np.indices((height, width)).reshape(2, -1).T
+            corresponding_depth = depth.flatten()
 
-            # make an array of all pixels in an image for N x 2
+            # Convert image coordinates to camera coordinates
+            camera_x, camera_y, camera_z = ct.image_to_camera(pixels, corresponding_depth, self.camera_vector)
+            
+            # Filter out invalid points
+            valid_mask = (camera_z > 0) & np.isfinite(camera_z)
+            camera_x, camera_y, camera_z = camera_x[valid_mask], camera_y[valid_mask], camera_z[valid_mask]
 
-            pc_msg.height = depth.shape[0]
-            pc_msg.width = depth.shape[1]
+            # Stack the points
+            pc_points = np.vstack((camera_x, camera_y, camera_z)).T
 
-            pixels = np.indices((depth.shape[0], depth.shape[1])).reshape(2, -1).T
-            corrsponding_depth = depth.flatten()
-            camera_x, camera_y, camera_z = ct.image_to_camera(pixels, corrsponding_depth, self.camera_vector)
-            camera_x = camera_x.reshape(depth.shape)
-            camera_y = camera_y.reshape(depth.shape)
-            camera_z = camera_z.reshape(depth.shape)
-            pc_msg.data = np.array([camera_x, camera_y, camera_z], dtype=np.float32).tobytes()
+            # Define point cloud fields
+            fields = [
+                PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+                PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+                PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+            ]
+
+            # Create point cloud message
+            pc_msg = pc2.create_cloud(self.camera_info, fields, pc_points)
+            pc_msg.height = 1  # Unordered point cloud
+            pc_msg.width = pc_points.shape[0]
             pc_msg.is_dense = False
 
             return pc_msg
