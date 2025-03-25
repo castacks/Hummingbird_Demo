@@ -4,6 +4,7 @@ import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
+from std_msgs.msg import Header
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 import sensor_msgs_py.point_cloud2 as pc2
 from cv_bridge import CvBridge
@@ -72,6 +73,7 @@ class WireDetectorNode(Node):
         pc_msg = self.visualize_wire_depth(depth, seg_mask, wire_lines)
         if pc_msg is not None:
             pc_msg.header = depth_msg.header
+            pc_msg.header.frame_id = "/map"
             self.pc_viz_pub.publish(pc_msg)
 
         depth_viz = wd.create_depth_viz(depth)
@@ -136,7 +138,7 @@ class WireDetectorNode(Node):
             ]
 
             # Create point cloud message
-            pc_msg = pc2.create_cloud(self.camera_info, fields, pc_points)
+            pc_msg = pc2.create_cloud(Header(), fields, pc_points)
             pc_msg.height = 1  # Unordered point cloud
             pc_msg.width = pc_points.shape[0]
             pc_msg.is_dense = False
