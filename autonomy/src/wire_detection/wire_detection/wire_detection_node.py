@@ -129,6 +129,8 @@ class WireDetectorNode(Node):
             # Generate pixel coordinates
             self.get_logger().info(f"Height: {height}, Width: {width}")
             pixels = np.indices((height, width)).reshape(2, -1).T
+            #flip the x and y coordinates
+            pixels = np.flip(pixels, axis=1)
             self.get_logger().info(f"Pixels: {pixels}")
             corresponding_depth = depth.flatten()
 
