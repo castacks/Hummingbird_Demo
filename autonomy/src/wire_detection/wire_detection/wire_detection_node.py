@@ -127,11 +127,8 @@ class WireDetectorNode(Node):
             height, width = depth.shape
 
             # Generate pixel coordinates
-            self.get_logger().info(f"Height: {height}, Width: {width}")
             pixels = np.indices((height, width)).reshape(2, -1).T
-            #flip the x and y coordinates
             pixels = np.flip(pixels, axis=1)
-            self.get_logger().info(f"Pixels: {pixels}")
             corresponding_depth = depth.flatten()
 
             # Convert image coordinates to camera coordinates
@@ -165,7 +162,6 @@ class WireDetectorNode(Node):
                     line_mask = np.zeros_like(depth, dtype=np.uint8)
                     cv2.line(line_mask, tuple(wire_lines[i][:2]), tuple(wire_lines[i][2:]), 1, 1)
                     y_indices, x_indices = np.where(line_mask == 1)
-                    self.get_logger().info(f"Y indices: {y_indices}, X indices: {x_indices}")
                     
                     # Filter points that fall within the segmentation mask
                     valid_mask = seg_mask[y_indices, x_indices] > 0
