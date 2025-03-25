@@ -13,7 +13,7 @@
     depth_viz_pub_topic: "/wire_cam/depth_debug"
     pose_viz_pub_topic: "/wire_cam/pos_debug"
     seg_mask_pub_topic: "/wire_cam/seg_mask"
-    pc_pub_topic: "/wire_cam/pointcloud"
+    pc_pub_topic: "/wire_cam/wire_pointcloud"
 
     # Wire detection params
     expansion_size: 2

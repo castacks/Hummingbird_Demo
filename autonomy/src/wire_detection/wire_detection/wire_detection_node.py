@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 from cv_bridge import CvBridge
+from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 import common_utils.wire_detection as wd
 import common_utils.coord_transforms as ct
@@ -36,7 +37,7 @@ class WireDetectorNode(Node):
             queue_size=1, 
             slop=0.2
         )
-        self.img_tss.registerCallback(self.input_callback)
+        self.img_tss.registerCallback(self.images_callback)
 
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
@@ -67,7 +68,7 @@ class WireDetectorNode(Node):
             self.wire_viz_pub.publish(img_msg)
         
         # publish a point cloud for the wires
-        pc_msg = self.visualize_wire_depth(depth, wire_lines)
+        pc_msg = self.visualize_wire_depth(depth, seg_mask, wire_lines)
         if pc_msg is not None:
             pc_msg.header = depth_msg.header
             self.pc_viz_pub.publish(pc_msg)
