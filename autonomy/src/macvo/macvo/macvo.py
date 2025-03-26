@@ -64,7 +64,7 @@ class MACVONode(Node):
 
         self.declare_parameter("map_pub_topic", rclpy.Parameter.Type.STRING)
         map_topic = self.get_parameter("map_pub_topic").get_parameter_value().string_value
-        self.map_pub = self.create_publisher(PointCloud, pose_topic, qos_profile=1)
+        self.map_pub = self.create_publisher(PointCloud, map_topic, qos_profile=1)
         
         # Wait for camera info to be recieved   
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
@@ -161,6 +161,9 @@ class MACVONode(Node):
         return int(time.sec * 1e9) + time.nanosec
 
     def receive_stereo(self, msg_imageL: Image, msg_imageR: Image) -> None:
+        if not self.recieved_camera_info:
+            self.get_logger().info("Waiting for camera info ...")
+            return
         imageL, timestamp = from_image(msg_imageL), msg_imageL.header.stamp
         imageR = from_image(msg_imageR)
         if self.init_time is None:

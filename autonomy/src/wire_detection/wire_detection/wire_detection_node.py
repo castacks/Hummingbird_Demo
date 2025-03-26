@@ -137,7 +137,7 @@ class WireDetectorNode(Node):
             # Filter out invalid points
             valid_mask = (camera_z > 0) & np.isfinite(camera_z)
             camera_x, camera_y, camera_z = camera_x[valid_mask], camera_y[valid_mask], camera_z[valid_mask]
-
+ 
             # Stack the points
             pc_points = np.vstack((camera_x, camera_y, camera_z)).T
 
@@ -154,7 +154,7 @@ class WireDetectorNode(Node):
             pc_msg.width = pc_points.shape[0]
             pc_msg.is_dense = False
             
-            wire_points = np.array([]).reshape(0, 3)
+            total_wire_points = np.array([]).reshape(0, 3)
             if len(wire_lines) > 0:
                 wire_est_msg = PointCloud2()
                 
@@ -177,6 +177,7 @@ class WireDetectorNode(Node):
                     if line_depths.size > 0:
                         cam_points_x, cam_points_y, cam_points_z = ct.image_to_camera(np.hstack((line_xs.reshape(-1, 1), line_ys.reshape(-1, 1))), line_depths, self.camera_vector)
                         wire_points = np.vstack((cam_points_x, cam_points_y, cam_points_z)).T
+                        total_wire_points = np.vstack((total_wire_points, wire_points))
 
                 # Define point cloud fields
                 fields = [
@@ -185,9 +186,9 @@ class WireDetectorNode(Node):
                     PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
                 ]
                 # Create point cloud message
-                wire_est_msg = pc2.create_cloud(Header(), fields, wire_points)
+                wire_est_msg = pc2.create_cloud(Header(), fields, total_wire_points)
                 wire_est_msg.height = 1  # Unordered point cloud
-                wire_est_msg.width = wire_points.shape[0]
+                wire_est_msg.width = total_wire_points.shape[0]
                 wire_est_msg.is_dense = False
 
         return pc_msg, wire_est_msg
