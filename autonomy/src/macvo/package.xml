@@ -8,6 +8,7 @@
   <license>TODO: License declaration</license>
 
   <depend>sensor_interfaces</depend>
+  <depend>common_utils</depend>
 
   <export>
     <build_type>ament_python</build_type>

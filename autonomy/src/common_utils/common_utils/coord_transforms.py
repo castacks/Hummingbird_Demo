@@ -68,10 +68,8 @@ def pose_to_homogeneous(pose):
 
     # Extract rotation components
     rotation = pose.orientation
-    # quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w]) * np.array([1, -1, -1, 1])
     quaternion = np.array([rotation.x, rotation.y, rotation.z, rotation.w])
     rot_matrix = Rotation.from_quat(quaternion).as_matrix()
-    # assert False, f"rot_vector: {Rotation.from_quat(quaternion).as_rotvec()}"
 
     # Combine into a homogeneous transformation matrix
     homogeneous_matrix = np.eye(4)

@@ -1,6 +1,8 @@
 import rclpy
 import torch
 import pypose as pp
+import numpy as np
+import cv2
 
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud, CameraInfo
@@ -9,6 +11,8 @@ from geometry_msgs.msg import PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from ament_index_python.packages import get_package_share_directory
 from builtin_interfaces.msg import Time
+import common_utils.coord_transforms as ct
+
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -47,9 +51,7 @@ class MACVONode(Node):
 
         self.bridge = None
         self.time = None
-        self.prev_time = None
         self.baseline = None
-        self.prev_frame = None
         self.odometry = None
         self.coord_frame = "map"
         self.camera_info = None 
@@ -65,6 +67,10 @@ class MACVONode(Node):
         self.declare_parameter("map_pub_topic", rclpy.Parameter.Type.STRING)
         map_topic = self.get_parameter("map_pub_topic").get_parameter_value().string_value
         self.map_pub = self.create_publisher(PointCloud, map_topic, qos_profile=1)
+
+        self.declare_parameter("feature_img_pub_topic", rclpy.Parameter.Type.STRING)
+        feature_img_topic = self.get_parameter("feature_img_pub_topic").get_parameter_value().string_value
+        self.feature_pub = self.create_publisher(Image, feature_img_topic, qos_profile=1)
         
         # Wait for camera info to be recieved   
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
@@ -115,6 +121,14 @@ class MACVONode(Node):
         )
         self.sync_stereo.registerCallback(self.receive_stereo)
 
+        # 180 degree rotation around x-axis
+        x_rot = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        # 90 degree rotation around z-axis
+        z_rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+
+        self.correction_matrix = np.eye(4)
+        self.correction_matrix[:3, :3] = np.dot(x_rot, z_rot)
+
         self.get_logger().info(f"MACVO Node initialized successfully!")
 
     def get_camera_info(self, msg: CameraInfo) -> None:
@@ -136,6 +150,9 @@ class MACVONode(Node):
         time.nanosec = (time_ns % 1_000_000_000) + self.init_time.nanosec
 
         pose_msg = to_stamped_pose(pose, self.coord_frame, time)
+        transform = ct.pose_to_homogeneous(pose_msg.pose)
+        transform = np.dot(self.correction_matrix, transform)
+        pose_msg.pose = ct.homogeneous_to_pose(transform)
 
         # Latest map
         if system.mapping:
@@ -155,6 +172,18 @@ class MACVONode(Node):
 
         self.pose_pub.publish(pose_msg)
         self.map_pub.publish(map_pc_msg)
+
+    def publish_latest_matches(self, system: MACVO):
+        pixels_uv = system.graph.get_frame2match(system.graph.frames[-1:])
+        img = (system.prev_keyframe.imageL[0].permute(1, 2, 0).numpy() * 255).copy().astype(np.uint8)
+        if pixels_uv.size > 0:
+            for i in range(pixels_uv.shape[0]):
+                x, y = pixels_uv[i]
+                img = cv2.circle(img, (x, y), 2, (0, 255, 0), -1)
+            msg = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
+            msg.header.frame_id = self.coord_frame
+            msg.header.stamp = self.time
+            self.feature_pub.publish(msg)
 
     @staticmethod
     def time_to_ns(time: Time) -> int:
