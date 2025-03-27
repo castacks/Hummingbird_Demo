@@ -8,6 +8,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud, CameraInfo
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path as Path_msg
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from ament_index_python.packages import get_package_share_directory
 from builtin_interfaces.msg import Time
@@ -71,6 +72,10 @@ class MACVONode(Node):
         self.declare_parameter("feature_img_pub_topic", rclpy.Parameter.Type.STRING)
         feature_img_topic = self.get_parameter("feature_img_pub_topic").get_parameter_value().string_value
         self.feature_pub = self.create_publisher(Image, feature_img_topic, qos_profile=1)
+
+        self.declare_parameter("path_pub_topic", rclpy.Parameter.Type.STRING)
+        path_topic = self.get_parameter("path_pub_topic").get_parameter_value().string_value
+        self.path_pub = self.create_publisher(Path_msg, path_topic, qos_profile=1)
         
         # Wait for camera info to be recieved   
         self.declare_parameter("camera_info_sub_topic", rclpy.Parameter.Type.STRING)
@@ -94,6 +99,7 @@ class MACVONode(Node):
             os.chdir(get_package_share_directory(PACKAGE_NAME))
             self.odometry = MACVO[StereoFrame].from_config(cfg)
             self.odometry.register_on_optimize_finish(self.publish_data)
+            self.odometry.register_on_optimize_finish(self.publish_latest_matches)
         finally:
             os.chdir(original_cwd)
 
@@ -127,7 +133,11 @@ class MACVONode(Node):
         z_rot = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
 
         self.correction_matrix = np.eye(4)
-        self.correction_matrix[:3, :3] = np.dot(x_rot, z_rot)
+        # self.correction_matrix[:3, :3] = np.dot(x_rot, z_rot)
+        # self.correction_matrix[:3, :3] = x_rot
+
+        self.prev_imageL = None
+        self.pose_path = [] 
 
         self.get_logger().info(f"MACVO Node initialized successfully!")
 
@@ -150,9 +160,16 @@ class MACVONode(Node):
         time.nanosec = (time_ns % 1_000_000_000) + self.init_time.nanosec
 
         pose_msg = to_stamped_pose(pose, self.coord_frame, time)
-        transform = ct.pose_to_homogeneous(pose_msg.pose)
-        transform = np.dot(self.correction_matrix, transform)
-        pose_msg.pose = ct.homogeneous_to_pose(transform)
+        # transform = ct.pose_to_homogeneous(pose_msg.pose)
+        # transform = np.dot(self.correction_matrix, transform)
+        # transform = np.dot(transform, self.correction_matrix)
+        # pose_msg.pose = ct.homogeneous_to_pose(transform)
+
+        self.pose_path.append(pose_msg)
+        path_msg = Path_msg()
+        path_msg.header.frame_id = self.coord_frame
+        path_msg.header.stamp = time
+        path_msg.poses = self.pose_path
 
         # Latest map
         if system.mapping:
@@ -170,19 +187,31 @@ class MACVONode(Node):
             time=time,
         )
 
+        self.path_pub.publish(path_msg)
         self.pose_pub.publish(pose_msg)
         self.map_pub.publish(map_pc_msg)
 
     def publish_latest_matches(self, system: MACVO):
-        pixels_uv = system.graph.get_frame2match(system.graph.frames[-1:])
-        img = (system.prev_keyframe.imageL[0].permute(1, 2, 0).numpy() * 255).copy().astype(np.uint8)
+        if self.prev_imageL is None:
+            return
+        imageL = self.bridge.imgmsg_to_cv2(self.prev_imageL, "bgr8")
+        pixels_uv = system.graph.get_frame2match(system.graph.frames[-1:]).data["pixel1_uv"].detach().cpu().numpy()
+        img = cv2.resize(imageL, (self.u_dim, self.v_dim))
         if pixels_uv.size > 0:
             for i in range(pixels_uv.shape[0]):
                 x, y = pixels_uv[i]
-                img = cv2.circle(img, (x, y), 2, (0, 255, 0), -1)
+                img = cv2.circle(img, (int(x), int(y)), 2, (0, 255, 0), -1)
             msg = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
             msg.header.frame_id = self.coord_frame
-            msg.header.stamp = self.time
+
+            time_ns = int(system.graph.frames.data["time_ns"][-1].item())
+            time = Time()
+            time.sec = (time_ns // 1_000_000_000) + self.init_time.sec
+            time.nanosec = (time_ns % 1_000_000_000) + self.init_time.nanosec
+
+            msg.header.stamp = time
+            if img.shape[2] == 4:  # Check if image has 4 channels (BGRA)
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
             self.feature_pub.publish(msg)
 
     @staticmethod
@@ -201,7 +230,7 @@ class MACVONode(Node):
         # Instantiate a frame and scale to the desired height & width
         # if self.disparity_publisher is not None:
         #     self.disparity_publisher.curr_timestamp = timestamp
-
+        self.prev_imageL = msg_imageL
         stereo_frame = SmartResizeFrame(
             {
                 "height": self.u_dim,
