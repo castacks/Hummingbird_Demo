@@ -1,0 +1,1 @@
+wget -P . http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/vicon_room1/V1_02_medium/V1_02_medium.bag # test rosbag, convert to ros2 bag

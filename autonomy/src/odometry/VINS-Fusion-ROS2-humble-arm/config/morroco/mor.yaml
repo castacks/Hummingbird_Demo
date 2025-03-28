@@ -1,0 +1,56 @@
+%YAML:1.0
+
+#common parameters
+#support: 1 imu 1 cam; 1 imu 2 cam: 2 cam;  
+num_of_cam: 2  
+
+image0_topic: "/hcru2/pt_stereo_rect/left/image" #(0, 1) = (left, right)
+image1_topic: "/hcru2/pt_stereo_rect/right/image"
+output_path: "/output" #output path
+
+cam0_calib: "cam0_pinhole.yaml"
+cam1_calib: "cam1_pinhole.yaml"
+image_width: 1032
+image_height: 772
+   
+# record /loop_fusion/pose_graph_path - for loop closure
+# record /vins_estimator/path - for no loop closure
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+
+body_T_cam0:
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.00656078, -0.47419651, 0.88039459, 0.14,
+          -0.99996299, -0.00801117, 0.00313685, 0.045,
+          0.00556551, -0.88038258, -0.47423152, -0.05,
+          0.0, 0.0, 0.0, 1.0]
+
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.00130882, -0.47231694, 0.88142781, 0.14086085,
+          -0.9999534, -0.00904838, -0.0033638, -0.04495004,
+          0.00956427, -0.88138234, -0.47230678, -0.04970536,
+          0.0, 0.0, 0.0, 1.0]
+
+
+#Multiple thread support
+multiple_thread: 1
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking
+min_dist: 30            # min distance between two features 
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)
+show_track: 1           # publish tracking image as topic
+flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
+
+#optimization parameters
+max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
+keyframe_parallax: 10.0 # keyframe selection threshold (pixel)

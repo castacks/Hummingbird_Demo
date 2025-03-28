@@ -3,6 +3,7 @@ FROM ${BASE_IMAGE}
 
 RUN apt-get install ros-humble-rosbag2-storage-mcap -y
 
+# MACVO Dependencies -----------------------------------------------------------------------------------------------------
 RUN pip3 install --no-cache-dir --ignore-installed \
   empy \
   future \
@@ -44,7 +45,13 @@ RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_Fron
 RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl" && \ 
     mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl /root/model_weights/MACVO_posenet.pkl && \
     rm -rf /root/model_weights/github.com
-    
+
+# VINS_Fusion Dependencies -----------------------------------------------------------------------------------------------------
+COPY docker/install_vins_deps.sh /root/ros2_ws/install_vins_deps.sh
+RUN chmod +x /root/ros2_ws/install_vins_deps.sh
+RUN /root/ros2_ws/install_vins_deps.sh
+
+# General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/
 RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
