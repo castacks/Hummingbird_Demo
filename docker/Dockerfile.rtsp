@@ -9,3 +9,6 @@ gstreamer1.0-plugins-ugly gstreamer1.0-plugins-bad
 COPY ./image2rtsp/ /root/ros2_ws/src/
 WORKDIR /root/ros2_ws/
 RUN /bin/bash -c "source ~/.bash_profile && colcon build --symlink-install"
+
+WORKDIR /root/ros2_ws/
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc

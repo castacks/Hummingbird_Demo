@@ -24,11 +24,7 @@ ENV L4T_PATCH=${L4T_PATCH}
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Base dependencies -----------------------------
-  RUN apt-get update \
-  && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
-  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
-
-RUN apt-~get update \
+RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata sudo \
   && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime \
   && dpkg-reconfigure --frontend noninteractive tzdata \
@@ -43,9 +39,6 @@ RUN apt-get update && apt-get install locales \
 ENV TZ=Europe/Paris
 
 RUN apt-get update && \
-  apt-get install --yes lsb-release wget less udev sudo build-essential cmake python3 python3-dev python3-pip python3-wheel git jq libpq-dev zstd usbutils vim 
-
-  RUN apt-get update && \
   apt-get install -y --no-install-recommends \
   python3 python3-pip python3-dev python3-wheel\
   libgl1-mesa-glx libx11-6 x11-apps \
@@ -54,6 +47,7 @@ RUN apt-get update && \
   software-properties-common \
   gedit \
   iputils-ping \
+  curl \
   tmux \
   nano \
   vim \
@@ -68,7 +62,6 @@ RUN apt-get update && \
   gnupg2 \
   lsb-release \
   udev \
-  sudo \
   build-essential \
   jq \
   libpq-dev \
@@ -79,11 +72,14 @@ RUN apt-get update && \
   
 RUN pip3 install -U protobuf jetson-stats
 
-
 # Install ROS2 Humble ---------------------------------------------------------------------------------------------------------------------------------
+RUN apt-get update \
+  && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
   RUN apt-get update -y \
   && apt-get install -y --no-install-recommends \
-     ros-humble-ros-desktop \
+     ros-humble-desktop \
      ros-dev-tools \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
@@ -260,8 +256,7 @@ RUN apt-get update \
  RUN pip3 install --no-cache-dir ipdb ipython 
 
 WORKDIR /root/ros2_ws/
-RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
-RUN echo "source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
 
 # RTI Connext DDS --------------------------------------------------------------------------------------------------------------------------------------
 ARG CONNEXTDDS_HOST_VERSION=7.3.0
@@ -313,7 +308,7 @@ RUN if [ -n "${RMW_CONNEXTDDS_BRANCH}" ]; then \
 # This cherry-pick usually requires a user and email. Since this is docker, I chose to set
 # --no-commit which will not require it. Downside: the changes are present but unstaged, so
 # there is no knowing what commit you are really on, if you are developing inside the container.
-RUN . /opt/ros/${ROS_DISTRO}/install/setup.sh \
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
     && cd ${RMW_CONNEXTDDS_DIR} \
     && if [ "${ROS_DISTRO}" = "humble" ]; then \
            if [ "${CONNEXTDDS_HOST_VERSION}" = "6.1.2" ]; then \

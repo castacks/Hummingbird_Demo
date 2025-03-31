@@ -1,10 +1,11 @@
 ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
-RUN apt-get install ros-humble-rosbag2-storage-mcap -y
+RUN apt-get update && apt-get install -y \
+libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libboost-python-dev libboost-dev libboost-filesystem-dev libboost-program-options-dev libeigen3-dev ros-humble-image-transport
 
 # MACVO Dependencies -----------------------------------------------------------------------------------------------------
-RUN pip3 install --no-cache-dir --ignore-installed \
+RUN pip3 install \
   empy \
   future \
   lxml \
@@ -17,7 +18,6 @@ RUN pip3 install --no-cache-dir --ignore-installed \
   pymavlink \
   pyyaml \
   requests \
-  setuptools \
   six \
   toml \
   scipy \
@@ -36,33 +36,21 @@ RUN pip3 install --no-cache-dir --ignore-installed \
   rerun-sdk==0.22.0 \
   yacs \
   wandb
-
+  
 WORKDIR /root/model_weights
 RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth" && \ 
-    mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth /root/model_weights/MACVO_FrontendCov.pth && \
-    rm -rf /root/model_weights/github.com
+mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth /root/model_weights/MACVO_FrontendCov.pth && \
+rm -rf /root/model_weights/github.com
 
 RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl" && \ 
-    mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl /root/model_weights/MACVO_posenet.pkl && \
-    rm -rf /root/model_weights/github.com
-
+mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl /root/model_weights/MACVO_posenet.pkl && \
+rm -rf /root/model_weights/github.com
+  
 # VINS_Fusion Dependencies -----------------------------------------------------------------------------------------------------
-WORKDIR /root/vins_dependencies
+WORKDIR /tmp/
 RUN git clone -b humble https://github.com/ros-perception/vision_opencv.git
-RUN apt-get update && apt-get install -y \
-  ros-humble-vision-opencv \
-  ros-humble-image-geometry \
-  ros-humble-image-transport-plugins \
-  ros-humble-image-transport-plugins-qt-plugins \
-  ros-humble-image-pipeline \
-  ros-humble-image-transport \
-  ros-humble-cv-bridge \
-  ros-humble-camera-info-manager \
-  ros-humble-camera-info-manager-py
-RUN apt-get install -y wget unzip cmake \
-    libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libboost-python-dev libboost-dev libboost-filesystem-dev libboost-program-options-dev
 
-ARG $WORKERS_BUILD_DEPS=4
+ARG $(nproc)=4
 RUN git clone https://github.com/opencv/opencv.git -b 4.8.0 --depth 1
 RUN git clone https://github.com/opencv/opencv_contrib.git -b 4.8.0 --depth 1
 RUN cd opencv && mkdir build && cd build && \
@@ -118,25 +106,23 @@ cmake -D CMAKE_BUILD_TYPE=RELEASE -D INSTALL_C_EXAMPLES=OFF \
 -D ENABLE_PRECOMPILED_HEADERS=OFF \
 -D CMAKE_INSTALL_PREFIX=/usr/local \
 -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules/ ../ && \
-make -j $WORKERS_BUILD_DEPS && make install && ldconfig
+make -j $(nproc) && make install && ldconfig
 
-WORKDIR /root/vins_dependencies
+WORKDIR /tmp/
 RUN wget -O eigen-3.4.0.zip https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip && \
 unzip eigen-3.4.0.zip && \
 cd eigen-3.4.0 && mkdir build && cd build && \
-cmake ../ && sudo make install -j $WORKERS_BUILD_DEPS
+cmake ../ && sudo make install -j $(nproc)
 
-WORKDIR /root/vins_dependencies
+WORKDIR /tmp/
 RUN wget http://ceres-solver.org/ceres-solver-2.1.0.tar.gz && \
 tar zxf ceres-solver-2.1.0.tar.gz && \
-cd ceres-solver-2.1.0 && mkdir build && cd build && \
-cmake -DEXPORT_BUILD_DIR=ON -DCMAKE_INSTALL_PREFIX=/usr/local ../ && \
-make -j $WORKERS_BUILD_DEPS && make test -j $WORKERS_BUILD_DEPS && \
-make install -j $WORKERS_BUILD_DEPS
+mkdir ceres-bin && cd ceres-bin && \
+cmake ../ceres-solver-2.1.0 -DUSE_CUDA=ON -DEXPORT_BUILD_DIR=ON -DCMAKE_INSTALL_PREFIX=/usr/local && \
+make -j $(nproc) && \
+make install -j $(nproc)
 
 # General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/
-RUN echo "source /opt/ros/$ROS_DISTRO/install/setup.bash" >> ~/.bashrc
-RUN echo "source /root/ros2_ws/install/local_setup.bash" >> ~/.bashrc
-
 RUN pip uninstall matplotlib -y
+RUN apt-get install ros-humble-rosbag2-storage-mcap -y

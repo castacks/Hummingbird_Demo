@@ -140,3 +140,9 @@ services:
       - ./rti_sensor_qos_profile.xml:/root/rti_sensor_qos_profile.xml 
       - ./autonomy/:/root/ros2_ws/:rw
       - ${STORAGE_PATH}:/root/data_collection/:rw
+
+networks:
+  hummingbird_network:
+    driver: bridge
+    internal: true
+    attachable: true
