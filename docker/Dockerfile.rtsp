@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
-RUN apt-get remove --purge '*opencv*' -y && apt-get autoremove -y && apt-get clean -y && apt-get install -y python3-opencv
+# RUN apt-get remove --purge '*opencv*' -y && apt-get autoremove -y && apt-get clean -y && apt-get install -y python3-opencv
 RUN apt-get update -y && apt-get install -y -f libgstreamer-plugins-base1.0-dev \
 libgstreamer-plugins-good1.0-dev libgstreamer-plugins-bad1.0-dev libgstrtspserver-1.0-dev \
 gstreamer1.0-plugins-ugly gstreamer1.0-plugins-bad
@@ -11,4 +11,3 @@ WORKDIR /root/ros2_ws/
 RUN /bin/bash -c "source ~/.bash_profile && colcon build --symlink-install"
 
 WORKDIR /root/ros2_ws/
-RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
