@@ -241,18 +241,16 @@ int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
 	auto n = rclcpp::Node::make_shared("vins_estimator");
-    // ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
-
-    if(argc != 2)
+    n->declare_parameter("config_file", "");
+    string config_file = n->get_parameter("config_file").as_string();
+    RCLCPP_INFO(n->get_logger(), "config_file: %s", config_file.c_str());
+    if(config_file.empty())
     {
-        printf("please intput: rosrun vins vins_node [config file] \n"
-               "for example: rosrun vins vins_node "
-               "~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
+        printf("please intput: ros2 run vins vins_node [config file] \n"
+               "for example: ros2 run vins vins_node "
+               "~/ros2_ws/src/vins_fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
         return 1;
     }
-
-    string config_file = argv[1];
-    printf("config_file: %s\n", argv[1]);
 
     readParameters(config_file);
     estimator.setParameter();

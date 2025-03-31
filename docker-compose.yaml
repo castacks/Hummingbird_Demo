@@ -92,7 +92,7 @@ services:
     command: >
       bash -c "trap 'tmux kill-server' SIGTERM; \ 
          if [ ! -d '/root/ros2_ws/install' ]; then \
-           source ~/.bash_profile && colcon build --symlink-install; 
+           source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(( $(nproc) / 2 )); 
            else echo 'Already built'; fi && \
          source /root/ros2_ws/install/setup.bash && \
          export ROSBAG_DATE=\"$(date +'%Y-%m-%d_%H-%M-%S')\" && \
