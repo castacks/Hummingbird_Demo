@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
     <node name="vins_node" pkg="vins" exec="vins_node">
-        <param name="config_file" value="$(find-pkg-share vins)/config/euroc/euroc_stereo_config.yaml"/>
+        <param name="config_file" value="$(find-pkg-share vins)/config/zedx/zedx_stereo_config.yaml"/>
     </node>
 </launch>

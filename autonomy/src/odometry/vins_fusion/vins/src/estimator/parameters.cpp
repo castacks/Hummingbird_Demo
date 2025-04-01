@@ -88,6 +88,8 @@ void readParameters(std::string config_file)
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
+    fsSettings["cam0_info_topic"] >> CAM0_INFO_TOPIC;
+    fsSettings["cam1_info_topic"] >> CAM1_INFO_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     FREQ = fsSettings["freq"];

@@ -21,6 +21,7 @@
 #include "estimator/estimator.h"
 #include "estimator/parameters.h"
 #include "utility/visualization.h"
+#include "sensor_msgs/msg/camera_info.hpp"
 
 Estimator estimator;
 
@@ -28,7 +29,7 @@ queue<sensor_msgs::msg::Imu::ConstPtr> imu_buf;
 queue<sensor_msgs::msg::PointCloud::ConstPtr> feature_buf;
 queue<sensor_msgs::msg::Image::ConstPtr> img0_buf;
 queue<sensor_msgs::msg::Image::ConstPtr> img1_buf;
-array<bool> camera_info_received(2, false);
+bool CAMERA_INFO_STATUS[2] = {false, false};
 std::mutex m_buf;
 
 // header: 1403715278
@@ -46,18 +47,6 @@ void img1_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
     // std::cout << "Right: " << img_msg->header.stamp.sec << "." << img_msg->header.stamp.nanosec << endl;
     img1_buf.push(img_msg);
     m_buf.unlock();
-}
-
-void cam0_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam0_info_msg)
-{
-    updateYamlWithCameraInfo(CAM_NAMES[0], *cam0_info_msg);
-    camera_info_received[0] = true;
-}
-
-void cam1_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam1_info_msg)
-{
-    updateYamlWithCameraInfo(CAM_NAMES[1], *cam1_info_msg);
-    camera_info_received[1] = true;
 }
 
 void updateYamlWithCameraInfo(const std::string &yaml_file_path, const sensor_msgs::msg::CameraInfo &camera_info)
@@ -85,10 +74,26 @@ void updateYamlWithCameraInfo(const std::string &yaml_file_path, const sensor_ms
 
     // Write updated YAML back to file
     std::ofstream fout(yaml_file_path);
+    fout << "%YAML:1.0\n";
+    fout << "---\n";
     fout << config;
     fout.close();
 }
+void cam0_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam0_info_msg)
+{
+    updateYamlWithCameraInfo(CAM_NAMES[0], *cam0_info_msg);
+    RCLCPP_INFO(rclcpp::get_logger("vins"), "Camera 0 info received!");
+    CAMERA_INFO_STATUS[0] = true;
+    ROW = cam0_info_msg->height;
+    COL = cam0_info_msg->width;
+}
 
+void cam1_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam1_info_msg)
+{
+    updateYamlWithCameraInfo(CAM_NAMES[1], *cam1_info_msg);
+    RCLCPP_INFO(rclcpp::get_logger("vins"), "Camera 1 info received!");
+    CAMERA_INFO_STATUS[1] = true;
+}
 
 // cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::SharedPtr img_msg)
 cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::ConstPtr &img_msg)
@@ -182,7 +187,6 @@ void sync_process()
     }
 }
 
-
 void imu_callback(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
 {
     // std::cout << "IMU cb" << std::endl;
@@ -201,7 +205,6 @@ void imu_callback(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
     estimator.inputIMU(t, acc, gyr);
     return;
 }
-
 
 void feature_callback(const sensor_msgs::msg::PointCloud::SharedPtr feature_msg)
 {
@@ -283,41 +286,54 @@ void cam_switch_callback(const std_msgs::msg::Bool::SharedPtr switch_msg)
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-	auto n = rclcpp::Node::make_shared("vins_estimator");
+    auto n = rclcpp::Node::make_shared("vins_estimator");
     n->declare_parameter("config_file", "");
     string config_file = n->get_parameter("config_file").as_string();
     RCLCPP_INFO(n->get_logger(), "config_file: %s", config_file.c_str());
-    if(config_file.empty())
+    
+    if (config_file.empty())
     {
-        printf("please intput: ros2 run vins vins_node [config file] \n"
-               "for example: ros2 run vins vins_node "
+        printf("Please input: ros2 run vins vins_node [config file] \n"
+               "For example: ros2 run vins vins_node "
                "~/ros2_ws/src/vins_fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
         return 1;
     }
     readParameters(config_file);
-
-    auto sub_cam0_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(CAM0_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam0_info_callback);
-    if (STEREO)
+    
+    if (!CAM0_INFO_TOPIC.empty() && !CAM1_INFO_TOPIC.empty())
     {
-        auto sub_cam1_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(CAM1_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam1_info_callback);
+        // Ensure both subscriptions are created inside the same block
+        auto sub_cam0_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(
+            CAM0_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam0_info_callback);
+        
+        rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr sub_cam1_info = NULL;
+        if (STEREO)
+        {
+            sub_cam1_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(
+                CAM1_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam1_info_callback);
+        }
+    
+        // Wait for the first message from both camera infos and then delete the subscriptions
+        RCLCPP_INFO(n->get_logger(), "Waiting for camera info on %s and %s...", CAM0_INFO_TOPIC.c_str(), CAM1_INFO_TOPIC.c_str());
+        while (rclcpp::ok() && !(CAMERA_INFO_STATUS[0] && (!STEREO || CAMERA_INFO_STATUS[1])))
+        {
+            rclcpp::spin_some(n);
+        }
+    
+        RCLCPP_INFO(n->get_logger(), "Received camera info! Starting estimator...");
+        sub_cam0_info.reset();  // Release the subscription when done
+        if (STEREO)
+        {
+            sub_cam1_info.reset();  // Release the subscription when done
+        }
     }
-    // wait for first message from both camera infos and then delete the subscriptions
-    RCLCPP_INFO(n->get_logger(), "Waiting for camera info...");
-    while (rclcpp::ok() && (camera_info_received[0] && (!STEREO || camera_info_received[1])))
+    else
     {
-        rclcpp::spin_some(n);
+        RCLCPP_INFO(n->get_logger(), "No camera info received topic found in config, using default values.");
     }
-    RCLCPP_INFO(n->get_logger(), "Received camera info! Starting estimator...");
-    sub_cam0_info.reset();
-    if (STEREO)
-    {
-        sub_cam1_info.reset();
-    }
+    
+    // Reinitiate the parameters after receiving camera info and setting it in the yaml file
     estimator.setParameter();
-
-#ifdef EIGEN_DONT_PARALLELIZE
-    ROS_DEBUG("EIGEN_DONT_PARALLELIZE");
-#endif
 
     ROS_WARN("waiting for image and imu...");
 
