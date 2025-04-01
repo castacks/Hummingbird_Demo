@@ -46,6 +46,7 @@ std::string FISHEYE_MASK;
 std::vector<std::string> CAM_NAMES;
 int MAX_CNT;
 int MIN_DIST;
+double FREQ;
 double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
@@ -88,6 +89,8 @@ void readParameters(std::string config_file)
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
+    FREQ = fsSettings["freq"];
+    std::cout << "FREQ: " << FREQ << std::endl;
     F_THRESHOLD = fsSettings["F_threshold"];
     SHOW_TRACK = fsSettings["show_track"];
     FLOW_BACK = fsSettings["flow_back"];
@@ -197,7 +200,7 @@ void readParameters(std::string config_file)
 
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
-    ROS_INFO("ROW: %d COL: %d ", ROW, COL);
+    ROS_INFO("Image Height: %d Image Width: %d ", ROW, COL);
 
     if(!USE_IMU)
     {
