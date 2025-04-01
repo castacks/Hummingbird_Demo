@@ -22,7 +22,7 @@ services:
     depends_on:
     - base
     command: >
-      bash -c "source /root/ros2_ws/setup.bash && \
+      bash -c "source /root/ros2_ws/install/setup.bash && \
               ros2 launch image2rtsp dual_image2rtsp.launch.py && \
               sleep infinity"
     environment:
@@ -52,7 +52,7 @@ services:
     depends_on:
     - base
     command: >
-      bash -c "source /root/ros2_ws/setup.bash && \
+      bash -c "source /root/ros2_ws/install/setup.bash && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
     environment:
