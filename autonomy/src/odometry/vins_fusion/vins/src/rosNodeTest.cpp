@@ -17,6 +17,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <yaml-cpp/yaml.h>
 #include "estimator/estimator.h"
 #include "estimator/parameters.h"
 #include "utility/visualization.h"
@@ -27,6 +28,7 @@ queue<sensor_msgs::msg::Imu::ConstPtr> imu_buf;
 queue<sensor_msgs::msg::PointCloud::ConstPtr> feature_buf;
 queue<sensor_msgs::msg::Image::ConstPtr> img0_buf;
 queue<sensor_msgs::msg::Image::ConstPtr> img1_buf;
+array<bool> camera_info_received(2, false);
 std::mutex m_buf;
 
 // header: 1403715278
@@ -44,6 +46,47 @@ void img1_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
     // std::cout << "Right: " << img_msg->header.stamp.sec << "." << img_msg->header.stamp.nanosec << endl;
     img1_buf.push(img_msg);
     m_buf.unlock();
+}
+
+void cam0_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam0_info_msg)
+{
+    updateYamlWithCameraInfo(CAM_NAMES[0], *cam0_info_msg);
+    camera_info_received[0] = true;
+}
+
+void cam1_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr cam1_info_msg)
+{
+    updateYamlWithCameraInfo(CAM_NAMES[1], *cam1_info_msg);
+    camera_info_received[1] = true;
+}
+
+void updateYamlWithCameraInfo(const std::string &yaml_file_path, const sensor_msgs::msg::CameraInfo &camera_info)
+{
+    // Load existing YAML file
+    YAML::Node config = YAML::LoadFile(yaml_file_path);
+
+    // Update YAML fields with CameraInfo message values
+    config["image_width"] = camera_info.width;
+    config["image_height"] = camera_info.height;
+
+    // Update distortion parameters
+    if (camera_info.d.size() >= 4) {
+        config["distortion_parameters"]["k1"] = camera_info.d[0];
+        config["distortion_parameters"]["k2"] = camera_info.d[1];
+        config["distortion_parameters"]["p1"] = camera_info.d[2];
+        config["distortion_parameters"]["p2"] = camera_info.d[3];
+    }
+
+    // Update projection parameters
+    config["projection_parameters"]["fx"] = camera_info.k[0];
+    config["projection_parameters"]["fy"] = camera_info.k[4];
+    config["projection_parameters"]["cx"] = camera_info.k[2];
+    config["projection_parameters"]["cy"] = camera_info.k[5];
+
+    // Write updated YAML back to file
+    std::ofstream fout(yaml_file_path);
+    fout << config;
+    fout.close();
 }
 
 
@@ -251,8 +294,25 @@ int main(int argc, char **argv)
                "~/ros2_ws/src/vins_fusion/config/euroc/euroc_stereo_imu_config.yaml \n");
         return 1;
     }
-
     readParameters(config_file);
+
+    auto sub_cam0_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(CAM0_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam0_info_callback);
+    if (STEREO)
+    {
+        auto sub_cam1_info = n->create_subscription<sensor_msgs::msg::CameraInfo>(CAM1_INFO_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), cam1_info_callback);
+    }
+    // wait for first message from both camera infos and then delete the subscriptions
+    RCLCPP_INFO(n->get_logger(), "Waiting for camera info...");
+    while (rclcpp::ok() && (camera_info_received[0] && (!STEREO || camera_info_received[1])))
+    {
+        rclcpp::spin_some(n);
+    }
+    RCLCPP_INFO(n->get_logger(), "Received camera info! Starting estimator...");
+    sub_cam0_info.reset();
+    if (STEREO)
+    {
+        sub_cam1_info.reset();
+    }
     estimator.setParameter();
 
 #ifdef EIGEN_DONT_PARALLELIZE
@@ -262,7 +322,6 @@ int main(int argc, char **argv)
     ROS_WARN("waiting for image and imu...");
 
     registerPub(n);
-
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu = NULL;
     if(USE_IMU)

@@ -64,6 +64,7 @@ extern int MULTIPLE_THREAD;
 extern map<int, Eigen::Vector3d> pts_gt;
 
 extern std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
+extern std::string CAM0_INFO_TOPIC, CAM1_INFO_TOPIC;
 extern std::string FISHEYE_MASK;
 extern std::vector<std::string> CAM_NAMES;
 extern int MAX_CNT;

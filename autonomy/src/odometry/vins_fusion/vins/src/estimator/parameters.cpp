@@ -42,6 +42,7 @@ int USE_IMU;
 int MULTIPLE_THREAD;
 map<int, Eigen::Vector3d> pts_gt;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
+std::string CAM0_INFO_TOPIC, CAM1_INFO_TOPIC;
 std::string FISHEYE_MASK;
 std::vector<std::string> CAM_NAMES;
 int MAX_CNT;
@@ -141,7 +142,7 @@ void readParameters(std::string config_file)
             EX_CALIB_RESULT_PATH = OUTPUT_FOLDER + "/extrinsic_parameter.csv";
         }
         if (ESTIMATE_EXTRINSIC == 0)
-            ROS_WARN("fix extrinsic param ");
+            ROS_WARN("Extrinsic param is fixed!");
 
         cv::Mat cv_T;
         fsSettings["body_T_cam0"] >> cv_T;
