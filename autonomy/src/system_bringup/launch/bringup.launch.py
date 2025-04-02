@@ -11,15 +11,6 @@ def generate_launch_description():
     # Get current date for rosbag naming
     date = str(os.popen('date +%Y-%m-%d').read().strip())
     system_launch = LaunchDescription([
-        # Declare environment variables
-        # DeclareLaunchArgument('RECORD', default_value=0, description='Enable rosbag recording'),
-        # DeclareLaunchArgument('WIRE_SYS', default_value=0, description='Enable any nodes related to wire tracking'),
-        # DeclareLaunchArgument('RVIZ', default_value=0, description='Enable RViz'),
-        # DeclareLaunchArgument('VO', default_value=0, description='Enable local VO node'),
-        # DeclareLaunchArgument('USE_TRACKING', default_value=0, description='Enable wire tracking node or wire detection node'),
-        # DeclareLaunchArgument('STORAGE_PATH', default_value='/tmp/rosbag', description='Path for rosbag recording'),
-        
-
         # Wire tracking node (launch if WIRE_NODE is true)
         Node(
             package='wire_tracking',
@@ -69,7 +60,11 @@ def generate_launch_description():
         # Rosbag recording process
         ExecuteProcess(
             cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-                 '-o', ['/root/data_collection/', 'wire_tracking_', date]],
+                 '-o', ['/root/data_collection/', 'wire_tracking_', date], '/wire_cam/zed_node/left/image_rect_color',
+                '/wire_cam/zed_node/right/image_rect_color', '/wire_cam/zed_node/left/camera_info',
+                '/wire_cam/zed_node/right/camera_info', '/wire_cam/zed_node/depth/depth_registered',
+                '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
+                '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
             output='log',
             condition=IfCondition(EnvironmentVariable('RECORD'))
         ),
