@@ -13,7 +13,11 @@
     name="rviz2" 
     if="$(env RVIZ)"
     args="-d $(find-pkg-share wire_tracking)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
-    
+  
+  <let name="rosbag_path" value="$(env ROSBAG_PATH)"/>
+
+  <executable name="rosbag_record" cmd="ros2 bag record -s mcap -d 180 -o $(var rosbag_path)" output="log"/>
+
   <!-- <node pkg="macvo" exec="macvo" if="$(env LOCAL_VO)" output="log">
       <param name="model_config" value="$(find-pkg-share macvo)/config/model_config.yaml"/>
       <param from="$(find-pkg-share macvo)/config/interface_config.yaml"/>
