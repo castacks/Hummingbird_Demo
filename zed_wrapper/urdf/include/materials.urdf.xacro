@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <!--
-// Copyright 2022 Stereolabs
+// Copyright 2024 Stereolabs
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,12 @@
         <color rgba="0.25 0.25 0.25 1.0"/>
     </material>
     <material name="virtual_mat">
+        <color rgba="0.25 0.25 0.25 1.0"/>
+    </material>
+    <material name="zedxonegs_mat">
+        <color rgba="0.25 0.25 0.25 1.0"/>
+    </material>
+    <material name="zedxone4k_mat">
         <color rgba="0.25 0.25 0.25 1.0"/>
     </material>
 </robot>

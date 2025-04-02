@@ -2,8 +2,8 @@ ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
 # ZED SDK link
-ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons"
-# ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
+# ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons"
+ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
 
 RUN wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run ${ZED_SDK_URL} && \
 chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent && \
@@ -43,7 +43,8 @@ rm -rf cob_common
 
 RUN git clone https://github.com/stereolabs/zed-ros2-wrapper.git && \
 cd zed-ros2-wrapper && \
-git checkout a76e3abc3ca324d45cf5236b3c9afffe7d75273d && \
+# zed sdk 5.0 wrapper commit hash
+git checkout 72367387e449265b2a6fd4520dbe88936539ae19 && \ 
 cd .. && \
 mv zed-ros2-wrapper/zed* . && \
 rm -rf zed-ros2-wrapper

@@ -90,20 +90,14 @@ services:
     depends_on:
     - base
     command: >
-      bash -c "trap 'tmux kill-server' SIGTERM; \ 
-         if [ ! -d '/root/ros2_ws/install' ]; then \
+      bash -c "if [ ! -d '/root/ros2_ws/install' ]; then \
            source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(( $(nproc) / 2 )); 
            else echo 'Already built'; fi && \
          source /root/ros2_ws/install/setup.bash && \
          export ROSBAG_DATE=\"$(date +'%Y-%m-%d_%H-%M-%S')\" && \
-         if [ \"$RECORD\" -eq 1 ]; then \
-           echo 'Starting rosbag recording at /root/data_collection/zed_data_\$\{ROSBAG_DATE\}' && \
-           tmux new -d -s autonomy && \
-           tmux send-keys -t autonomy 'ros2 bag record -s mcap -d 60 -o /root/data_collection/data_collect_\$\{ROSBAG_DATE\} /wire_cam/zed_node/left/image_rect_color /wire_cam/zed_node/right/image_rect_color /wire_cam/zed_node/left/camera_info /wire_cam/zed_node/right/camera_info /wire_cam/zed_node/depth/depth_registered /pose_cam/zed_node/left/image_rect_color /pose_cam/zed_node/right/image_rect_color /pose_cam/zed_node/left/camera_info /pose_cam/zed_node/right/camera_info ' ENTER; \
-         fi && \
          if [ \"$START_TRACKING\" -eq 1 ]; then \
            echo 'Starting Tracking...' && \
-           ros2 launch wire_tracking wire_tracking.launch.xml; \
+           ros2 launch system_bringup bringup.launch.xml; \
          else \
             echo 'Starting Detection...' && \
             ros2 launch wire_detection wire_detection.launch.xml; \

@@ -122,6 +122,8 @@ cmake ../ceres-solver-2.1.0 -DUSE_CUDA=ON -DEXPORT_BUILD_DIR=ON -DCMAKE_INSTALL_
 make -j $(nproc) && \
 make install -j $(nproc)
 
+RUN apt-get update && apt-get install -y libyaml-cpp-dev
+
 # General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/
 RUN pip uninstall matplotlib -y
