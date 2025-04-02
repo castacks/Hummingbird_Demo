@@ -93,6 +93,7 @@ def launch_setup(context, *args, **kwargs):
     node_name = LaunchConfiguration('node_name')
 
     ros_params_override_path = LaunchConfiguration('ros_params_override_path')
+    config_path = LaunchConfiguration('config_path')
     config_ffmpeg = LaunchConfiguration('ffmpeg_config_path')
 
     serial_number = LaunchConfiguration('serial_number')
@@ -143,8 +144,13 @@ def launch_setup(context, *args, **kwargs):
     else:
         config_common_path_val = default_config_common + '_mono.yaml'
 
-    info = 'Using common configuration file: ' + config_common_path_val
-    return_array.append(LogInfo(msg=TextSubstitution(text=info)))
+    if config_path == '':
+        info = 'Using common configuration file: ' + config_common_path_val
+        return_array.append(LogInfo(msg=TextSubstitution(text=info)))
+    else:
+        config_common_path_val = config_path.perform(context)
+        info = 'Using common configuration file: ' + config_common_path_val
+        return_array.append(LogInfo(msg=TextSubstitution(text=info)))
 
     # Camera configuration file
     config_camera_path = os.path.join(
@@ -329,6 +335,10 @@ def generate_launch_description():
                 default_value='',
                 description='The path to an additional parameters file to override the default values.'),
             DeclareLaunchArgument(
+                'config_path',
+                default_value=TextSubstitution(text=''),
+                description='Path to the custom YAML configuration file for the camera parameters.'),
+            DeclareLaunchArgument(
                 'ffmpeg_config_path',
                 default_value=TextSubstitution(text=default_config_ffmpeg),
                 description='Path to the YAML configuration file for the FFMPEG parameters when using FFMPEG image transport plugin.'),
@@ -342,22 +352,22 @@ def generate_launch_description():
                 description='The ID of the camera to be opened. It is mandatory to use this parameter or serial number in multi-camera rigs to distinguish between different cameras.  Use `ZED_Explorer -a` to retrieve the ID of all the connected cameras.'),
             DeclareLaunchArgument(
                 'publish_urdf',
-                default_value='true',
+                default_value='false',
                 description='Enable URDF processing and starts Robot State Published to propagate static TF.',
                 choices=['true', 'false']),
             DeclareLaunchArgument(
                 'publish_tf',
-                default_value='true',
+                default_value='false',
                 description='Enable publication of the `odom -> camera_link` TF.',
                 choices=['true', 'false']),
             DeclareLaunchArgument(
                 'publish_map_tf',
-                default_value='true',
+                default_value='false',
                 description='Enable publication of the `map -> odom` TF. Note: Ignored if `publish_tf` is False.',
                 choices=['true', 'false']),
             DeclareLaunchArgument(
                 'publish_imu_tf',
-                default_value='true',
+                default_value='false',
                 description='Enable publication of the IMU TF. Note: Ignored if `publish_tf` is False.',
                 choices=['true', 'false']),
             DeclareLaunchArgument(
