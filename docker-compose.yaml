@@ -91,28 +91,21 @@ services:
     - base
     command: >
       bash -c "if [ ! -d '/root/ros2_ws/install' ]; then \
-           source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(( $(nproc) / 2 )); 
+           source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
            else echo 'Already built'; fi && \
          source /root/ros2_ws/install/setup.bash && \
-         export ROSBAG_DATE=\"$(date +'%Y-%m-%d_%H-%M-%S')\" && \
-         if [ \"$START_TRACKING\" -eq 1 ]; then \
-           echo 'Starting Tracking...' && \
-           ros2 launch system_bringup bringup.launch.xml; \
-         else \
-            echo 'Starting Detection...' && \
-            ros2 launch wire_detection wire_detection.launch.xml; \
-         fi && sleep infinity"
+         ros2 launch system_bringup bringup.launch.py"
 
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
-      - START_TRACKING=${START_TRACKING}
       - RECORD=${RECORD}
-      - LOCAL_VO=${LOCAL_VO}
-      - WIRE_NODE=${WIRE_NODE}
+      - WIRE_SYS=${WIRE_SYS}
       - RVIZ=${RVIZ}
+      - VO=${VO}
+      - USE_TRACKING=${USE_TRACKING}
     deploy:
       # let it use the GPU
       resources:

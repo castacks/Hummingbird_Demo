@@ -33,18 +33,19 @@ size_t pub_counter = 0;
 
 void registerPub(rclcpp::Node::SharedPtr n)
 {
-    pub_latest_odometry = n->create_publisher<nav_msgs::msg::Odometry>("imu_propagate", 1000);
-    pub_path = n->create_publisher<nav_msgs::msg::Path>("path", 1000);
-    pub_odometry = n->create_publisher<nav_msgs::msg::Odometry>("odometry", 1000);
-    pub_point_cloud = n->create_publisher<sensor_msgs::msg::PointCloud>("point_cloud", 1000);
-    pub_margin_cloud = n->create_publisher<sensor_msgs::msg::PointCloud>("margin_cloud", 1000);
-    pub_key_poses = n->create_publisher<visualization_msgs::msg::Marker>("key_poses", 1000);
-    pub_camera_pose = n->create_publisher<nav_msgs::msg::Odometry>("camera_pose", 1000);
-    pub_camera_pose_visual = n->create_publisher<visualization_msgs::msg::MarkerArray>("camera_pose_visual", 1000);
-    pub_keyframe_pose = n->create_publisher<nav_msgs::msg::Odometry>("keyframe_pose", 1000);
-    pub_keyframe_point = n->create_publisher<sensor_msgs::msg::PointCloud>("keyframe_point", 1000);
-    pub_extrinsic = n->create_publisher<nav_msgs::msg::Odometry>("extrinsic", 1000);
-    pub_image_track = n->create_publisher<sensor_msgs::msg::Image>("image_track", 1000);
+    int queue_size = 1;
+    pub_latest_odometry = n->create_publisher<nav_msgs::msg::Odometry>("imu_propagate", queue_size);
+    pub_path = n->create_publisher<nav_msgs::msg::Path>("path", queue_size);
+    pub_odometry = n->create_publisher<nav_msgs::msg::Odometry>("odometry", queue_size);
+    pub_point_cloud = n->create_publisher<sensor_msgs::msg::PointCloud>("point_cloud", queue_size);
+    pub_margin_cloud = n->create_publisher<sensor_msgs::msg::PointCloud>("margin_cloud", queue_size);
+    pub_key_poses = n->create_publisher<visualization_msgs::msg::Marker>("key_poses", queue_size);
+    pub_camera_pose = n->create_publisher<nav_msgs::msg::Odometry>("camera_pose", queue_size);
+    pub_camera_pose_visual = n->create_publisher<visualization_msgs::msg::MarkerArray>("camera_pose_visual", queue_size);
+    pub_keyframe_pose = n->create_publisher<nav_msgs::msg::Odometry>("keyframe_pose", queue_size);
+    pub_keyframe_point = n->create_publisher<sensor_msgs::msg::PointCloud>("keyframe_point", queue_size);
+    pub_extrinsic = n->create_publisher<nav_msgs::msg::Odometry>("extrinsic", queue_size);
+    pub_image_track = n->create_publisher<sensor_msgs::msg::Image>("image_track", queue_size);
 
     cameraposevisual.setScale(0.1);
     cameraposevisual.setLineWidth(0.01);
@@ -59,7 +60,7 @@ void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, co
     odometry.header.stamp.sec = sec_ts;
     odometry.header.stamp.nanosec = nsec_ts;
 
-    odometry.header.frame_id = "world";
+    odometry.header.frame_id = "map";
     odometry.pose.pose.position.x = P.x();
     odometry.pose.pose.position.y = P.y();
     odometry.pose.pose.position.z = P.z();
@@ -76,7 +77,7 @@ void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, co
 void pubTrackImage(const cv::Mat &imgTrack, const double t)
 {
     std_msgs::msg::Header header;
-    header.frame_id = "world";
+    header.frame_id = "map";
 
     int sec_ts = (int)t;
     uint nsec_ts = (uint)((t - sec_ts) * 1e9);
@@ -138,8 +139,8 @@ void pubOdometry(const Estimator &estimator, const std_msgs::msg::Header &header
     {
         nav_msgs::msg::Odometry odometry;
         odometry.header = header;
-        odometry.header.frame_id = "world";
-        odometry.child_frame_id = "world";
+        odometry.header.frame_id = "map";
+        odometry.child_frame_id = "map";
         Quaterniond tmp_Q;
         tmp_Q = Quaterniond(estimator.Rs[WINDOW_SIZE]);
         odometry.pose.pose.position.x = estimator.Ps[WINDOW_SIZE].x();
@@ -156,10 +157,10 @@ void pubOdometry(const Estimator &estimator, const std_msgs::msg::Header &header
 
         geometry_msgs::msg::PoseStamped pose_stamped;
         pose_stamped.header = header;
-        pose_stamped.header.frame_id = "world";
+        pose_stamped.header.frame_id = "map";
         pose_stamped.pose = odometry.pose.pose;
         path.header = header;
-        path.header.frame_id = "world";
+        path.header.frame_id = "map";
         path.poses.push_back(pose_stamped);
         pub_path->publish(path);
 
@@ -193,7 +194,7 @@ void pubKeyPoses(const Estimator &estimator, const std_msgs::msg::Header &header
         return;
     visualization_msgs::msg::Marker key_poses;
     key_poses.header = header;
-    key_poses.header.frame_id = "world";
+    key_poses.header.frame_id = "map";
     key_poses.ns = "key_poses";
     key_poses.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     key_poses.action = visualization_msgs::msg::Marker::ADD;
@@ -233,7 +234,7 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::msg::Header &head
 
         nav_msgs::msg::Odometry odometry;
         odometry.header = header;
-        odometry.header.frame_id = "world";
+        odometry.header.frame_id = "map";
         odometry.pose.pose.position.x = P.x();
         odometry.pose.pose.position.y = P.y();
         odometry.pose.pose.position.z = P.z();
@@ -347,7 +348,7 @@ void pubTF(const Estimator &estimator, const std_msgs::msg::Header &header)
 
 
     // transform.header.stamp = header.stamp;
-    transform.header.frame_id = "world";
+    transform.header.frame_id = "map";
     transform.child_frame_id = "body";
 
     transform.transform.translation.x = correct_t(0);
@@ -402,7 +403,7 @@ void pubTF(const Estimator &estimator, const std_msgs::msg::Header &header)
     
     nav_msgs::msg::Odometry odometry;
     odometry.header = header;
-    odometry.header.frame_id = "world";
+    odometry.header.frame_id = "map";
     odometry.pose.pose.position.x = estimator.tic[0].x();
     odometry.pose.pose.position.y = estimator.tic[0].y();
     odometry.pose.pose.position.z = estimator.tic[0].z();
@@ -488,7 +489,7 @@ void pubKeyframe(const Estimator &estimator)
         odometry.header.stamp.sec = sec_ts;
         odometry.header.stamp.nanosec = nsec_ts;
 
-        odometry.header.frame_id = "world";
+        odometry.header.frame_id = "map";
         odometry.pose.pose.position.x = P.x();
         odometry.pose.pose.position.y = P.y();
         odometry.pose.pose.position.z = P.z();
@@ -508,7 +509,7 @@ void pubKeyframe(const Estimator &estimator)
         point_cloud.header.stamp.sec = sec_ts;
         point_cloud.header.stamp.nanosec = nsec_ts;
 
-        point_cloud.header.frame_id = "world";
+        point_cloud.header.frame_id = "map";
         for (auto &it_per_id : estimator.f_manager.feature)
         {
             int frame_size = it_per_id.feature_per_frame.size();
