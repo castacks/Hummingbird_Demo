@@ -13,7 +13,6 @@
 
 // #define GPU_MODE 1
 
-
 #include <cstdio>
 #include <iostream>
 #include <queue>

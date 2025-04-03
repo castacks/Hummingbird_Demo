@@ -184,12 +184,15 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     
     if(MULTIPLE_THREAD)  
     {     
-        if(inputImageCnt % 2 == 0)
-        {
-            mBuf.lock();
-            featureBuf.push(make_pair(t, featureFrame));
-            mBuf.unlock();
-        }
+        // if(inputImageCnt % 2 == 0)
+        // {
+        //     mBuf.lock();
+        //     featureBuf.push(make_pair(t, featureFrame));
+        //     mBuf.unlock();
+        // }
+        mBuf.lock();
+        featureBuf.push(make_pair(t, featureFrame));
+        mBuf.unlock();
     }
     else
     {
@@ -198,7 +201,8 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         mBuf.unlock();
         TicToc processTime;
         processMeasurements();
-        printf("process time: %f\n", processTime.toc());
+        // printf("process time: %f ms\n", processTime.toc());
+        RCLCPP_INFO(rclcpp::get_logger("vins"), "process time: %f ms", processTime.toc());
     }
     
 }
@@ -591,7 +595,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         // optimization
         TicToc t_solve;
         optimization();
-        ROS_INFO("solver costs: %f [ms]", t_solve.toc());
+        ROS_INFO("solver optimization time: %f [ms]", t_solve.toc());
 
         set<int> removeIndex;
         outliersRejection(removeIndex);

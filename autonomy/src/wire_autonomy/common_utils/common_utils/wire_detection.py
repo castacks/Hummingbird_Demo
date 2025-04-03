@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 
 class WireDetector:
-    def __init__(self, threshold, expansion_size, low_canny_threshold, high_canny_threshold, pixel_binning_size, bin_avg_threshold_multiplier):
-        self.threshold = threshold
+    def __init__(self, line_threshold, expansion_size, low_canny_threshold, high_canny_threshold, pixel_binning_size, bin_avg_threshold_multiplier):
+        self.line_threshold = line_threshold
         self.expansion_size = expansion_size
         self.low_canny_threshold = low_canny_threshold
         self.high_canny_threshold = high_canny_threshold
@@ -21,12 +21,12 @@ class WireDetector:
         seg_coords = np.argwhere(seg_mask==255)
         seg_coords = seg_coords[:, [1, 0]]
 
-        cartesian_lines = cv2.HoughLinesP(seg_mask, 1, np.pi/180, self.threshold)
+        cartesian_lines = cv2.HoughLinesP(seg_mask, 1, np.pi/180, self.line_threshold)
         if cartesian_lines is None:
             return None, None, None, None, None
         cartesian_lines = np.squeeze(cartesian_lines,axis=1)
 
-        polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, self.threshold)
+        polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, self.line_threshold)
         if polar_lines is None:
             return None, None, None, None, None
         polar_lines = np.squeeze(polar_lines, axis=1)

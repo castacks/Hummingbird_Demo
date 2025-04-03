@@ -42,18 +42,18 @@ def generate_launch_description():
 
         # IMPORTATNT: Launch must be delayed, having issues when both cameras are launched at the same time
         # Wire camera launch file
-        # TimerAction(
-        #     period=1.5,  # 1 second delay
-        #     actions=[
-        #         IncludeLaunchDescription(
-        #             PythonLaunchDescriptionSource(launch_file_path),
-        #             launch_arguments={
-        #                 'camera_name': 'wire_cam',
-        #                 'camera_model': 'zedx',
-        #                 'serial_number': LaunchConfiguration('wire_cam_serial'),
-        #                 'config_path': os.path.join(get_package_share_directory('zed_wrapper'), 'config', 'wire_common.yaml'),
-        #             }.items()
-        #         )
-        #     ]
-        # )
+        TimerAction(
+            period=1.5,  # 1 second delay
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(launch_file_path),
+                    launch_arguments={
+                        'camera_name': 'wire_cam',
+                        'camera_model': 'zedx',
+                        'serial_number': LaunchConfiguration('wire_cam_serial'),
+                        'config_path': os.path.join(get_package_share_directory('zed_wrapper'), 'config', 'wire_common.yaml'),
+                    }.items()
+                )
+            ]
+        )
     ])

@@ -329,7 +329,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        RCLCPP_INFO(n->get_logger(), "No camera info received topic found in config, using default values.");
+        RCLCPP_INFO(n->get_logger(), "No camera info topic found in config, using default values.");
     }
     
     // Reinitiate the parameters after receiving camera info and setting it in the yaml file

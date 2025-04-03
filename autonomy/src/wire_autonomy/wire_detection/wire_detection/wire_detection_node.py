@@ -25,7 +25,7 @@ class WireDetectorNode(Node):
         
         self.bridge = CvBridge()
         self.received_camera_info = False
-        self.wire_detector = wd.WireDetector(threshold=self.line_threshold, 
+        self.wire_detector = wd.WireDetector(line_threshold=self.line_threshold, 
                                              expansion_size=self.expansion_size, 
                                              low_canny_threshold=self.low_canny_threshold, 
                                              high_canny_threshold=self.high_canny_threshold,

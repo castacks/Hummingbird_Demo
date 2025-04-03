@@ -24,8 +24,8 @@ find_package(yaml-cpp REQUIRED)
 
 
 find_package(OpenCV REQUIRED)
-find_package(Ceres REQUIRED)
 
+find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 
 # include camera_models
@@ -59,7 +59,7 @@ target_link_libraries(vins_lib  ${OpenCV_LIBS} ${CERES_LIBRARIES} yaml-cpp)
 
 ament_target_dependencies(vins_lib rclcpp rcpputils std_msgs visualization_msgs geometry_msgs sensor_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
 
-add_executable(vins_node src/rosNodeTest.cpp)
+add_executable(vins_node src/vinsNode.cpp)
 ament_target_dependencies(vins_node rclcpp rcpputils std_msgs visualization_msgs geometry_msgs sensor_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
 target_link_libraries(vins_node vins_lib) 
 
