@@ -26,12 +26,9 @@ class WireDetector:
             return None, None, None, None, None
         cartesian_lines = np.squeeze(cartesian_lines,axis=1)
 
-        polar_lines = cv2.HoughLines(seg_mask, 1, np.pi/180, self.line_threshold)
-        if polar_lines is None:
-            return None, None, None, None, None
-        polar_lines = np.squeeze(polar_lines, axis=1)
+        line_angles = clamp_angles_pi(np.arctan2(cartesian_lines[:,3] - cartesian_lines[:,1], cartesian_lines[:,2] - cartesian_lines[:,0]))
 
-        unit_vectors = np.array([np.cos(polar_lines[:,1]), np.sin(polar_lines[:,1])]).T
+        unit_vectors = np.array([np.cos(line_angles), np.sin(line_angles)]).T
         avg_angle = np.arctan2(np.mean(unit_vectors[:,1]), np.mean(unit_vectors[:,0])) + np.pi / 2
 
         if self.img_shape == None:
@@ -138,23 +135,6 @@ def find_closest_point_on_3d_line(line_midpoint, yaw, target_point):
     t = np.dot(diff_vector, direction) / np.dot(direction, direction)
     closest_point = np.array([x0, y0, z0]) + t * direction
     return closest_point
-
-def clamp_angles_deg(angles):
-    angles = np.array(angles)
-    converted_angles = []
-    for angle in angles:
-        if angle < 0:
-            # Adjust negative angles
-            converted_angle = (angle + 180) % 360
-        elif angle > 180:
-            # Convert angles greater than 180
-            converted_angle = angle - 180
-        else:
-            converted_angle = angle
-        
-        converted_angles.append(converted_angle)
-    
-    return converted_angles
     
 def clamp_angles_pi(angles):
     is_scalar = np.isscalar(angles)
@@ -180,8 +160,8 @@ def clamp_angles_pi(angles):
         return np.array(converted_angles)
 
 def create_depth_viz(depth):
-    min_depth = 0.4
-    max_depth = 10.0
+    min_depth = 0.5
+    max_depth = 20.0
     depth[np.isnan(depth)] = min_depth
     depth[np.isinf(depth)] = min_depth
     depth[np.isneginf(depth)] = min_depth
