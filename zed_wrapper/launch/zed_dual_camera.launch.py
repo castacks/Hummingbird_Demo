@@ -43,7 +43,7 @@ def generate_launch_description():
         # IMPORTATNT: Launch must be delayed, having issues when both cameras are launched at the same time
         # Wire camera launch file
         TimerAction(
-            period=1.5,  # 1 second delay
+            period=2.0,  # 1 second delay
             actions=[
                 IncludeLaunchDescription(
                     PythonLaunchDescriptionSource(launch_file_path),

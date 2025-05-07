@@ -91,9 +91,13 @@ class WireDetectorNode(Node):
         if np.any(seg_mask):
             wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
             # self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
-            debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
-
-            return debug_img, seg_mask, wire_lines
+            if wire_lines is not None and len(wire_lines) > 0:
+                debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
+                return debug_img, seg_mask, wire_lines
+            else:
+                return None, seg_mask, []
+        else:
+            return None, seg_mask, []
         
     def camera_info_callback(self, data):
         self.fx = data.k[0]

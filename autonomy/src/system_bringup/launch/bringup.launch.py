@@ -9,7 +9,7 @@ from launch.conditions import IfCondition
 
 def generate_launch_description():
     # Get current date for rosbag naming
-    date = str(os.popen('date +%Y-%m-%d').read().strip())
+    date = str(os.popen('date +%Y-%m-%d_%H:%M:%S').read().strip())
     system_launch = LaunchDescription([
         # Wire tracking node (launch if WIRE_NODE is true)
         Node(

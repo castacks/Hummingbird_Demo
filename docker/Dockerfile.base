@@ -25,18 +25,16 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Base dependencies -----------------------------
 RUN apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata sudo \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata sudo locales \
   && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime \
   && dpkg-reconfigure --frontend noninteractive tzdata \
+  && locale-gen en_US en_US.UTF-8 \
+  && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install locales \
- && locale-gen en_US en_US.UTF-8 \
- && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
- && export LANG=en_US.UTF-8
-
-ENV TZ=Europe/Paris
+ENV TZ=America/New_York
+ENV LANG=en_US.UTF-8
 
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \

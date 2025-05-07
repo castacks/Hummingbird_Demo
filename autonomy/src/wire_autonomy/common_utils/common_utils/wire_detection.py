@@ -30,6 +30,8 @@ class WireDetector:
             (cartesian_lines[:, 3] - cartesian_lines[:, 1]) ** 2    # y2 - y1
         )
         cartesian_lines = cartesian_lines[line_lengths > 10]
+        if len(cartesian_lines) == 0:
+            return None, None, None, None, None
 
         line_angles = clamp_angles_pi(np.arctan2(cartesian_lines[:,3] - cartesian_lines[:,1], cartesian_lines[:,2] - cartesian_lines[:,0]))
 
