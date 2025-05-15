@@ -62,7 +62,7 @@ class WireDetectorNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
 
-        debug_image, seg_mask, wire_lines = self.detect_lines(rgb)
+        debug_image, seg_mask, wire_lines, avg_yaw = self.detect_lines(rgb)
         self.seg_mask_viz_pub.publish(self.bridge.cv2_to_imgmsg(seg_mask, encoding='mono8'))
         if debug_image is not None:
             img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
@@ -93,11 +93,11 @@ class WireDetectorNode(Node):
             # self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
             if wire_lines is not None and len(wire_lines) > 0:
                 debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
-                return debug_img, seg_mask, wire_lines
+                return debug_img, seg_mask, wire_lines, avg_yaw
             else:
-                return None, seg_mask, []
+                return None, seg_mask, [], None
         else:
-            return None, seg_mask, []
+            return None, seg_mask, [], None
         
     def camera_info_callback(self, data):
         self.fx = data.k[0]
