@@ -70,3 +70,5 @@ colcon build --parallel-workers $(nproc) --symlink-install \
 #   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
 #   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
 #   ' --no-warn-unused-cli' "
+
+WORKDIR /root/ros2_ws

@@ -68,8 +68,7 @@ services:
                if [ ! -d '/root/ros2_ws/install' ]; then \
                source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
                else echo 'Already built'; fi && \
-
-
+               source /root/ros2_ws/install/setup.bash && \
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
     environment:
@@ -94,7 +93,7 @@ services:
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
-      - ./zed_wrapper/:root/ros2_ws/
+      - ./zed_wrapper/:/root/ros2_ws/
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
