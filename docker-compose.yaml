@@ -8,6 +8,18 @@ services:
         L4T_MAJOR: ${L4T_MAJOR}
         L4T_MINOR: ${L4T_MINOR}
         L4T_PATCH: ${L4T_PATCH}
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
+    network_mode: host
+    runtime: nvidia
+    privileged: true
+    ipc: host
+    pid: host
+    stdin_open: true
+    tty: true
     deploy:
       mode: replicated
       replicas: 0
