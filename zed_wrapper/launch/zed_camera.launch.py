@@ -53,6 +53,19 @@ default_config_ffmpeg = os.path.join(
     'ffmpeg.yaml'
 )
 
+# Object Detection Configuration to be loaded by ZED Node
+default_object_detection_config_path = os.path.join(
+    get_package_share_directory('zed_wrapper'),
+    'config',
+    'object_detection.yaml'
+)
+# Custom Object Detection Configuration to be loaded by ZED Node
+default_custom_object_detection_config_path = os.path.join(
+    get_package_share_directory('zed_wrapper'),
+    'config',
+    'custom_object_detection.yaml'
+)
+
 # URDF/xacro file to be loaded by the Robot State Publisher node
 default_xacro_path = os.path.join(
     get_package_share_directory('zed_wrapper'),
@@ -76,6 +89,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Launch configuration variables
     svo_path = LaunchConfiguration('svo_path')
+    publish_svo_clock = LaunchConfiguration('publish_svo_clock')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     sim_mode = LaunchConfiguration('sim_mode')
@@ -95,6 +109,8 @@ def launch_setup(context, *args, **kwargs):
     ros_params_override_path = LaunchConfiguration('ros_params_override_path')
     config_path = LaunchConfiguration('config_path')
     config_ffmpeg = LaunchConfiguration('ffmpeg_config_path')
+    object_detection_config_path = LaunchConfiguration('object_detection_config_path')
+    custom_object_detection_config_path = LaunchConfiguration('custom_object_detection_config_path')
 
     serial_number = LaunchConfiguration('serial_number')
     camera_id = LaunchConfiguration('camera_id')
@@ -166,6 +182,14 @@ def launch_setup(context, *args, **kwargs):
     info = 'Using FFMPEG configuration file: ' + config_ffmpeg.perform(context)
     return_array.append(LogInfo(msg=TextSubstitution(text=info)))
 
+    # Object Detection configuration file
+    info = 'Using Object Detection configuration file: ' + object_detection_config_path.perform(context)
+    return_array.append(LogInfo(msg=TextSubstitution(text=info)))
+    
+    # Custom Object Detection configuration file
+    info = 'Using Custom Object Detection configuration file: ' + custom_object_detection_config_path.perform(context)
+    return_array.append(LogInfo(msg=TextSubstitution(text=info)))
+
     # ROS parameters override file
     ros_params_override_path_val = ros_params_override_path.perform(context)
     if(ros_params_override_path_val != ''):        
@@ -211,6 +235,7 @@ def launch_setup(context, *args, **kwargs):
         name=rsp_name,
         output='screen',
         parameters=[{
+            'use_sim_time': publish_svo_clock,
             'robot_description': Command(xacro_command)
         }]
     )
@@ -233,6 +258,7 @@ def launch_setup(context, *args, **kwargs):
                 executable=container_exec,
                 arguments=['--use_multi_threaded_executor','--ros-args', '--log-level', 'info'],
                 output='screen',
+                composable_node_descriptions=[]
         )
         return_array.append(zed_container)
 
@@ -241,7 +267,9 @@ def launch_setup(context, *args, **kwargs):
             # YAML files
             config_common_path_val,  # Common parameters
             config_camera_path,  # Camera related parameters
-            config_ffmpeg # FFMPEG parameters
+            config_ffmpeg, # FFMPEG parameters
+            object_detection_config_path, # Object detection parameters
+            custom_object_detection_config_path # Custom object detection parameters
     ]
 
     if( ros_params_override_path_val != ''):
@@ -259,6 +287,7 @@ def launch_setup(context, *args, **kwargs):
                 'general.camera_name': camera_name_val,
                 'general.camera_model': camera_model_val,
                 'svo.svo_path': svo_path,
+                'svo.publish_svo_clock': publish_svo_clock,
                 'general.serial_number': serial_number,
                 'general.camera_id': camera_id,
                 'pos_tracking.publish_tf': publish_tf,
@@ -343,6 +372,14 @@ def generate_launch_description():
                 default_value=TextSubstitution(text=default_config_ffmpeg),
                 description='Path to the YAML configuration file for the FFMPEG parameters when using FFMPEG image transport plugin.'),
             DeclareLaunchArgument(
+                'object_detection_config_path',
+                default_value=TextSubstitution(text=default_object_detection_config_path),
+                description='Path to the YAML configuration file for the Object Detection parameters.'),
+            DeclareLaunchArgument(
+                'custom_object_detection_config_path',
+                default_value=TextSubstitution(text=default_custom_object_detection_config_path),
+                description='Path to the YAML configuration file for the Custom Object Detection parameters.'),
+            DeclareLaunchArgument(
                 'serial_number',
                 default_value='0',
                 description='The serial number of the camera to be opened. It is mandatory to use this parameter or camera ID in multi-camera rigs to distinguish between different cameras. Use `ZED_Explorer -a` to retrieve the serial number of all the connected cameras.'),
@@ -373,11 +410,15 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'xacro_path',
                 default_value=TextSubstitution(text=default_xacro_path),
-                description='Path to the camera URDF file as a xacro file.'),            
+                description='Path to the camera URDF file as a xacro file.'),
             DeclareLaunchArgument(
                 'svo_path',
                 default_value=TextSubstitution(text='live'),
                 description='Path to an input SVO file.'),
+            DeclareLaunchArgument(
+                'publish_svo_clock',
+                default_value='false',
+                description='If set to `true` the node will act as a clock server publishing the SVO timestamp. This is useful for node synchronization'),
             DeclareLaunchArgument(
                 'enable_gnss',
                 default_value='false',

@@ -58,13 +58,18 @@ services:
     image: tharp789/hummingbird_demo:zed-wrapper-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build: 
       context: ./
-      dockerfile: docker/Dockerfile.zed-dev
+      dockerfile: docker/Dockerfile.zed
       args:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     depends_on:
     - base
     command: >
-      bash -c "source /root/ros2_ws/install/setup.bash && \
+      bash -c "source /root/dependencies_ws/install/setup.bash && \
+               if [ ! -d '/root/ros2_ws/install' ]; then \
+               source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
+               else echo 'Already built'; fi && \
+
+
                ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
                sleep infinity"
     environment:
@@ -89,8 +94,7 @@ services:
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
-      - ./zed_wrapper/config/:/root/ros2_ws/src/zed-ros2-wrapper/zed_wrapper/config/
-      - ./zed_wrapper/launch/:/root/ros2_ws/src/zed-ros2-wrapper/zed_wrapper/launch/
+      - ./zed_wrapper/:root/ros2_ws/
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 

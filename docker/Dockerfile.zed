@@ -1,29 +1,29 @@
 ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
-# ZED SDK link
-# ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/4.2/l4t36.4/jetsons"
-ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
-
-RUN wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run ${ZED_SDK_URL} && \
-chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent && \
-rm -rf /usr/local/zed/resources/* && \
-rm -rf ZED_SDK_Linux_JP.run && \
-rm -rf /var/lib/apt/lists/*
-
 # ZED ROS2 Wrapper dependencies version
-WORKDIR /root/ros2_ws/src/
+WORKDIR /root/dependencies_ws/src/
 ARG XACRO_VERSION=2.0.8
 ARG DIAGNOSTICS_VERSION=4.0.0
 ARG AMENT_LINT_VERSION=0.12.11
 ARG ROBOT_LOCALIZATION_VERSION=3.5.3
-ARG ZED_MSGS_VERSION=4.2.2
+ARG ZED_MSGS_VERSION=5.0.0
 ARG NMEA_MSGS_VERSION=2.0.0
 ARG ANGLES_VERSION=1.15.0
 ARG GEOGRAPHIC_INFO_VERSION=1.0.6
 ARG POINTCLOUD_TRANSPORT_VERSION=1.0.18
 ARG POINTCLOUD_TRANSPORT_PLUGINS_VERSION=1.0.11
-ARG COB_VERSION=2.7.10
+ARG BACKWARD_ROS_VERSION=1.0.7
+
+# ZED SDK link
+ENV ZED_SDK_URL="https://download.stereolabs.com/zedsdk/5.0/l4t36.4/jetsons"
+
+RUN wget -q --no-check-certificate -O ZED_SDK_Linux_JP.run \
+${ZED_SDK_URL} && \
+chmod +x ZED_SDK_Linux_JP.run ; ./ZED_SDK_Linux_JP.run silent && \
+rm -rf /usr/local/zed/resources/* && \
+rm -rf ZED_SDK_Linux_JP.run && \
+rm -rf /var/lib/apt/lists/*
 
 RUN wget https://github.com/ros/xacro/archive/refs/tags/${XACRO_VERSION}.tar.gz -O - | tar -xvz && mv xacro-${XACRO_VERSION} xacro && \
 wget https://github.com/ros/diagnostics/archive/refs/tags/${DIAGNOSTICS_VERSION}.tar.gz -O - | tar -xvz && mv diagnostics-${DIAGNOSTICS_VERSION} diagnostics && \
@@ -35,16 +35,14 @@ wget https://github.com/ros/angles/archive/refs/tags/${ANGLES_VERSION}.tar.gz -O
 wget https://github.com/ros-perception/point_cloud_transport/archive/refs/tags/${POINTCLOUD_TRANSPORT_VERSION}.tar.gz -O - | tar -xvz && mv point_cloud_transport-${POINTCLOUD_TRANSPORT_VERSION} point_cloud_transport && \
 wget https://github.com/ros-perception/point_cloud_transport_plugins/archive/refs/tags/${POINTCLOUD_TRANSPORT_PLUGINS_VERSION}.tar.gz -O - | tar -xvz && mv point_cloud_transport_plugins-${POINTCLOUD_TRANSPORT_PLUGINS_VERSION} point_cloud_transport_plugins && \
 wget https://github.com/ros-geographic-info/geographic_info/archive/refs/tags/${GEOGRAPHIC_INFO_VERSION}.tar.gz -O - | tar -xvz && mv geographic_info-${GEOGRAPHIC_INFO_VERSION} geographic-info && \
+wget https://github.com/pal-robotics/backward_ros/archive/refs/tags/${BACKWARD_ROS_VERSION}.tar.gz -O - | tar -xvz && mv backward_ros-${BACKWARD_ROS_VERSION} backward_ros && \
 cp -r geographic-info/geographic_msgs/ . && \
-rm -rf geographic-info && \
-wget https://github.com/4am-robotics/cob_common/archive/refs/tags/2.7.10.tar.gz -O - | tar -xvz && mv cob_common-${COB_VERSION} cob_common && \
-cp -r cob_common/cob_srvs/ . && \
-rm -rf cob_common
+rm -rf geographic-info
 
 RUN git clone https://github.com/stereolabs/zed-ros2-wrapper.git && \
 cd zed-ros2-wrapper && \
 # zed sdk 5.0 wrapper commit hash
-git checkout 72367387e449265b2a6fd4520dbe88936539ae19 && \ 
+git checkout 3dd27bab3a1ea057034973f6e9d82e1bf8c19723 && \ 
 cd .. && \
 mv zed-ros2-wrapper/zed* . && \
 rm -rf zed-ros2-wrapper
@@ -55,20 +53,20 @@ RUN python3 -m pip install --upgrade cython
 RUN apt-get update && apt-get install libgeographic-dev libdraco-dev zlib1g-dev -y
 
 # Build the dependencies and the ZED ROS2 Wrapper
-WORKDIR /root/ros2_ws
+WORKDIR /root/dependencies_ws
 RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/setup.bash && \
-colcon build --cmake-force-configure --parallel-workers $(nproc) --symlink-install \
+colcon build --parallel-workers $(nproc) --symlink-install \
   --event-handlers console_direct+ --base-paths src \
   --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
   ' --no-warn-unused-cli' "
 
-COPY ./zed_wrapper/ /root/ros2_ws/src/zed_wrapper/
-RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/setup.bash && \
-colcon build --symlink-install --packages-select zed_wrapper \
-  --event-handlers console_direct+ --base-paths src \
-  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
-  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
-  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
-  ' --no-warn-unused-cli' "
+# COPY ./zed_wrapper/ /root/ros2_ws/src/zed_wrapper/
+# RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/setup.bash && \
+# colcon build --symlink-install --packages-select zed_wrapper \
+#   --event-handlers console_direct+ --base-paths src \
+#   --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+#   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+#   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+#   ' --no-warn-unused-cli' "
