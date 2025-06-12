@@ -11,7 +11,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-import common_utils.wire_detection as wd
+from common_utils.wire_detection_platform import WireDetectorCPU, WireDetectorGPU
 import common_utils.coord_transforms as ct
 
 # ignore future deprecated warnings
@@ -25,7 +25,7 @@ class WireDetectorNode(Node):
         
         self.bridge = CvBridge()
         self.received_camera_info = False
-        self.wire_detector = wd.WireDetector(line_threshold=self.line_threshold, 
+        self.wire_detector = WireDetectorCPU(line_threshold=self.line_threshold, 
                                              expansion_size=self.expansion_size, 
                                              low_canny_threshold=self.low_canny_threshold, 
                                              high_canny_threshold=self.high_canny_threshold,

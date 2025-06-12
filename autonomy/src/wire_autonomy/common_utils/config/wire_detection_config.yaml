@@ -1,0 +1,19 @@
+#Wire Detection Settings
+hough_vote_threshold: 100
+min_line_threshold: 30
+pixel_binning_size: 3
+low_canny_threshold: 25
+high_canny_threshold: 200
+line_bin_avg_threshold_multiplier: 0.35
+
+# ROI settings
+grad_bin_avg_threshold: 0.05
+max_wire_per_roi: 3
+min_depth_clip_m: 0.5
+max_depth_clip_m: 12.0
+
+# RANSAC settings
+ransac_max_iters: 300
+inlier_threshold_m: 0.1016 # 4 inches
+vert_angle_maximum_rad: 0.174533 # 10 degrees
+horz_angle_diff_maximum_rad: 0.0698132 # 4 degrees
