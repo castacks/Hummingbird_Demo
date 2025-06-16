@@ -31,7 +31,6 @@ def run_cuda_hough(image, iterations=50):
 
     for _ in range(iterations):
         start = time.time()
-        
         gpu_image.upload(image)
         gpu_edges = gpu_canny.detect(gpu_image)
         gpu_lines = hough_detector.detect(gpu_edges)
