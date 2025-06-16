@@ -4,15 +4,18 @@ import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
-from std_msgs.msg import Header
+from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
+from geometry_msgs.msg import Point
 import sensor_msgs_py.point_cloud2 as pc2
-from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from common_utils.wire_detection_platform import WireDetectorCPU, WireDetectorGPU
-import common_utils.coord_transforms as ct
+from wire_detection.wire_detector_platform import WireDetectorCPU, WireDetectorGPU
+import common_utils.visualization_utils as wd
+
+from ament_index_python.packages import get_package_share_directory
 
 # ignore future deprecated warnings
 import warnings
@@ -24,13 +27,7 @@ class WireDetectorNode(Node):
         self.set_params()
         
         self.bridge = CvBridge()
-        self.received_camera_info = False
-        self.wire_detector = WireDetectorCPU(line_threshold=self.line_threshold, 
-                                             expansion_size=self.expansion_size, 
-                                             low_canny_threshold=self.low_canny_threshold, 
-                                             high_canny_threshold=self.high_canny_threshold,
-                                             pixel_binning_size=self.pixel_binning_size,
-                                             bin_avg_threshold_multiplier=self.bin_avg_threshold_multiplier)
+        self.initialized = False
 
         # Subscribers
         self.rgb_image_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
@@ -38,20 +35,38 @@ class WireDetectorNode(Node):
         self.img_tss = ApproximateTimeSynchronizer(
             [self.rgb_image_sub, self.depth_image_sub],
             queue_size=1, 
-            slop=0.2
+            slop=0.05
         )
         self.img_tss.registerCallback(self.images_callback)
 
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
         # Publishers
-        self.wire_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 1)
+        self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
-        self.seg_mask_viz_pub = self.create_publisher(Image, self.seg_mask_pub_topic, 1)
         self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
-        self.wire_estimator_pub = self.create_publisher(PointCloud2, self.wire_estimator_pub_topic, 1)
+        self.wire_3d_viz_pub= self.create_publisher(Marker, self.wire_3d_viz_pub_topic, 1)
 
-        self.get_logger().info("Wire Detection Node initialized")
+    def camera_info_callback(self, data):
+        if self.received_camera_info:
+            return
+        
+        self.fx = data.k[0]
+        self.fy = data.k[4]
+        self.cx = data.k[2]
+        self.cy = data.k[5]
+        self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
+        self.camera_matrix = np.array([[self.fx, 0, self.cx],
+                                    [0, self.fy, self.cy],
+                                    [0, 0, 1]])
+        if self.use_cpu:
+            self.wire_detector = WireDetectorCPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', camera_matrix=self.camera_matrix)
+        else:
+            self.wire_detector = WireDetectorGPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', camera_matrix=self.camera_matrix)
+
+        self.initialized = True
+        self.get_logger().info("WireDetectorNode initialized with camera info.")
+        self.destroy_subscription(self.camera_info_sub)
 
     def images_callback(self, rgb_msg, depth_msg):
         try:
@@ -62,180 +77,88 @@ class WireDetectorNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
 
-        debug_image, seg_mask, wire_lines, avg_yaw = self.detect_lines(rgb)
-        self.seg_mask_viz_pub.publish(self.bridge.cv2_to_imgmsg(seg_mask, encoding='mono8'))
-        if debug_image is not None:
-            img_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding='rgb8')
-            self.wire_viz_pub.publish(img_msg)    
-        else:
-            img_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
-            self.wire_viz_pub.publish(img_msg)
+        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(self, rgb, depth, generate_viz = self.vizualize_wires)
         
         # publish a point cloud for the wires
-        pc_msg, wire_est_msg = self.visualize_wire_depth(depth, seg_mask, wire_lines)
-        if pc_msg is not None:
-            pc_msg.header = depth_msg.header
-            pc_msg.header.frame_id = "/map"
-            self.depth_pc_viz_pub.publish(pc_msg)
-        if wire_est_msg is not None:
-            wire_est_msg.header = depth_msg.header
-            wire_est_msg.header.frame_id = "/map"
-            self.wire_estimator_pub.publish(wire_est_msg)
+        self.visualize_3d_detection(depth, fitted_lines)
 
-        depth_viz = wd.create_depth_viz(depth)
-        img_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='rgb8')
-        self.depth_viz_pub.publish(img_msg)
+        masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
+        self.wire_2d_viz_pub.publish(masked_msg)
 
-    def detect_lines(self, image):
-        seg_mask = self.wire_detector.create_seg_mask(image)
-        if np.any(seg_mask):
-            wire_lines, wire_midpoints, avg_yaw = self.wire_detector.detect_wires(seg_mask)
-            # self.get_logger().info(f"Num wires detected: {len(wire_midpoints)}")
-            if wire_lines is not None and len(wire_lines) > 0:
-                debug_img = self.draw_wire_lines(image, wire_lines, wire_midpoints)
-                return debug_img, seg_mask, wire_lines, avg_yaw
-            else:
-                return None, seg_mask, [], None
-        else:
-            return None, seg_mask, [], None
-        
-    def camera_info_callback(self, data):
-        self.fx = data.k[0]
-        self.fy = data.k[4]
-        self.cx = data.k[2]
-        self.cy = data.k[5]
-        self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
-        if self.received_camera_info == False:
-            self.get_logger().info("Received Camera Info")
-        self.received_camera_info = True
-    
-    def draw_wire_lines(self, img, wire_lines, wire_midpoints):
-        # colors = self.assign_line_colors(wire_lines, wire_midpoints)
-        green = (0, 255, 0)
-        blue = (0, 0, 255)
-        for i, (x, y) in enumerate(wire_midpoints):
-            x0, y0, x1, y1 = wire_lines[i]
-            cv2.line(img, (x0, y0), (x1, y1), green, 2)
-            cv2.circle(img, (int(x), int(y)), 5, blue, -1)
-        return img
-
-    def visualize_wire_depth(self, depth, seg_mask, wire_lines):
-
-        pc_msg = None
-        wire_est_msg = None
-
-        if self.received_camera_info:
+    def visualize_3d_detection(self, depth, rgb, fitted_lines):
+        if self.initialized:
+            # Publish the point cloud
             pc_msg = PointCloud2()
 
-            # Get image shape
-            height, width = depth.shape
+            points, colors = self.wire_detector.depth_to_pointcloud(depth, rgb=rgb)
+            r = np.array(colors[:, 0], dtype=np.float32)
+            g = np.array(colors[:, 1], dtype=np.float32)
+            b = np.array(colors[:, 2], dtype=np.float32)
+            rgb = (r << 16) | (g << 8) | b
 
-            # Generate pixel coordinates
-            pixels = np.indices((height, width)).reshape(2, -1).T
-            pixels = np.flip(pixels, axis=1)
-            corresponding_depth = depth.flatten()
-
-            # Convert image coordinates to camera coordinates
-            camera_x, camera_y, camera_z = ct.image_to_camera(pixels, corresponding_depth, self.camera_vector)
+            pc_data = np.hstack([points, rgb[:, np.newaxis].astype(np.float32)])
+            pc_data = pc_data.astype(np.float32)
             
-            # Filter out invalid points
-            valid_mask = (camera_z > 0) & np.isfinite(camera_z)
-            camera_x, camera_y, camera_z = camera_x[valid_mask], camera_y[valid_mask], camera_z[valid_mask]
- 
-            # Stack the points
-            pc_points = np.vstack((camera_x, camera_y, camera_z)).T
-
-            # Define point cloud fields
             fields = [
                 PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
                 PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
                 PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=3)
             ]
-
-            # Create point cloud message
-            pc_msg = pc2.create_cloud(Header(), fields, pc_points)
+            pc_msg = pc2.create_cloud(Header(), fields, pc_data)
             pc_msg.height = 1  # Unordered point cloud
-            pc_msg.width = pc_points.shape[0]
+            pc_msg.width = pc_data.shape[0]
             pc_msg.is_dense = False
-            
-            total_wire_points = np.array([]).reshape(0, 3)
-            if len(wire_lines) > 0:
-                wire_est_msg = PointCloud2()
-                
-                for i in range(len(wire_lines)):
-                    line_mask = np.zeros_like(depth, dtype=np.uint8)
-                    cv2.line(line_mask, tuple(wire_lines[i][:2]), tuple(wire_lines[i][2:]), 1, 1)
-                    y_indices, x_indices = np.where(line_mask == 1)
-                    
-                    # Filter points that fall within the segmentation mask
-                    valid_mask = seg_mask[y_indices, x_indices] > 0
-                    valid_xs = x_indices[valid_mask]
-                    valid_ys = y_indices[valid_mask]
-                    valid_depths = depth[valid_ys, valid_xs]
 
-                    # remove nans or infs or 0s
-                    line_depths = valid_depths[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
-                    line_xs = valid_xs[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
-                    line_ys = valid_ys[~np.isnan(valid_depths) & ~np.isinf(valid_depths) & (valid_depths > 0.0)]
+            self.depth_pc_viz_pub.publish(pc_msg)
 
-                    if line_depths.size > 0:
-                        cam_points_x, cam_points_y, cam_points_z = ct.image_to_camera(np.hstack((line_xs.reshape(-1, 1), line_ys.reshape(-1, 1))), line_depths, self.camera_vector)
-                        wire_points = np.vstack((cam_points_x, cam_points_y, cam_points_z)).T
-                        total_wire_points = np.vstack((total_wire_points, wire_points))
+            # Publish wire visualization
+            marker = Marker()
+            marker.header.frame_id = "/map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "lines"
+            marker.id = 0
+            marker.type = Marker.LINE_LIST
+            marker.action = Marker.ADD
+            marker.scale.x = 0.02  # Line width
 
-                # Define point cloud fields
-                fields = [
-                    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-                    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-                    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-                ]
-                # Create point cloud message
-                wire_est_msg = pc2.create_cloud(Header(), fields, total_wire_points)
-                wire_est_msg.height = 1  # Unordered point cloud
-                wire_est_msg.width = total_wire_points.shape[0]
-                wire_est_msg.is_dense = False
+            # Set color (optional: set per-point if desired)
+            marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
 
-        return pc_msg, wire_est_msg
+            # Add points (each pair forms a line segment)
+            for start, end in fitted_lines:
+                p1 = Point(x=start[0], y=start[1], z=start[2])
+                p2 = Point(x=end[0], y=end[1], z=end[2])
+                marker.points.append(p1)
+                marker.points.append(p2)
+
+            self.wire_3d_viz_pub.publish(marker)
         
     def set_params(self):
         try:
-            #wire detection params
-            self.declare_parameter('line_threshold', rclpy.Parameter.Type.INTEGER)
-            self.declare_parameter('expansion_size', rclpy.Parameter.Type.INTEGER)
-            self.declare_parameter('low_canny_threshold', rclpy.Parameter.Type.INTEGER)
-            self.declare_parameter('high_canny_threshold', rclpy.Parameter.Type.INTEGER)
-            self.declare_parameter('pixel_binning_size', rclpy.Parameter.Type.INTEGER)
-            self.declare_parameter('bin_avg_threshold_multiplier', rclpy.Parameter.Type.DOUBLE)
-
             # sub topics
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
-
-            # pub topics
-            self.declare_parameter('wire_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('seg_mask_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)
-            self.declare_parameter('wire_estimator_pub_topic', rclpy.Parameter.Type.STRING)
-
-            # Access parameters
-            self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
-            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
-            self.low_canny_threshold = self.get_parameter('low_canny_threshold').get_parameter_value().integer_value
-            self.high_canny_threshold = self.get_parameter('high_canny_threshold').get_parameter_value().integer_value
-            self.pixel_binning_size = self.get_parameter('pixel_binning_size').get_parameter_value().integer_value
-            self.bin_avg_threshold_multiplier = self.get_parameter('bin_avg_threshold_multiplier').get_parameter_value().double_value
-            
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
+            self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
+            self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
 
-            self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
+            # pub topics
+            self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_2d_viz_pub_topic = self.get_parameter('wire_2d_viz_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
-            self.seg_mask_pub_topic = self.get_parameter('seg_mask_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)
             self.depth_pc_pub_topic = self.get_parameter('depth_pc_pub_topic').get_parameter_value().string_value
-            self.wire_estimator_pub_topic = self.get_parameter('wire_estimator_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('wire_3d_viz_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_3d_viz_pub_topic = self.get_parameter('wire_3d_viz_pub_topic').get_parameter_value().string_value
+
+            # general parameters 
+            self.declare_parameter('use_cpu', rclpy.Parameter.Type.BOOL)
+            self.use_cpu = self.get_parameter('use_cpu').get_parameter_value().bool_value
+            self.declare_parameter('vizualize_wires', rclpy.Parameter.Type.BOOL)
+            self.vizualize_wires = self.get_parameter('vizualize_wires').get_parameter_value().bool_value
 
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")

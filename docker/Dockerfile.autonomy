@@ -21,8 +21,6 @@ RUN pip3 install \
   six \
   toml \
   scipy \
-  torch \
-  torchvision \
   pypose \
   rich \
   tqdm \
@@ -33,6 +31,7 @@ RUN pip3 install \
   tabulate \
   einops \
   timm==0.9.12 \
+  pybind11 \
   rerun-sdk==0.22.0 \
   yacs \
   wandb
