@@ -5,7 +5,7 @@ from scipy.signal import find_peaks
 
 from . import wire_detection_utils as wdu
 
-from wire_detection import ransac_bindings as rb
+from ransac_bindings import ransac_bindings as rb
 
 class WireDetector:
     def __init__(self, wire_detection_config, camera_intrinsics):

@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
-project(wire_detection)
+project(ransac_bindings)
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(pybind11 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
