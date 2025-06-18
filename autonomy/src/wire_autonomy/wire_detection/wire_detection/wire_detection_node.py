@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import rclpy
 import rclpy.clock
 from rclpy.node import Node
