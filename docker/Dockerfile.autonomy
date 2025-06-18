@@ -4,14 +4,14 @@ FROM ${BASE_IMAGE}
 RUN apt-get update && apt-get install -y \
 libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libboost-python-dev libboost-dev libboost-filesystem-dev libboost-program-options-dev libeigen3-dev ros-humble-image-transport
 
-WORKDIR /root/model_weights
-RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth" && \ 
-mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_FrontendCov.pth /root/model_weights/MACVO_FrontendCov.pth && \
-rm -rf /root/model_weights/github.com
+# Install MAVROS
+RUN apt-get update \
+&& apt-get install -y --no-install-recommends \
+    ros-humble-mavros \ 
+    ros-humble-tf2* \
+    geographiclib-tools
 
-RUN wget -r "https://github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl" && \ 
-mv /root/model_weights/github.com/MAC-VO/MAC-VO/releases/download/model/MACVO_posenet.pkl /root/model_weights/MACVO_posenet.pkl && \
-rm -rf /root/model_weights/github.com
+RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh && chmod a+x install_geographiclib_datasets.sh && ./install_geographiclib_datasets.sh
 
 # VINS_Fusion Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /tmp/
@@ -30,63 +30,41 @@ make install -j $(nproc)
 
 RUN apt-get update && apt-get install -y libyaml-cpp-dev
 
-# Set OpenCV version
-ENV OPENCV_VERSION=4.11.0
+# # Set OpenCV version
+# ENV OPENCV_VERSION=4.11.0
 
-# Clone OpenCV and opencv_contrib
-RUN git clone --branch ${OPENCV_VERSION} --depth 1 https://github.com/opencv/opencv.git /opt/opencv && \
-    git clone --branch ${OPENCV_VERSION} --depth 1 https://github.com/opencv/opencv_contrib.git /opt/opencv_contrib
+# # Clone OpenCV and opencv_contrib
+# RUN git clone --branch ${OPENCV_VERSION} --depth 1 https://github.com/opencv/opencv.git /opt/opencv && \
+#     git clone --branch ${OPENCV_VERSION} --depth 1 https://github.com/opencv/opencv_contrib.git /opt/opencv_contrib
 
-# Build OpenCV with contrib and CUDA
-RUN mkdir -p /opt/opencv/build && cd /opt/opencv/build && \
-    cmake .. \
-      -D CMAKE_BUILD_TYPE=RELEASE \
-      -D CMAKE_INSTALL_PREFIX=/usr/local \
-      -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-      -D WITH_CUDA=ON \
-      -D CUDA_FAST_MATH=ON \
-      -D WITH_CUBLAS=ON \
-      -D BUILD_opencv_cudacodec=ON \
-      -D BUILD_opencv_cudaoptflow=ON \
-      -D BUILD_EXAMPLES=OFF \
-      -D BUILD_TESTS=OFF \
-      -D BUILD_PERF_TESTS=OFF \
-      -D BUILD_DOCS=OFF \
-      -D ENABLE_FAST_MATH=1 \
-      -D CUDA_GENERATION=Auto \
-      -D WITH_GTK=ON \
-    && make -j"$(nproc)" && make install && ldconfig
+# # Build OpenCV with contrib and CUDA
+# RUN mkdir -p /opt/opencv/build && cd /opt/opencv/build && \
+#     cmake .. \
+#       -D CMAKE_BUILD_TYPE=RELEASE \
+#       -D CMAKE_INSTALL_PREFIX=/usr/local \
+#       -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
+#       -D WITH_CUDA=ON \
+#       -D CUDA_FAST_MATH=ON \
+#       -D WITH_CUBLAS=ON \
+#       -D BUILD_opencv_cudacodec=ON \
+#       -D BUILD_opencv_cudaoptflow=ON \
+#       -D BUILD_EXAMPLES=OFF \
+#       -D BUILD_TESTS=OFF \
+#       -D BUILD_PERF_TESTS=OFF \
+#       -D BUILD_DOCS=OFF \
+#       -D ENABLE_FAST_MATH=1 \
+#       -D CUDA_GENERATION=Auto \
+#       -D WITH_GTK=ON \
+#     && make -j"$(nproc)" && make install && ldconfig
 
 RUN pip3 install \
-  empy \
-  future \
-  lxml \
-  matplotlib==3.8.4 \
-  numpy==1.24.0 \
-  pkgconfig \
-  psutil \
-  pygments \
+  matplotlib \
+  numpy \
   wheel \
   pymavlink \
   pyyaml \
-  requests \
-  six \
-  toml \
   scipy \
-  pypose \
-  rich \
-  tqdm \
-  pillow \ 
-  flow_vis \
-  h5py \
-  evo \
-  tabulate \
-  einops \
-  timm==0.9.12 \
-  pybind11 \
-  rerun-sdk==0.22.0 \
-  yacs \
-  wandb
+  pybind11
   
 # General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/

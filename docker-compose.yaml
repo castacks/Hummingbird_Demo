@@ -120,6 +120,8 @@ services:
       - WIRE_SYS=${WIRE_SYS}
       - RVIZ=${RVIZ}
       - VO=${VO}
+      - SERVO=${SERVO}
+      - MAVROS=${MAVROS}
       - USE_TRACKING=${USE_TRACKING}
     deploy:
       # let it use the GPU

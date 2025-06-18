@@ -11,16 +11,13 @@ def generate_launch_description():
     # Get current date for rosbag naming
     date = str(os.popen('date +%Y-%m-%d_%H:%M:%S').read().strip())
     system_launch = LaunchDescription([
-        # Wire tracking node (launch if WIRE_NODE is true)
+        # Wire tracking node (launch if DETECTION is true)
         Node(
             package='wire_tracking',
             executable='wire_tracking_node',
             name='wire_tracking_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([
-                EnvironmentVariable('WIRE_SYS'), ' and ', EnvironmentVariable('USE_TRACKING')
-            ]))
-
+            condition=IfCondition(PythonExpression([EnvironmentVariable('DETECTION')]))
         ),
         # Wire detection node (launch if WIRE_SYS is true and USE_TRACKING is false)
         Node(
@@ -28,10 +25,7 @@ def generate_launch_description():
             executable='wire_detection_node',
             name='wire_detection_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([
-                EnvironmentVariable('WIRE_SYS'), ' and not ', EnvironmentVariable('USE_TRACKING')
-            ]))
-
+            condition=IfCondition(PythonExpression([EnvironmentVariable('TRACKING')]))
         ),
         # Wire Tracking RViz (launch if RVIZ is true and USE_TRACKING is true)
         Node(
@@ -42,7 +36,7 @@ def generate_launch_description():
                 '-d', FindPackageShare('wire_tracking').find('wire_tracking') + '/rviz/wire_tracking.rviz',
                 '--ros-args', '--log-level', 'WARN'
             ],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and ', EnvironmentVariable('USE_TRACKING')]))
+            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and ', EnvironmentVariable('TRACKING')]))
         ),
         # Wire Detection RViz (launch if RVIZ is true and USE_TRACKING is false)
         Node(
@@ -53,22 +47,27 @@ def generate_launch_description():
                 '-d', FindPackageShare('wire_detection').find('wire_detection') + '/rviz/wire_detection.rviz',
                 '--ros-args', '--log-level', 'WARN'
             ],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and not ', EnvironmentVariable('USE_TRACKING')]))
+            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and not ', EnvironmentVariable('TRACKING'), ' and ', EnvironmentVariable('DETECTION')]))
         ),
 
-
-        # Rosbag recording process
-        ExecuteProcess(
-            cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-                 '-o', ['/root/data_collection/', 'wire_tracking_', date], '/wire_cam/zed_node/left/image_rect_color',
-                '/wire_cam/zed_node/right/image_rect_color', '/wire_cam/zed_node/left/camera_info',
-                '/wire_cam/zed_node/right/camera_info', '/wire_cam/zed_node/depth/depth_registered',
-                '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
-                '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
-            output='log',
-            condition=IfCondition(EnvironmentVariable('RECORD'))
+        Node(
+            package='visual_servoing',
+            executable='visual_servoing_node',
+            name='visual_servoing_node',
+            parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
+            condition=IfCondition(EnvironmentVariable('SERVO'))
         ),
-
+        Node(
+            package='mavros',
+            executable='mavros_node',
+            name='mavros_node',
+            output='screen',
+            parameters=[{
+                'fcu_url': '/dev/ttyUSB0:57600',  # Update if using a different port or baudrate
+                'gcs_url': 'udp://@',             # Optional — for forwarding MAVLink to GCS
+            }],
+            condition=IfCondition(EnvironmentVariable('MAVROS'))
+        ),
         # VINS Node (launch if VO is true)
         Node(
             package='vins',
@@ -77,6 +76,15 @@ def generate_launch_description():
             parameters=[{'config_file': FindPackageShare('vins').find('vins') + '/config/zedx/zedx_stereo_config.yaml'}],
             condition=IfCondition(EnvironmentVariable('VO'))
         ),
+
+        # Rosbag recording process
+        ExecuteProcess(
+            cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60', '-a',
+                 '-o', ['/root/data_collection/', 'wire_tracking_', date]],
+            output='log',
+            condition=IfCondition(EnvironmentVariable('RECORD'))
+        ),
+
     ])
 
     return system_launch
