@@ -16,7 +16,7 @@ def generate_launch_description():
             package='wire_tracking',
             executable='wire_tracking_node',
             name='wire_tracking_node',
-            parameters=[FindPackageShare('common_utils').find('common_utils') + '/wire_tracking_config.yaml'],
+            parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
             condition=IfCondition(PythonExpression([
                 EnvironmentVariable('WIRE_SYS'), ' and ', EnvironmentVariable('USE_TRACKING')
             ]))
@@ -27,7 +27,7 @@ def generate_launch_description():
             package='wire_detection',
             executable='wire_detection_node',
             name='wire_detection_node',
-            parameters=[FindPackageShare('common_utils').find('common_utils') + '/wire_tracking_config.yaml'],
+            parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
             condition=IfCondition(PythonExpression([
                 EnvironmentVariable('WIRE_SYS'), ' and not ', EnvironmentVariable('USE_TRACKING')
             ]))
