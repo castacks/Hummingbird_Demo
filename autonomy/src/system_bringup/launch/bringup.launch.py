@@ -17,7 +17,7 @@ def generate_launch_description():
             executable='wire_tracking_node',
             name='wire_tracking_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('DETECTION')]))
+            condition=IfCondition(PythonExpression([EnvironmentVariable('TRACKING')]))
         ),
         # Wire detection node (launch if WIRE_SYS is true and USE_TRACKING is false)
         Node(
@@ -25,7 +25,7 @@ def generate_launch_description():
             executable='wire_detection_node',
             name='wire_detection_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('TRACKING')]))
+            condition=IfCondition(PythonExpression([EnvironmentVariable('DETECTION')]))
         ),
         # Wire Tracking RViz (launch if RVIZ is true and USE_TRACKING is true)
         Node(

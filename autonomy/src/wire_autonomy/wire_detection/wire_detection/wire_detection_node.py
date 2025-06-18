@@ -12,8 +12,8 @@ from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
-from wire_detection.wire_detector_platform import WireDetectorCPU, WireDetectorGPU
-import common_utils.visualization_utils as wd
+from .wire_detector_platforms import WireDetectorCPU, WireDetectorGPU
+import common_utils.viz_utils as vu
 
 from ament_index_python.packages import get_package_share_directory
 

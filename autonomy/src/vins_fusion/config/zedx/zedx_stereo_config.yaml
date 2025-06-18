@@ -21,6 +21,8 @@ image_height: 360
 use_gpu         : 0
 use_gpu_acc_flow: 0
 use_gpu_ceres   : 0
+#Multiple thread support
+multiple_thread: 1
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -44,8 +46,6 @@ body_T_cam1: !!opencv-matrix
            0.0, 0.0, 1.0, 0.0,
            0.0, 0.0, 0.0, 1.0]
 
-#Multiple thread support
-multiple_thread: 1
 
 #feature traker paprameters
 max_cnt: 150            # max feature number in feature tracking

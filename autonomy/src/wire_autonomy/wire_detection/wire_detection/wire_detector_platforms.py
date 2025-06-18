@@ -3,7 +3,7 @@ import cv2
 from scipy.stats import circmean
 from scipy.signal import find_peaks
 
-from wire_detector_base import WireDetector
+from .wire_detector_base import WireDetector
 
 class WireDetectorCPU(WireDetector):
     def __init__(self, wire_detection_config, camera_intrinsics):

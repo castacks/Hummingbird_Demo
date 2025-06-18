@@ -3,9 +3,9 @@ import cv2
 from scipy.stats import circmean
 from scipy.signal import find_peaks
 
-import wire_detection_utils as wdu
+from . import wire_detection_utils as wdu
 
-import ransac_bindings as rb
+from wire_detection import ransac_bindings as rb
 
 class WireDetector:
     def __init__(self, wire_detection_config, camera_intrinsics):
