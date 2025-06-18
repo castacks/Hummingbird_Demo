@@ -52,11 +52,11 @@ RUN apt-get install ros-humble-rosbag2-storage-mcap -y
 
 RUN pip3 install \
   matplotlib \
-  numpy \
+  numpy==1.24.3 \
+  scipy \
   wheel \
   pymavlink \
   pyyaml \
-  scipy \
   pybind11
 
 # sourceing post installed ros2 packages

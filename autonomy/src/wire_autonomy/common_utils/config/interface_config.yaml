@@ -9,13 +9,12 @@
     pose_sub_topic: ""
 
     # publishers
-    wire_viz_pub_topic: "/wire_cam/detection_debug"
+    wire_2d_viz_pub_topic: "/wire_cam/detection_debug"
     depth_viz_pub_topic: "/wire_cam/depth_debug"
     pose_viz_pub_topic: "/wire_cam/pos_debug"
-    seg_mask_pub_topic: "/wire_cam/seg_mask"
     depth_pc_pub_topic: "/wire_cam/depth_pointcloud"
-    wire_estimator_pub_topic: "/wire_cam/wire_estimation"\
+    wire_3d_viz_pub_topic: "/wire_cam/wire_estimation"
 
     # general settings
-    use_gpu: false
-    vizualize: true
+    use_cpu: true
+    vizualize_wires: true
