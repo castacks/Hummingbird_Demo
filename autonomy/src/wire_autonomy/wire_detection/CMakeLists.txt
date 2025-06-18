@@ -10,7 +10,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 pybind11_add_module(ransac_bindings src/ransac_bindings.cpp)
 
 target_include_directories(ransac_bindings PRIVATE
-    ${EIGEN3_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
 )
 
@@ -20,6 +20,6 @@ target_link_libraries(ransac_bindings
 )
 
 install(TARGETS ransac_bindings
-        LIBRARY DESTINATION lib/${PROJECT_NAME})
+        LIBRARY DESTINATION ${PYTHON_INSTALL_DIR}/${PROJECT_NAME})
 
 ament_package()
