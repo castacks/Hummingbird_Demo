@@ -30,6 +30,26 @@ make install -j $(nproc)
 
 RUN apt-get update && apt-get install -y libyaml-cpp-dev
 
+WORKDIR /root/dependencies_ws/src/
+RUN git clone https://github.com/JanekDev/VINS-Fusion-ROS2-humble-arm.git vins_fusion
+RUN cd vins_fusion && \
+mv vins_fusion/global_fusion vins_fusion/loop_fusion vins_fusion/camera_models . && \
+rm -rf vins_fusion/
+WORKDIR /root/dependencies_ws
+RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/install/setup.bash && \
+colcon build --parallel-workers $(nproc) --symlink-install \
+  --event-handlers console_direct+ --base-paths src \
+  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+  ' --no-warn-unused-cli' "
+
+  
+# General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
+WORKDIR /root/ros2_ws/
+RUN pip uninstall matplotlib -y
+RUN apt-get install ros-humble-rosbag2-storage-mcap -y
+
 RUN pip3 install \
   matplotlib \
   numpy \
@@ -38,11 +58,6 @@ RUN pip3 install \
   pyyaml \
   scipy \
   pybind11
-  
-# General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
-WORKDIR /root/ros2_ws/
-RUN pip uninstall matplotlib -y
-RUN apt-get install ros-humble-rosbag2-storage-mcap -y
 
 # sourceing post installed ros2 packages
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
