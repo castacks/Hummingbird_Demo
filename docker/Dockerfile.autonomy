@@ -43,3 +43,6 @@ RUN pip3 install \
 WORKDIR /root/ros2_ws/
 RUN pip uninstall matplotlib -y
 RUN apt-get install ros-humble-rosbag2-storage-mcap -y
+
+# sourceing post installed ros2 packages
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc

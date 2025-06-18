@@ -108,7 +108,7 @@ services:
       bash -c "if [ ! -d '/root/ros2_ws/install' ]; then \
            source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
            else echo 'Already built'; fi && \
-         source /root/ros2_ws/install/setup.bash && \
+         source /root/ros2_ws/install/setup.bash && source /opt/ros/humble/setup.bash && \
          ros2 launch system_bringup bringup.launch.py"
 
     environment:
