@@ -1,4 +1,0 @@
-type: TartanVOMatcher
-args:
-  weight: ./Model/MACVO_posenet.pkl
-  device: cuda

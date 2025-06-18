@@ -1,1 +1,0 @@
-from .RAFTCov import RAFTFlowCovNet

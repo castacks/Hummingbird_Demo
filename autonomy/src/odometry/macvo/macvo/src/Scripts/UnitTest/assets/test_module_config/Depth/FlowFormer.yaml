@@ -1,4 +1,0 @@
-type: FlowFormerDepth
-args:
-  device: cuda
-  weight: ./Model/Flowformer_things_kitti.pth
