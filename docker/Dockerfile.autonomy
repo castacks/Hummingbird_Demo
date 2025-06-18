@@ -32,9 +32,9 @@ RUN apt-get update && apt-get install -y libyaml-cpp-dev
 
 WORKDIR /root/dependencies_ws/src/
 RUN git clone https://github.com/JanekDev/VINS-Fusion-ROS2-humble-arm.git vins_fusion
-RUN cd vins_fusion && \
-mv vins_fusion/global_fusion vins_fusion/loop_fusion vins_fusion/camera_models . && \
+RUN mv vins_fusion/global_fusion vins_fusion/loop_fusion vins_fusion/camera_models . && \
 rm -rf vins_fusion/
+
 WORKDIR /root/dependencies_ws
 RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/install/setup.bash && \
 colcon build --parallel-workers $(nproc) --symlink-install \
