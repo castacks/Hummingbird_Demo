@@ -1,1 +1,1 @@
-from wire_detection.ransac_bindings import *
+from wire_detection import ransac_bindings
