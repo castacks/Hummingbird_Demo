@@ -6,8 +6,8 @@ from scipy.signal import find_peaks
 from .wire_detector_base import WireDetector
 
 class WireDetectorCPU(WireDetector):
-    def __init__(self, wire_detection_config, camera_intrinsics):
-        super().__init__(wire_detection_config, camera_intrinsics)
+    def __init__(self, wire_detection_config_path, camera_intrinsics):
+        super().__init__(wire_detection_config_path, camera_intrinsics)
 
     def get_hough_lines(self, rgb_image):
         gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
@@ -28,8 +28,8 @@ class WireDetectorCPU(WireDetector):
         return depth_gradient_x, depth_gradient_y
 
 class WireDetectorGPU(WireDetector):
-    def __init__(self, wire_detection_config, camera_intrinsics):
-        super().__init__(wire_detection_config, camera_intrinsics)
+    def __init__(self, wire_detection_config_path, camera_intrinsics):
+        super().__init__(wire_detection_config_path, camera_intrinsics)
 
         # Persistent GPU Mats
         self.gpu_rgb = cv2.cuda_GpuMat()

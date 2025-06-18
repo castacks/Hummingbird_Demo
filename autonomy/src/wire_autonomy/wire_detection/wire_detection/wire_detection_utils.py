@@ -45,10 +45,13 @@ def get_length_of_center_line_across_image(image_height, image_width, angle):
     return length
 
 def perpendicular_angle_rad(angle_rad):
-    perp_angle = fold_angles_from_0_to_pi(angle_rad + np.pi / 2)
-    if perp_angle > np.pi / 2:
-        perp_angle -= np.pi
-    return perp_angle
+    try:
+        perp_angle = fold_angles_from_0_to_pi(angle_rad + np.pi / 2)
+        if perp_angle > np.pi / 2:
+            perp_angle -= np.pi
+        return perp_angle
+    except Exception as e:
+        raise ValueError(f"Invalid angle: {angle_rad}. Error: {e}")
     
 def fold_angles_from_0_to_pi(angles):
     '''

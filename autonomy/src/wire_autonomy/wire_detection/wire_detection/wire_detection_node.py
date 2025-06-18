@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import rclpy
-import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
@@ -11,6 +10,7 @@ import sensor_msgs_py.point_cloud2 as pc2
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+import time
 
 from .wire_detector_platforms import WireDetectorCPU, WireDetectorGPU
 import common_utils.viz_utils as vu
@@ -48,7 +48,7 @@ class WireDetectorNode(Node):
         self.wire_3d_viz_pub= self.create_publisher(Marker, self.wire_3d_viz_pub_topic, 1)
 
     def camera_info_callback(self, data):
-        if self.received_camera_info:
+        if self.initialized:
             return
         
         self.fx = data.k[0]
@@ -60,15 +60,18 @@ class WireDetectorNode(Node):
                                     [0, self.fy, self.cy],
                                     [0, 0, 1]])
         if self.use_cpu:
-            self.wire_detector = WireDetectorCPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', camera_matrix=self.camera_matrix)
+            self.wire_detector = WireDetectorCPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', self.camera_matrix)
         else:
-            self.wire_detector = WireDetectorGPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', camera_matrix=self.camera_matrix)
+            self.wire_detector = WireDetectorGPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', self.camera_matrix)
 
         self.initialized = True
         self.get_logger().info("WireDetectorNode initialized with camera info.")
         self.destroy_subscription(self.camera_info_sub)
 
     def images_callback(self, rgb_msg, depth_msg):
+        if not self.initialized:
+            self.get_logger().warn("WireDetectorNode not initialized yet. Waiting for camera info...")
+            return
         try:
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
@@ -76,34 +79,49 @@ class WireDetectorNode(Node):
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
+        start_time = time.perf_counter()
+        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
+        end_time = time.perf_counter()
+        self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
 
-        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(self, rgb, depth, generate_viz = self.vizualize_wires)
-        
         # publish a point cloud for the wires
-        self.visualize_3d_detection(depth, fitted_lines)
+        self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")
+        if self.vizualize_wires:
+            self.visualize_3d_point_cloud(depth, rgb)
+            if fitted_lines is not None and len(fitted_lines) > 0:
+                self.visualize_3d_wires(fitted_lines)
 
-        masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
-        self.wire_2d_viz_pub.publish(masked_msg)
+            if rgb_masked is not None:
+                masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
+                self.wire_2d_viz_pub.publish(masked_msg)
+            else:
+                rgb_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
+                self.wire_2d_viz_pub.publish(rgb_msg)  # Publish original image if no wires detected
 
-    def visualize_3d_detection(self, depth, rgb, fitted_lines):
+            depth_viz = vu.create_depth_viz(depth, self.wire_detector.min_depth_clip, self.wire_detector.max_depth_clip)
+            depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='bgr8')
+            self.depth_viz_pub.publish(depth_viz_msg)
+
+    def visualize_3d_point_cloud(self, depth, rgb):
         if self.initialized:
             # Publish the point cloud
             pc_msg = PointCloud2()
 
             points, colors = self.wire_detector.depth_to_pointcloud(depth, rgb=rgb)
-            r = np.array(colors[:, 0], dtype=np.float32)
-            g = np.array(colors[:, 1], dtype=np.float32)
-            b = np.array(colors[:, 2], dtype=np.float32)
+            r = np.array(colors[:, 0], dtype=np.uint32)
+            g = np.array(colors[:, 1], dtype=np.uint32)
+            b = np.array(colors[:, 2], dtype=np.uint32)
             rgb = (r << 16) | (g << 8) | b
+            rgb_float = rgb.view(np.float32)
 
-            pc_data = np.hstack([points, rgb[:, np.newaxis].astype(np.float32)])
+            pc_data = np.hstack([points, rgb_float[:, np.newaxis].astype(np.uint32)])
             pc_data = pc_data.astype(np.float32)
             
             fields = [
                 PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
                 PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
                 PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=3)
+                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1)
             ]
             pc_msg = pc2.create_cloud(Header(), fields, pc_data)
             pc_msg.height = 1  # Unordered point cloud
@@ -112,6 +130,8 @@ class WireDetectorNode(Node):
 
             self.depth_pc_viz_pub.publish(pc_msg)
 
+    def visualize_3d_wires(self, fitted_lines):
+        if self.vizualize_wires and self.initialized:
             # Publish wire visualization
             marker = Marker()
             marker.header.frame_id = "/map"
@@ -127,8 +147,11 @@ class WireDetectorNode(Node):
 
             # Add points (each pair forms a line segment)
             for start, end in fitted_lines:
-                p1 = Point(x=start[0], y=start[1], z=start[2])
-                p2 = Point(x=end[0], y=end[1], z=end[2])
+                start = start.astype(np.float32)
+                end = end.astype(np.float32)
+                # Create Point objects for the start and end points
+                p1 = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
+                p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
                 marker.points.append(p1)
                 marker.points.append(p2)
 

@@ -2,13 +2,17 @@ import numpy as np
 import cv2
 from scipy.stats import circmean
 from scipy.signal import find_peaks
+import yaml
 
 from . import wire_detection_utils as wdu
 
-from ransac_bindings import ransac_bindings as rb
+from . import ransac_bindings as rb
 
 class WireDetector:
-    def __init__(self, wire_detection_config, camera_intrinsics):
+    def __init__(self, wire_detection_config_path, camera_intrinsics):
+
+        with open(wire_detection_config_path, 'r') as file:
+            wire_detection_config = yaml.safe_load(file)
 
         self.hough_vote_threshold = wire_detection_config['hough_vote_threshold']
         self.min_line_threshold = wire_detection_config['min_line_threshold']
@@ -48,6 +52,8 @@ class WireDetector:
     # standard functions not depending on gpu or cpu
     def get_line_candidates(self, rgb_image):
         cartesian_lines = self.get_hough_lines(rgb_image)
+        if cartesian_lines is None or len(cartesian_lines) == 0:
+            return None, None, None
 
         line_angles = np.arctan2(
             cartesian_lines[:, 3] - cartesian_lines[:, 1],
@@ -55,6 +61,8 @@ class WireDetector:
         )
         avg_angles = wdu.fold_angles_from_0_to_pi(line_angles)
         avg_angle = circmean(avg_angles, high=np.pi, low=-np.pi)
+        if np.isnan(avg_angle) or np.isinf(avg_angle) or avg_angle == None:
+            raise ValueError(f"Invalid average angle computed from line angles from {line_angles}.")
 
         if self.img_shape is None:
             self.img_shape = rgb_image.shape[:2]
@@ -275,7 +283,7 @@ class WireDetector:
             assert masked_viz_img.ndim == 3 and masked_viz_img.shape[2] == 3, "Viz image must be 3D with 3 channels"
         else:
             masked_viz_img = None
-        result = rb.ransac_on_rois(rois, roi_line_counts.tolist(), 
+        result = rb.ransac_on_rois(rois, roi_line_counts, 
                                         float(avg_angle), 
                                         self.camera_rays.astype(np.float32), 
                                         depth_image, 
@@ -334,6 +342,8 @@ class WireDetector:
         Find wires in 3D from the RGB and depth images.
         """
         wire_lines, wire_midpoints, avg_angle, midpoint_dists_wrt_center = self.detect_wires_2d(rgb_image)
+        if len(wire_lines) == 0 or len(wire_midpoints) == 0 or avg_angle is None:
+            return [], [], [], [], None
 
         regions_of_interest, roi_line_counts = self.find_regions_of_interest(depth_image, avg_angle, midpoint_dists_wrt_center)
 
@@ -344,7 +354,7 @@ class WireDetector:
 
         return fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked
     
-    def depth_to_pointcloud(self, depth_image, rgb=None, depth_clip=[0.5, 10.0]):
+    def depth_to_pointcloud(self, depth_image, rgb=None):
         """
         Convert a depth image to a 3D point cloud.
 

@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from glob import glob
 
 package_name = 'wire_detection'  # This should match your package directory name
 
@@ -13,6 +14,7 @@ setup(
         ('share/' + package_name, ['launch/wire_detection.launch.xml']),  # If you have a launch file
         ('share/' + package_name + '/rviz', ['rviz/wire_detection.rviz']),
         ('share/' + package_name + '/config', ['config/wire_detection_config.yaml']),
+        ('share/' + package_name + '/src', glob('common_utils/*.py')),
 
     ],
     install_requires=['setuptools'],
