@@ -6,7 +6,8 @@ import yaml
 
 from . import wire_detection_utils as wdu
 
-from . import ransac_bindings as rb
+from ransac_pybind import ransac_bindings as rb
+# from . import ransac_bindings as rb
 
 class WireDetector:
     def __init__(self, wire_detection_config_path, camera_intrinsics):
