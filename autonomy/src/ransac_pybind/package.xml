@@ -4,7 +4,7 @@
   <name>ransac_bindings</name>
   <version>0.0.1</version>
   <description>Ransac C++ bindings to be used in python</description>
-  <maintainer email="">kc</maintainer>
+  <maintainer email="tkharp789@gmail.com">kc</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
