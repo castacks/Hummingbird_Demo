@@ -7,6 +7,8 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
+ament_python_install_package(${PROJECT_NAME})
+
 pybind11_add_module(ransac_bindings src/ransac_bindings.cpp)
 
 target_include_directories(ransac_bindings PRIVATE
