@@ -1,28 +1,27 @@
 %YAML:1.0
 ---
-
 #common parameters
 #support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
-imu: 0         
+imu: 0        
 num_of_cam: 2  
 
-imu_topic: "/imu0"
+imu_topic: "/pose_cam/zed_node/imu/data"
 image0_topic: "/pose_cam/zed_node/left/image_rect_color"
 image1_topic: "/pose_cam/zed_node/right/image_rect_color"
 cam0_info_topic: "/pose_cam/zed_node/left/camera_info"
 cam1_info_topic: "/pose_cam/zed_node/right/camera_info"
-output_path: "/home/airlab/"
+output_path: "~/vins_output"
 
 cam0_calib: "left_pinhole.yaml"
 cam1_calib: "right_pinhole.yaml"
-image_width: 640
-image_height: 360
+image_width: 480
+image_height: 270
 
 use_gpu         : 0
 use_gpu_acc_flow: 0
 use_gpu_ceres   : 0
 #Multiple thread support
-multiple_thread: 1
+multiple_thread: 0
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -46,9 +45,15 @@ body_T_cam1: !!opencv-matrix
            0.0, 0.0, 1.0, 0.0,
            0.0, 0.0, 0.0, 1.0]
 
+#imu parameters       The more accurate parameters you provide, the better performance
+acc_n: 0.1          # accelerometer measurement noise standard deviation. 
+gyr_n: 0.01         # gyroscope measurement noise standard deviation.     
+acc_w: 0.001        # accelerometer bias random work noise standard deviation.  
+gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     
+g_norm: 9.81007     # gravity magnitude
 
 #feature traker paprameters
-max_cnt: 150            # max feature number in feature tracking
+max_cnt: 100            # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
 freq: 50                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)
@@ -56,6 +61,6 @@ show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
 
 #optimization parameters
-max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time
-max_num_iterations: 8   # max solver itrations, to guarantee real time
+max_solver_time: 0.03  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 5   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
