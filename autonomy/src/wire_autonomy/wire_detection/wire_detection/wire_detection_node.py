@@ -88,10 +88,8 @@ class WireDetectorNode(Node):
         self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")
         if self.vizualize_wires:
             self.visualize_3d_point_cloud(depth, rgb)
+            self.visualize_3d_wires(fitted_lines)
             if fitted_lines is not None and len(fitted_lines) > 0:
-                self.visualize_3d_wires(fitted_lines)
-
-            if rgb_masked is not None:
                 masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
                 self.wire_2d_viz_pub.publish(masked_msg)
             else:
@@ -104,27 +102,34 @@ class WireDetectorNode(Node):
 
     def visualize_3d_point_cloud(self, depth, rgb):
         if self.initialized:
-            # Publish the point cloud
-            pc_msg = PointCloud2()
-
             points, colors = self.wire_detector.depth_to_pointcloud(depth, rgb=rgb)
-            r = np.array(colors[:, 0], dtype=np.uint32)
-            g = np.array(colors[:, 1], dtype=np.uint32)
-            b = np.array(colors[:, 2], dtype=np.uint32)
-            rgb = (r << 16) | (g << 8) | b
-            rgb_float = rgb.view(np.float32)
 
-            pc_data = np.hstack([points, rgb_float[:, np.newaxis].astype(np.uint32)])
-            pc_data = pc_data.astype(np.float32)
-            
+            # Pack RGB as uint32 and view as float32
+            r = (colors[:, 0].astype(np.uint32) & 0xFF) << 16
+            g = (colors[:, 1].astype(np.uint32) & 0xFF) << 8
+            b = (colors[:, 2].astype(np.uint32) & 0xFF)
+            rgb_uint32 = r | g | b
+            rgb_float32 = rgb_uint32.view(np.float32)
+
+            # Combine points and rgb field
+            pc_data = np.hstack([points.astype(np.float32), rgb_float32[:, np.newaxis]])
+
+            # Define PointFields
             fields = [
-                PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-                PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-                PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1)
+                PointField(name="x", offset=0,  datatype=PointField.FLOAT32, count=1),
+                PointField(name="y", offset=4,  datatype=PointField.FLOAT32, count=1),
+                PointField(name="z", offset=8,  datatype=PointField.FLOAT32, count=1),
+                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1),
             ]
-            pc_msg = pc2.create_cloud(Header(), fields, pc_data)
-            pc_msg.height = 1  # Unordered point cloud
+
+            # Create header
+            header = Header()
+            header.stamp = self.get_clock().now().to_msg()
+            header.frame_id = "/map"  # or "camera_link" or whatever you're using
+
+            # Create the point cloud message
+            pc_msg = pc2.create_cloud(header, fields, pc_data)
+            pc_msg.height = 1
             pc_msg.width = pc_data.shape[0]
             pc_msg.is_dense = False
 
@@ -140,22 +145,27 @@ class WireDetectorNode(Node):
             marker.id = 0
             marker.type = Marker.LINE_LIST
             marker.action = Marker.ADD
-            marker.scale.x = 0.02  # Line width
+            line_scale = 0.05
+            marker.scale.x = line_scale
+            marker.scale.y = line_scale
+            marker.scale.z = line_scale
 
             # Set color (optional: set per-point if desired)
             marker.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
 
             # Add points (each pair forms a line segment)
-            for start, end in fitted_lines:
-                start = start.astype(np.float32)
-                end = end.astype(np.float32)
-                # Create Point objects for the start and end points
-                p1 = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
-                p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
-                marker.points.append(p1)
-                marker.points.append(p2)
-
-            self.wire_3d_viz_pub.publish(marker)
+            if fitted_lines is None or len(fitted_lines) == 0:
+                self.wire_3d_viz_pub.publish(marker)
+            else:
+                for start, end in fitted_lines:
+                    start = start.astype(np.float32)
+                    end = end.astype(np.float32)
+                    # Create Point objects for the start and end points
+                    p1 = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
+                    p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
+                    marker.points.append(p1)
+                    marker.points.append(p2)
+                    self.wire_3d_viz_pub.publish(marker)
         
     def set_params(self):
         try:
