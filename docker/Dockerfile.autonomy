@@ -2,29 +2,23 @@ ARG BASE_IMAGE=tharp789/hummingbird_demo:base-36.4.0
 FROM ${BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y \
-libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libboost-python-dev libboost-dev libboost-filesystem-dev libboost-program-options-dev libeigen3-dev ros-humble-image-transport
-
-# Install MAVROS
-RUN apt-get update \
-&& apt-get install -y --no-install-recommends \
-    ros-humble-mavros \ 
-    ros-humble-tf2* \
-    geographiclib-tools
-
-RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh && chmod a+x install_geographiclib_datasets.sh && ./install_geographiclib_datasets.sh
+libgoogle-glog-dev libatlas-base-dev libsuitesparse-dev libboost-python-dev libboost-dev libboost-filesystem-dev \
+libboost-program-options-dev libeigen3-dev \
+geographiclib-tools libgeographic-dev python3-vcstool python3-rosinstall-generator python3-osrf-pycommon
 
 # VINS_Fusion Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /tmp/
 RUN wget -O eigen-3.4.0.zip https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip && \
 unzip eigen-3.4.0.zip && \
 cd eigen-3.4.0 && mkdir build && cd build && \
-cmake ../ && sudo make install -j $(nproc)
+cmake ../ -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="-O3 -march=native -ffast-math" -Wno-dev && sudo make install -j $(nproc)
 
 WORKDIR /tmp/
 RUN wget http://ceres-solver.org/ceres-solver-2.1.0.tar.gz && \
 tar zxf ceres-solver-2.1.0.tar.gz && \
 mkdir ceres-bin && cd ceres-bin && \
-cmake ../ceres-solver-2.1.0 -DUSE_CUDA=ON -DEXPORT_BUILD_DIR=ON -DCMAKE_INSTALL_PREFIX=/usr/local && \
+cmake ../ceres-solver-2.1.0 -DCUDA=ON -DEXPORT_BUILD_DIR=ON -DCMAKE_INSTALL_PREFIX=/usr/local \ 
+-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="-O3 -march=native -ffast-math" -Wno-dev && \
 make -j $(nproc) && \
 make install -j $(nproc)
 
@@ -35,20 +29,39 @@ RUN git clone https://github.com/JanekDev/VINS-Fusion-ROS2-humble-arm.git vins_f
 RUN mv vins_fusion/global_fusion vins_fusion/loop_fusion vins_fusion/camera_models . && \
 rm -rf vins_fusion/
 
+# MAVROS
+WORKDIR /root/dependencies_ws/
+
+RUN rosinstall_generator --format repos mavlink | tee /tmp/mavlink.repos && \
+rosinstall_generator --format repos --upstream mavros | tee -a /tmp/mavros.repos && \
+vcs import src < /tmp/mavlink.repos && vcs import src < /tmp/mavros.repos
+
+# MAVROS Dependencies
+WORKDIR /root/dependencies_ws/src/
+RUN git clone https://github.com/ros/eigen_stl_containers.git -b ros2
+RUN git clone https://github.com/ros-geographic-info/geographic_info.git -b ros2
+RUN git clone https://github.com/ros/diagnostics.git -b ros2
+
+# MCAP
+WORKDIR /root/dependencies_ws/src/
+RUN git clone https://github.com/ros2/rosbag2.git -b humble && \
+    cp -r rosbag2/rosbag2_storage_mcap/ . && \
+    rm -rf rosbag2
+
 WORKDIR /root/dependencies_ws
 RUN /bin/bash -c "source ~/.bash_profile && source /opt/ros/humble/install/setup.bash && \
 colcon build --parallel-workers $(nproc) --symlink-install \
   --event-handlers console_direct+ --base-paths src \
-  --cmake-args ' -DCMAKE_BUILD_TYPE=Release' \
+  --cmake-args -Wno-dev ' -DCMAKE_BUILD_TYPE=Release' \
+  '-DCMAKE_CXX_FLAGS_RELEASE=-O3 -march=native -ffast-math' \
   ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
   ' --no-warn-unused-cli' "
-
   
 # General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/
 RUN pip uninstall matplotlib -y
-RUN apt-get install ros-humble-rosbag2-storage-mcap ros-humble-rosidl-generator-cpp -y
+RUN /root/dependencies_ws/src/mavros/mavros/scripts/install_geographiclib_datasets.sh
 
 RUN pip3 install \
   matplotlib \
@@ -58,6 +71,3 @@ RUN pip3 install \
   pymavlink \
   pyyaml \
   pybind11
-
-# sourceing post installed ros2 packages
-RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc

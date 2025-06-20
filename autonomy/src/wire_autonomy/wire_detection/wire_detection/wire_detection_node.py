@@ -13,7 +13,7 @@ from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import time
 
-from wire_interfaces import WireDetection, WireDetections
+from wire_interfaces.msg import WireDetection, WireDetections
 
 from .wire_detector_platforms import WireDetectorCPU, WireDetectorGPU
 import common_utils.viz_utils as vu
