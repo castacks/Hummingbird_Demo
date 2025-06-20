@@ -12,6 +12,8 @@ from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import time
 
+from wire_interfaces import WireDetection, WireDetections
+
 from .wire_detector_platforms import WireDetectorCPU, WireDetectorGPU
 import common_utils.viz_utils as vu
 
@@ -41,7 +43,10 @@ class WireDetectorNode(Node):
 
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
-        # Publishers
+        # Fitted Line Publishers
+        self.wire_estimates_pub = self.create_publisher(WireDetections, '/wire_detections', 1)
+
+        # viz Publishers
         self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
         self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
@@ -80,9 +85,28 @@ class WireDetectorNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         start_time = time.perf_counter()
-        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
+        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked, avg_angle = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
         end_time = time.perf_counter()
         self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
+
+        if fitted_lines is not None and len(fitted_lines) > 0:
+            # Create WireDetections message
+            wire_estimates_msg = WireDetections()
+            wire_estimates_msg.header = rgb_msg.header
+            wire_estimates_msg.avg_angle = avg_angle
+
+            for line, inlier_count, roi_pc in zip(fitted_lines, line_inlier_counts, roi_pcs):
+                wire_estimate = WireDetection()
+                wire_estimate.start.x = float(line[0][0])
+                wire_estimate.start.y = float(line[0][1])
+                wire_estimate.start.z = float(line[0][2])
+                wire_estimate.end.x = float(line[1][0])
+                wire_estimate.end.y = float(line[1][1])
+                wire_estimate.end.z = float(line[1][2])
+                wire_estimate.scalar_covariance = float(inlier_count)
+                wire_estimates_msg.wire_estimates.append(wire_estimate)
+
+            self.wire_estimates_pub.publish(wire_estimates_msg)
 
         # publish a point cloud for the wires
         self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")

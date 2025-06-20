@@ -353,7 +353,7 @@ class WireDetector:
         else:
             fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.ransac_on_rois_cpp(regions_of_interest, roi_line_counts, avg_angle, depth_image, viz_img=None)
 
-        return fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked
+        return fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked, avg_angle
     
     def depth_to_pointcloud(self, depth_image, rgb=None):
         """

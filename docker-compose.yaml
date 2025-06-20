@@ -124,6 +124,7 @@ services:
       - VO=${VO}
       - SERVO=${SERVO}
       - MAVROS=${MAVROS}
+      - VIZ_3D = ${VIZ_3D}
     deploy:
       # let it use the GPU
       resources:

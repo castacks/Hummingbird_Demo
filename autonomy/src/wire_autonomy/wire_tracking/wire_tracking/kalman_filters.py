@@ -1,7 +1,8 @@
 import numpy as np
+import cv2
 
 class PositionKalmanFilter:
-    def __init__(self, pos_0, pos_covariance=0.10):
+    def __init__(self, pos_0, pos_covariance=0.1):
         """
         Initialize the Kalman Filter.
         
@@ -13,14 +14,17 @@ class PositionKalmanFilter:
         - x0: Initial state estimate.
         - P0: Initial estimate covariance.
         """
+        self.viz_color = self.generate_viz_color()
         Q_val = pos_covariance ** 2 # 10 cm
         R_val = pos_covariance ** 2 # 10 cm
+
         self.Q = np.eye(3) * Q_val # Process noise covariance
         self.R = np.eye(3) * R_val # Measurement noise covariance
         self.P = np.eye(3) * R_val  # Initial estimate covariance
+
         assert len(pos_0) == 3
         self.curr_pos = np.array(pos_0).reshape(-1, 1) # Initial state estimate
-        self.valid_count = 0     # Number of valid measurements to be considered a line
+        self.valid_count = 1     # Number of valid measurements to be considered a line
 
     def predict(self):
         """Predict the state and estimate covariance."""
@@ -46,6 +50,17 @@ class PositionKalmanFilter:
         assert self.curr_pos.shape == (3, 1), f"curr_pos shape: {self.curr_pos.shape}"
         self.P = (np.eye(3) - K) @ self.P
         self.valid_count += 1
+
+    def generate_viz_color(self):
+        """
+        Generate a random color for visualization.
+        Returns:
+            A tuple representing the RGB color.
+        """
+        hue  = np.random.randint(0, 255)
+        saturation = np.random.randint(int(0.5 * 255), 255)
+        value = 255
+        return cv2.cvtColor(np.uint8([[[hue, saturation, value]]]), cv2.COLOR_HSV2RGB)[0][0].tolist()
 
 class YawKalmanFilter:
     def __init__(self, initial_yaw, yaw_covariance=0.0349066):

@@ -5,15 +5,19 @@
     camera_info_sub_topic: "/wire_cam/zed_node/left/camera_info"
     rgb_image_sub_topic: "/wire_cam/zed_node/left/image_rect_color"
     depth_image_sub_topic: "/wire_cam/zed_node/depth/depth_registered"
-    use_pose_cam: true
-    pose_sub_topic: ""
+    pose_sub_topic: "/vins/camera_pose"
 
-    # publishers
-    wire_2d_viz_pub_topic: "/wire_cam/detection_debug"
-    depth_viz_pub_topic: "/wire_cam/depth_debug"
-    pose_viz_pub_topic: "/wire_cam/pos_debug"
-    depth_pc_pub_topic: "/wire_cam/depth_pointcloud"
-    wire_3d_viz_pub_topic: "/wire_cam/wire_estimation"
+
+    # internode publishers
+    wire_detections+_pub_topic: "/pincer/wire_detections"
+    wire_target_pub_topic: "/pincer/wire_target"
+
+    # viz publishers
+    wire_2d_viz_pub_topic: "/pincer/detection_debug"
+    depth_viz_pub_topic: "/pincer/depth_debug"
+    pose_viz_pub_topic: "/pincer/pos_debug"
+    depth_pc_pub_topic: "/pincer/depth_pointcloud"
+    wire_3d_viz_pub_topic: "/pincer/wire_estimation"
 
     # general settings
     use_cpu: true
