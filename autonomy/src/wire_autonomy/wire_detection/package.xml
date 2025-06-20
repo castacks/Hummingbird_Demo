@@ -10,6 +10,7 @@
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>wire_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>common_utils</depend>

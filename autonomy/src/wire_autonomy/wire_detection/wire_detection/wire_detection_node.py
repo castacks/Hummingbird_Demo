@@ -8,6 +8,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 from geometry_msgs.msg import Point
 import sensor_msgs_py.point_cloud2 as pc2
 from visualization_msgs.msg import Marker
+from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import time
@@ -47,6 +48,9 @@ class WireDetectorNode(Node):
         self.wire_estimates_pub = self.create_publisher(WireDetections, '/wire_detections', 1)
 
         # viz Publishers
+        self.camera_pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.camera_pose_callback, 1)
+
+        # Publishers
         self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
         self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
@@ -103,7 +107,7 @@ class WireDetectorNode(Node):
                 wire_estimate.end.x = float(line[1][0])
                 wire_estimate.end.y = float(line[1][1])
                 wire_estimate.end.z = float(line[1][2])
-                wire_estimate.scalar_covariance = float(inlier_count)
+                wire_estimate.scalar_covariance = float(inlier_count) / len(roi_pc)
                 wire_estimates_msg.wire_estimates.append(wire_estimate)
 
             self.wire_estimates_pub.publish(wire_estimates_msg)
@@ -200,6 +204,8 @@ class WireDetectorNode(Node):
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
+            self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
+            self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
 
             # pub topics
             self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)

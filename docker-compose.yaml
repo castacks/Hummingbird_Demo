@@ -107,7 +107,7 @@ services:
     command: >
       bash -c "source /root/dependencies_ws/install/setup.bash && source /opt/ros/humble/setup.bash \
                 if [ ! -d '/root/ros2_ws/install' ]; then \
-                source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
+                source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc) --cmake-args -Wno-dev; 
                 else echo 'Already built'; fi && \
               source /root/ros2_ws/install/setup.bash && \
               ros2 launch system_bringup bringup.launch.py"
@@ -124,7 +124,7 @@ services:
       - VO=${VO}
       - SERVO=${SERVO}
       - MAVROS=${MAVROS}
-      - VIZ_3D = ${VIZ_3D}
+      - VIZ_3D=${VIZ_3D}
     deploy:
       # let it use the GPU
       resources:

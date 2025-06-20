@@ -48,7 +48,7 @@ colcon build --parallel-workers $(nproc) --symlink-install \
 # General ROS2 Dependencies -----------------------------------------------------------------------------------------------------
 WORKDIR /root/ros2_ws/
 RUN pip uninstall matplotlib -y
-RUN apt-get install ros-humble-rosbag2-storage-mcap -y
+RUN apt-get install ros-humble-rosbag2-storage-mcap ros-humble-rosidl-generator-cpp -y
 
 RUN pip3 install \
   matplotlib \
