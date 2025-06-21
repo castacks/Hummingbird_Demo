@@ -9,15 +9,15 @@
 
 
     # internode publishers
-    wire_detections+_pub_topic: "/pincer/wire_detections"
+    wire_detections_pub_topic: "/pincer/wire_detections"
     wire_target_pub_topic: "/pincer/wire_target"
 
     # viz publishers
-    wire_2d_viz_pub_topic: "/pincer/detection_debug"
-    depth_viz_pub_topic: "/pincer/depth_debug"
-    pose_viz_pub_topic: "/pincer/pos_debug"
-    depth_pc_pub_topic: "/pincer/depth_pointcloud"
-    wire_3d_viz_pub_topic: "/pincer/wire_estimation"
+    wire_2d_viz_pub_topic: "/pincer/viz_detections_2d"
+    depth_viz_pub_topic: "/pincer/viz_depth"
+    pose_viz_pub_topic: "/pincer/viz_pose"
+    depth_pc_pub_topic: "/pincer/depth_pc_viz"
+    wire_3d_viz_pub_topic: "/pincer/viz_detections_3d"
 
     # general settings
     use_cpu: true

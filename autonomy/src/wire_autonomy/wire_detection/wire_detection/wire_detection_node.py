@@ -8,7 +8,6 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 from geometry_msgs.msg import Point
 import sensor_msgs_py.point_cloud2 as pc2
 from visualization_msgs.msg import Marker
-from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import time
@@ -45,10 +44,7 @@ class WireDetectorNode(Node):
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
         # Fitted Line Publishers
-        self.wire_estimates_pub = self.create_publisher(WireDetections, '/wire_detections', 1)
-
-        # viz Publishers
-        self.camera_pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.camera_pose_callback, 1)
+        self.wire_estimates_pub = self.create_publisher(WireDetections, self.wire_detections_pub_topic, 1)
 
         # Publishers
         self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
@@ -89,16 +85,19 @@ class WireDetectorNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         start_time = time.perf_counter()
-        fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked, avg_angle = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
+        fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
         end_time = time.perf_counter()
         self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
 
-        if fitted_lines is not None and len(fitted_lines) > 0:
-            # Create WireDetections message
-            wire_estimates_msg = WireDetections()
-            wire_estimates_msg.header = rgb_msg.header
-            wire_estimates_msg.avg_angle = avg_angle
+        # Create WireDetections message
+        wire_estimates_msg = WireDetections()
+        wire_estimates_msg.header = rgb_msg.header
+        if avg_angle is not None:
+            wire_estimates_msg.avg_angle = float(avg_angle)
+        else:
+            wire_estimates_msg.avg_angle = float('nan')
 
+        if fitted_lines is not None and len(fitted_lines) > 0:
             for line, inlier_count, roi_pc in zip(fitted_lines, line_inlier_counts, roi_pcs):
                 wire_estimate = WireDetection()
                 wire_estimate.start.x = float(line[0][0])
@@ -110,7 +109,7 @@ class WireDetectorNode(Node):
                 wire_estimate.scalar_covariance = float(inlier_count) / len(roi_pc)
                 wire_estimates_msg.wire_estimates.append(wire_estimate)
 
-            self.wire_estimates_pub.publish(wire_estimates_msg)
+        self.wire_estimates_pub.publish(wire_estimates_msg)
 
         # publish a point cloud for the wires
         self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")
@@ -204,10 +203,12 @@ class WireDetectorNode(Node):
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
-            self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
-            self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
 
-            # pub topics
+            # wire pub topics
+            self.declare_parameter('wire_detections_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
+
+            # viz pub topics
             self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.wire_2d_viz_pub_topic = self.get_parameter('wire_2d_viz_pub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)

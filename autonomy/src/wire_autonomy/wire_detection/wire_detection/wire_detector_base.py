@@ -63,17 +63,7 @@ class WireDetector:
         avg_angles = wdu.fold_angles_from_0_to_pi(line_angles)
         avg_angle = circmean(avg_angles, high=np.pi, low=-np.pi)
         if np.isnan(avg_angle) or np.isinf(avg_angle) or avg_angle == None:
-            raise ValueError(f"Invalid average angle computed from line angles from {line_angles}.")
-
-        if self.img_shape is None:
-            self.img_shape = rgb_image.shape[:2]
-            self.img_height, self.img_width = self.img_shape
-            self.cx, self.cy = self.img_width // 2, self.img_height // 2
-            self.line_length = max(self.img_width, self.img_height) * 2
-            # Create meshgrid of pixel coordinates
-            x_coords, y_coords = np.meshgrid(np.arange(self.img_width), np.arange(self.img_height))  # shape: (H, W)
-            flatted_coord = np.column_stack((x_coords.flatten(), y_coords.flatten(), np.ones_like(x_coords.flatten())))
-            self.camera_rays = np.dot(self.inv_camera_intrinsics, flatted_coord.T).T        
+            raise ValueError(f"Invalid average angle computed from line angles from {line_angles}.")      
 
         cos_avg, sin_avg = np.cos(avg_angle), np.sin(avg_angle)
         x0_avg = int(self.cx + self.line_length * cos_avg)
@@ -138,6 +128,17 @@ class WireDetector:
         return distances
     
     def detect_wires_2d(self, rgb_image):
+        # Initialize image shape and camera rays on first inference
+        if self.img_shape is None:
+            self.img_shape = rgb_image.shape[:2]
+            self.img_height, self.img_width = self.img_shape
+            self.cx, self.cy = self.img_width // 2, self.img_height // 2
+            self.line_length = max(self.img_width, self.img_height) * 2
+            # Create meshgrid of pixel coordinates
+            x_coords, y_coords = np.meshgrid(np.arange(self.img_width), np.arange(self.img_height))  # shape: (H, W)
+            flatted_coord = np.column_stack((x_coords.flatten(), y_coords.flatten(), np.ones_like(x_coords.flatten())))
+            self.camera_rays = np.dot(self.inv_camera_intrinsics, flatted_coord.T).T  
+
         cartesian_lines, center_line, avg_angle = self.get_line_candidates(rgb_image)
         if cartesian_lines is not None: 
             wire_lines, wire_midpoints, _ , _ , _ , midpoint_dists_wrt_center = self.get_line_instance_locations(cartesian_lines, center_line, avg_angle)
@@ -344,7 +345,7 @@ class WireDetector:
         """
         wire_lines, wire_midpoints, avg_angle, midpoint_dists_wrt_center = self.detect_wires_2d(rgb_image)
         if len(wire_lines) == 0 or len(wire_midpoints) == 0 or avg_angle is None:
-            return [], [], [], [], None
+            return [], [], None, [], [], None
 
         regions_of_interest, roi_line_counts = self.find_regions_of_interest(depth_image, avg_angle, midpoint_dists_wrt_center)
 
@@ -353,7 +354,7 @@ class WireDetector:
         else:
             fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.ransac_on_rois_cpp(regions_of_interest, roi_line_counts, avg_angle, depth_image, viz_img=None)
 
-        return fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked, avg_angle
+        return fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked
     
     def depth_to_pointcloud(self, depth_image, rgb=None):
         """
@@ -369,6 +370,8 @@ class WireDetector:
         # Compute 3D points
         z_coords = depth_image.flatten()
         valid_mask = ~np.isnan(z_coords) & (z_coords > self.min_depth_clip) & (z_coords < self.max_depth_clip)
+        if self.camera_rays is None:
+            raise ValueError("Camera rays are not initialized. Call get_line_candidates first.")
         points = self.camera_rays * z_coords.reshape(-1, 1)
         points = points[valid_mask]
         if rgb is not None:

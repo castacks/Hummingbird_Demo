@@ -6,7 +6,8 @@ from rclpy.node import Node
 import numpy as np
 import cv2
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 
 from rclpy.executors import MultiThreadedExecutor
@@ -47,6 +48,7 @@ class WireTrackingNode(Node):
         # Subscribers
         self.initialized = False
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
+        self.camera_pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.camera_pose_callback, 1)
 
         self.wire_estimates_sub = Subscriber(self, WireDetections, '/wire_detections')
         self.wire_estimates_sub = Subscriber(self, WireDetections, '/wire_detections')
@@ -56,7 +58,15 @@ class WireTrackingNode(Node):
         self.pose_viz_pub = self.create_publisher(PoseStamped, self.pose_viz_pub_topic, 10)
 
         self.get_logger().info("Wire Tracking Node initialized")
+
+    def camera_pose_callback(self, data):
+        if not self.initialized:
+            return
         
+        # Update camera pose if needed
+        self.camera_pose = data.pose.pose
+        self.get_logger().info(f"Camera pose updated: {self.camera_pose.position.x}, {self.camera_pose.position.y}, {self.camera_pose.position.z}")
+
     def camera_info_callback(self, data):
         if self.initialized:
             return
@@ -243,8 +253,9 @@ class WireTrackingNode(Node):
             # sub topics
             self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
+            self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
+            self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
 
-            # pub topics
             self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.wire_2d_viz_pub_topic = self.get_parameter('wire_2d_viz_pub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
