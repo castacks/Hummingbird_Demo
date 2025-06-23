@@ -35,9 +35,13 @@ class WireTrackingNode(Node):
 
         self.position_kalman_filters = {}
         self.yaw_kalman_filter = None
+
+        self.previous_pose = None
+
         self.max_kf_label = 0
-        self.tracked_wire_id = None
         self.total_iterations = 0
+
+        self.tracked_wire_id = None
 
         # Transform from pose_cam to wire_cam
         # 180 rotation about y-axis, 0.216m translation in negative x-axis
@@ -50,26 +54,12 @@ class WireTrackingNode(Node):
         self.initialized = False
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
-        if self.vizualize_wires:
-            self.rgb_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.r, 1)
+        self.pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data)
+        self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_pub_topic, self.wire_detection_callback, 1)
 
-        self.pose_sub = Subscriber(self, Odometry, self.pose_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
-        self.wire_detection_sub = Subscriber(self, WireDetections, self.wire_detections_pub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
         if self.vizualize_wires:
-            self.rgb_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
-            self.detection_pose_rgb_sync = ApproximateTimeSynchronizer(
-                [self.wire_detection_sub, self.pose_sub, self.rgb_sub],
-                queue_size=10,
-                slop=0.05
-            )
-            self.detection_pose_rgb_sync.registerCallback(self.pose_detection_rgb_callback)
-        else:
-            self.detection_pose_sync = ApproximateTimeSynchronizer(
-                [self.wire_detection_sub, self.pose_sub],
-                queue_size=10,
-                slop=0.05
-            )
-        self.detection_pose_sync.registerCallback(self.pose_detection_callback)
+            self.rgb_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.rgb_callback, rclpy.qos.qos_profile_sensor_data)
+
 
         # Wire Publishers
         self.wire_target_pub = self.create_publisher(PoseStamped, self.wire_target_pub_topic, 10)
@@ -120,6 +110,15 @@ class WireTrackingNode(Node):
         H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
         return H_wire_cam_to_world
         
+    def pose_detection_callback(self, pose_msg):
+
+        if self.previous_pose is None:
+            self.previous_pose = pose_msg.pose
+            return
+        
+        relative_pose = ct.relative_pose_transform(self.previous_pose, pose_msg.pose)
+
+
     def pose_detection_callback(self, wire_detection_msg, pose_msg):
         if not self.initialized:
             return

@@ -111,16 +111,13 @@ class WireGraspingNode(Node):
             self.get_logger().info("Wire grasping deactivated.")
         return response
         
-    def publish_velocity_ibvs(self, vx, vy, vz, v_yaw):
+    def publish_velocity_ibvs(self, vy, vz, v_yaw):
         vel_msg = TwistStamped()
         vel_msg.header.frame_id = "/drone"
         vel_msg.header.stamp = rclpy.clock.Clock().now().to_msg()
-        vel_msg.twist.linear.x = vx
         vel_msg.twist.linear.y = vy
         vel_msg.twist.linear.z = vz
         vel_msg.twist.angular.z = v_yaw
-        vel_msg.twist.angular.x = 0.0
-        vel_msg.twist.angular.y = 0.0
         self.velocity_pub.publish(vel_msg)
 
     def ibvs_control(self, pose):
@@ -145,7 +142,6 @@ class WireGraspingNode(Node):
                 L_inv = np.linalg.pinv(L)
 
                 # lambda_gain = 1.0
-                x_gain = 0.6
                 y_gain = 0.6
                 z_gain = 1.75
                 yaw_gain = -0.25
@@ -158,18 +154,11 @@ class WireGraspingNode(Node):
 
                 # prevents stability issues when the wire is too close to the camera
                 if delta_z < z_stop:
-                    x_gain = 0.2
                     y_gain = 0.2
 
                 v_c = - np.dot(L_inv, e)
                 vy, vx, _ = v_c.flatten()
-                vx = x_gain * vx
                 vy = y_gain * vy
-
-                old_vx = vx
-                old_vy = vy
-                vx = old_vy
-                vy = -old_vx
 
                 delta_angle = (image_yaw + np.pi) % (2 * np.pi) - np.pi
                 v_yaw = delta_angle * yaw_gain
@@ -177,7 +166,7 @@ class WireGraspingNode(Node):
             else:
                 vx, vy, vz, v_yaw = 0.0, 0.0, 0.0, 0.0
         
-            self.publish_velocity_ibvs(vx, vy, vz, v_yaw)
+            self.publish_velocity_ibvs(vy, vz, v_yaw)
         
     def set_params(self):
         try:

@@ -1,8 +1,10 @@
 import numpy as np
 import cv2
 
+import wire_detection.wire_detection_utils as wdu
+
 class PositionKalmanFilter:
-    def __init__(self, y0, z0, wire_tracking_config):
+    def __init__(self, wire_tracking_config):
         """
         Initialize the Kalman Filter.
         
@@ -24,28 +26,54 @@ class PositionKalmanFilter:
 
         self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier']
 
+        self.kf_ids = np.array([]).reshape(0, 1)  # Store Kalman filter IDs for visualization
+        self.kf_points = np.array([]).reshape(0, 2)  # Store distance perpendicular to wire angle, and height
+        self.kf_covariances = np.array([]).reshape(0, 2, 2)
+        self.kf_colors = np.array([]).reshape(0, 3)  # Store Kalman filter colors for visualization
+        self.valid_counts = np.array([]).reshape(0, 1)  # Store valid counts for each Kalman filter point
 
-        self.viz_color = self.generate_viz_color()
-        self.valid_count = 0
         self.Q = np.zeros((2, 2)) # Process noise covariance
         self.R = np.zeros((2, 2)) # Measurement noise covariance
-
         self.Q[0, 0] = self.z_predict_cov ** 2  # Process noise for z
         self.Q[1, 1] = self.y_predict_cov ** 2  # Process
         self.R[0, 0] = self.z_measurement_cov ** 2  # Measurement noise for z
         self.R[1, 1] = self.y_measurement_cov ** 2  #
 
-        self.P = self.R.copy() * self.inital_cov_multiplier # Initial estimate covariance to account for initial uncertainty
+        self.P_init = self.R.copy() * self.inital_cov_multiplier # Initial estimate covariance to account for initial uncertainty
 
-        self.curr_pos = np.array([y0, z0]).reshape(-1, 1)
-        self.valid_count = 1
+        self.max_kf_id = 0
 
-    def predict(self):
-        """Predict the state and estimate covariance."""
-        # State prediction
-        self.curr_pos = self.curr_pos
-        # Covariance prediction
-        self.P += self.Q
+    def add_kf(self, y0, z0):
+        """
+        Add a new Kalman filter point for visualization.
+        
+        Parameters:
+        - y0: Initial y-coordinate.
+        - z0: Initial z-coordinate.
+        """
+        self.max_kf_id += 1
+        self.kf_ids = np.vstack((self.kf_ids, np.array([[self.max_kf_id]])))
+        self.kf_points = np.vstack((self.kf_points, np.array([y0, z0])))
+        self.kf_covariances = np.vstack((self.kf_covariances, self.P_init.reshape(1, 2, 2)))
+        self.kf_colors = np.vstack((self.kf_colors, self.generate_viz_color()))
+        self.valid_counts = np.vstack((self.valid_counts, np.array([[self.valid_count]])))
+
+    def initialize_kfs(self, camera_points, wire_angle):
+        assert camera_points.shape[1] == 3, f"camera_points shape: {camera_points.shape}"  # Ensure points are in (x, y, z) format, N x 3
+
+        perp_angle = wdu.perpendicular_angle_rad(wire_angle)
+        dists = camera_points[:, 0] * np.cos(perp_angle) + camera_points[:, 1] * np.sin(perp_angle)
+        self.kf_points = np.hstack((dists.reshape(-1, 1), camera_points[:, 2].reshape(-1, 1)))
+        self.kf_ids = np.arange(1, len(camera_points) + 1).reshape(-1, 1)
+        self.kf_covariances = np.repeat(self.P_init.reshape(1, 2, 2), len(camera_points), axis=0)
+        self.kf_colors = self.generate_viz_color(len(camera_points))
+        self.valid_counts = np.ones((len(camera_points), 1), dtype=int)
+
+    def predict(self, relative_H_transform):
+        """Predict the state and estimate covariance after a relative transformation."""
+
+        xyz
+        
 
     def update(self, y, z):
         """Update the state estimate using a new measurement."""
@@ -65,17 +93,16 @@ class PositionKalmanFilter:
         self.P = (np.eye(2) - K) @ self.P
         self.valid_count += 1
 
-    def generate_viz_color(self):
+    def generate_viz_color(self, num_colors=1):
         """
         Generate a random color for visualization.
         Returns:
             A tuple representing the RGB color.
         """
-        hue  = np.random.randint(0, 255)
-        saturation = np.random.randint(int(0.5 * 255), 255)
-        value = 255
-        return cv2.cvtColor(np.uint8([[[hue, saturation, value]]]), cv2.COLOR_HSV2RGB)[0][0].tolist()
-
+        hue  = np.random.randint(0, 255, num_colors, dtype=np.uint8)
+        saturation = np.random.randint(int(0.5 * 255), 255, num_colors, dtype=np.uint8)
+        value = np.ones(num_colors, dtype=np.uint8) * 255  # Full brightness
+        return cv2.cvtColor(np.uint8([[[hue, saturation, value]]]), cv2.COLOR_HSV2RGB)[0][0]
 class YawKalmanFilter:
     def __init__(self, yaw0, wire_tracking_config):
         """
