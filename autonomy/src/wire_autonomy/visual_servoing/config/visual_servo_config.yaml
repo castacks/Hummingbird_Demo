@@ -1,29 +1,20 @@
-/**:
-  ros__parameters:
+y_wire_offset_from_camera_m: 0.0
+z_wire_offset_from_camera_m: 0.0
+
+kp_y_value: 0.0
+kd_y_value: 0.0
+ki_y_value: 0.0
+v_y_limit: 0.0
+
+kp_z_value: 0.0
+kd_z_value: 0.0
+ki_z_value: 0.0
+v_z_limit: 0.0
+
+kp_yaw_value: 0.0
+kd_yaw_value: 0.0
+ki_yaw_value: 0.0
+v_yaw_limit: 0.0
+
+
     
-    # subscribers
-    camera_info_sub_topic: "camera_info"
-    rgb_image_sub_topic: "image_rect"
-    depth_image_sub_topic: "depth"
-    semantics_sub_topic: "segmentation"
-
-    # services
-    activate_srv_topic: "toggle_visual_servo_command"
-
-    # publishers
-    velocity_pub_topic: "cmd_vel"
-    img_debug_pub_topic: "detection_debug"
-    line_location_vis_pub_topic: "line_location_visualization"
-
-    # tf params
-    world_frame_id: "world"
-    camera_frame_id: "gripper_camera"
-    tf_update_rate: 0.1
-
-    #wire detection params:
-    use_segmentation: False
-
-    # KF params
-    max_distance_threshold: 1.0 # wires are normally around more than 4.0 distance from eachother in sim
-    min_valid_kf_count_threshold: 20
-    iteration_start_threshold: 30

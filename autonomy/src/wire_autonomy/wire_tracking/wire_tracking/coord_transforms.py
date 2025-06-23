@@ -2,55 +2,6 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from geometry_msgs.msg import Transform, Pose, Quaternion
 
-def transform_to_homogeneous(transform):
-    """
-    Converts a Transform message into a 4x4 homogeneous transformation matrix.
-
-    Args:
-        Transform (Transform): The ROS Transform message to convert.
-
-    Returns:
-        np.ndarray: A 4x4 homogeneous transformation matrix.
-    """
-    assert isinstance(transform, Transform) , "Input must be a Transform message, got %s" % type(Transform)
-    # Extract translation components
-    translation = transform.translation
-    translation_vector = np.array([translation.x, translation.y, translation.z])
-
-    # Extract rotation components
-    rotation = transform.rotation
-    quaternion = [rotation.x, rotation.y, rotation.z, rotation.w]
-    rot_matrix = Rotation.from_quat(quaternion).as_matrix()
-
-    # Combine into a homogeneous transformation matrix
-    homogeneous_matrix = np.eye(4)
-    homogeneous_matrix[:3, :3] = rot_matrix[:3, :3]
-    homogeneous_matrix[:3, 3] = translation_vector
-    return homogeneous_matrix
-
-def rotvec_to_homogeneous(rotvec, x, y, z):
-    """
-    Converts a rotation vector and a displacement into a 4x4 homogeneous transformation matrix.
-
-    Args:
-        rotvec: a 3x1 rotation vector listing rotation in x, y, z
-        x: displacement in meteres
-        y: displacement in meteres
-        z: displacement in meteres
-
-    Returns:
-        np.ndarray: A 4x4 homogeneous transformation matrix.
-    """
-    translation_vector = np.array([x, y, z])
-    rot_matrix = Rotation.from_rotvec(rotvec).as_matrix()
-
-    homogeneous_matrix = np.eye(4)
-    homogeneous_matrix[:3, :3] = rot_matrix[:3, :3]
-    homogeneous_matrix[:3, 3] = translation_vector
-
-    assert homogeneous_matrix.shape == (4, 4), "Output must be a 4x4 numpy array, got %s" % homogeneous_matrix.shape
-    return homogeneous_matrix
-
 def pose_to_homogeneous(pose):
     """
     Converts a Pose message into a 4x4 homogeneous transformation matrix.
@@ -103,102 +54,65 @@ def homogeneous_to_pose(homogeneous_matrix):
     pose.position.x, pose.position.y, pose.position.z = translation
     pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = rotation
     return pose
-    
-def image_to_world_tf(image_points, depth, tf_camera_to_world, camera_vector):
-    ''' 
-    Convert image points to world points using a pose
-    
-    Parameters:
-    image_points -- the image points in the image frame (Nx2)
-    depth -- the depth of the image points (Nx1)
-    pose_in_world -- the pose of the camera in the world frame
-    
-    Returns:
-    world_points -- the world points in the world frame (Nx3)
-    '''
-    camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
-    # transforming from camera frame to world convention
-    camera_points_in_world_x = camera_points_z
-    camera_points_in_world_y = - camera_points_x
-    camera_points_in_world_z = - camera_points_y
+def points_in_cam_to_world(points_in_cam, H_cam_to_world):
+    """
+    Converts points in camera frame to world frame using a pose.
 
-    H_cam_to_world = transform_to_homogeneous(tf_camera_to_world)
-
-    # Convert the point to a numpy array
-    # point_vec = np.hstack((x_c, y_c, z_c, np.ones_like(x_c)))
-    point_vec = np.hstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_in_world_x)))
-
-    # Apply the transform: Rotate then translate
-    with np.errstate(invalid='ignore'):
-        try:
-            world_points = H_cam_to_world @ point_vec.T
-        except Exception as e:
-            return None
-
-    return world_points
-
-def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
-    ''' 
-    Convert image points to world points using a pose
-    
-    Parameters:
-    image_points -- the image points in the image frame (Nx2)
-    depth -- the depth of the image points (Nx1)
-    pose_in_world -- the pose of the camera in the world frame
-    
-    Returns:
-    world_points -- the world points in the world frame (Nx3)
-    '''
-    assert len(image_points) == len(depth), "The number of image points must match the number of depth values"
-    assert image_points.shape[1] == 2 and image_points.shape[0] == depth.shape[0], "Image points must be Nx2 and depth must be Nx1"
-    camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
-
-    # transforming from camera convention to world convention
-    camera_points_in_world_x = - camera_points_y
-    camera_points_in_world_y = camera_points_x
-    camera_points_in_world_z = camera_points_z
-
-    # zed gives pose of camera going to world
-    H_cam_to_world = pose_to_homogeneous(pose_in_world)
-    H_world_to_cam = np.linalg.inv(H_cam_to_world)
-
-    # Convert the point to a numpy array
-    point_vec = np.vstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_x))).T
-    assert len(point_vec.shape) == 2, f"Point vector must be Nx4, got {point_vec.shape}"
-    assert point_vec.shape[1] == 4 and point_vec.shape[0] == len(image_points), f"Point vector must be Nx4, got {point_vec.shape}"
-
-    # Apply the transform: Rotate then translate
-    world_points = ((H_world_to_cam @ point_vec.T).T)[:, :3]
-
-    return world_points
-
-def world_to_image_tf(world_points, tf_camera_to_world, camera_vector):
-    '''
-    Convert world points to image points using a transform
-
-    Parameters:
-    world_points -- the world points in the world frame (Nx3)
-    pose_in_world -- the pose of the camera in the world frame
-    camera_vector -- the camera vector (fx, fy, cx, cy)
+    Args:
+        points_in_cam (np.ndarray): Points in camera frame (Nx3).
+        pose_cam_to_world (Pose): The pose of the camera in the world frame.
 
     Returns:
-    image_points_x -- the x-coordinates of the image points
-    image_points_y -- the y-coordinates of the image points
-    '''
-    
-    H_world_to_cam = transform_to_homogeneous(tf_camera_to_world)
-    H_cam_to_world = np.linalg.inv(H_world_to_cam)
+        np.ndarray: Points in world frame (Nx3).
+    """
+    assert points_in_cam.shape[1] == 3, f"Points must be Nx3, got {points_in_cam.shape}"
+    assert len(points_in_cam.shape) == 2, f"Points must be Nx3, got {points_in_cam.shape}"
+    assert H_cam_to_world.shape == (4, 4), f"Homogeneous transformation matrix must be 4x4, got {H_cam_to_world.shape}"
+
 
     # Convert the point to a numpy array
-    world_point = np.hstack((world_points, np.ones((world_points.shape[0], 1))))
-
+    points_in_cam_homogeneous = np.hstack((points_in_cam, np.ones((points_in_cam.shape[0], 1))))
+    
     # Apply the transform: Rotate then translate
-    cam_in_world_points = H_cam_to_world @ world_point.T
-    # cam_in_cam_point = np.array([-cam_in_world_point[1], -cam_in_world_point[2], cam_in_world_point[0]])
-    cam_in_cam_points = np.array([cam_in_world_points[:,1], -cam_in_world_points[:,0], -cam_in_world_points[:,2]])
+    points_in_world = ((H_cam_to_world @ points_in_cam_homogeneous.T).T)[:,:3]
+    
+    return points_in_world
+    
+# def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
+#     ''' 
+#     Convert image points to world points using a pose
+    
+#     Parameters:
+#     image_points -- the image points in the image frame (Nx2)
+#     depth -- the depth of the image points (Nx1)
+#     pose_in_world -- the pose of the camera in the world frame
+    
+#     Returns:
+#     world_points -- the world points in the world frame (Nx3)
+#     '''
+#     assert len(image_points) == len(depth), "The number of image points must match the number of depth values"
+#     assert image_points.shape[1] == 2 and image_points.shape[0] == depth.shape[0], "Image points must be Nx2 and depth must be Nx1"
+#     camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
 
-    return camera_to_image(cam_in_cam_points, camera_vector)
+#     # transforming from camera convention to world convention
+#     camera_points_in_world_x = - camera_points_y
+#     camera_points_in_world_y = camera_points_x
+#     camera_points_in_world_z = camera_points_z
+
+#     # zed gives pose of camera going to world
+#     H_cam_to_world = pose_to_homogeneous(pose_in_world)
+#     H_world_to_cam = np.linalg.inv(H_cam_to_world)
+
+#     # Convert the point to a numpy array
+#     point_vec = np.vstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_x))).T
+#     assert len(point_vec.shape) == 2, f"Point vector must be Nx4, got {point_vec.shape}"
+#     assert point_vec.shape[1] == 4 and point_vec.shape[0] == len(image_points), f"Point vector must be Nx4, got {point_vec.shape}"
+
+#     # Apply the transform: Rotate then translate
+#     world_points = ((H_world_to_cam @ point_vec.T).T)[:, :3]
+
+#     return world_points
 
 def world_to_image_pose(world_points, pose_in_world, camera_vector):
     '''

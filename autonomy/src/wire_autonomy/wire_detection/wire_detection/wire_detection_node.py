@@ -7,6 +7,7 @@ from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 from geometry_msgs.msg import Point
 import sensor_msgs_py.point_cloud2 as pc2
+from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
@@ -44,7 +45,7 @@ class WireDetectorNode(Node):
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
 
         # Fitted Line Publishers
-        self.wire_estimates_pub = self.create_publisher(WireDetections, self.wire_detections_pub_topic, 1)
+        self.wire_detections_pub = self.create_publisher(WireDetections, self.wire_detections_pub_topic, 1)
 
         # Publishers
         self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
@@ -90,12 +91,13 @@ class WireDetectorNode(Node):
         self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
 
         # Create WireDetections message
-        wire_estimates_msg = WireDetections()
-        wire_estimates_msg.header = rgb_msg.header
+        wire_detections_msg = WireDetections()
+        wire_detections_msg.header = rgb_msg.header
+        wire_detections_msg.header.frame_id = "/left_camera"
         if avg_angle is not None:
-            wire_estimates_msg.avg_angle = float(avg_angle)
+            wire_detections_msg.avg_angle = float(avg_angle)
         else:
-            wire_estimates_msg.avg_angle = float('nan')
+            wire_detections_msg.avg_angle = float('nan')
 
         if fitted_lines is not None and len(fitted_lines) > 0:
             for line, inlier_count, roi_pc in zip(fitted_lines, line_inlier_counts, roi_pcs):
@@ -106,10 +108,13 @@ class WireDetectorNode(Node):
                 wire_estimate.end.x = float(line[1][0])
                 wire_estimate.end.y = float(line[1][1])
                 wire_estimate.end.z = float(line[1][2])
+                wire_estimate.midpoint.x = float((line[0][0] + line[1][0]) / 2)
+                wire_estimate.midpoint.y = float((line[0][1] + line[1][1]) / 2)
+                wire_estimate.midpoint.z = float((line[0][2] + line[1][2]) / 2)
                 wire_estimate.scalar_covariance = float(inlier_count) / len(roi_pc)
-                wire_estimates_msg.wire_estimates.append(wire_estimate)
+                wire_detections_msg.wire_detections.append(wire_estimate)
 
-        self.wire_estimates_pub.publish(wire_estimates_msg)
+        self.wire_detections_pub.publish(wire_detections_msg)
 
         # publish a point cloud for the wires
         self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")

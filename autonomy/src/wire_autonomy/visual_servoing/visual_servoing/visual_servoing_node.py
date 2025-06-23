@@ -5,16 +5,19 @@ import rclpy.clock
 from rclpy.node import Node
 import numpy as np
 import cv2
+import yaml
 from sensor_msgs.msg import Image, CameraInfo
 from std_srvs.srv import Trigger
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from visualization_msgs.msg import Marker
 
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
+
+from ament_index_python.packages import get_package_share_directory
 
 # ignore future deprecated warnings
 import warnings
@@ -31,10 +34,11 @@ class WireGraspingNode(Node):
 
         # Subscribers
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
+        self.wire_target_sub = Subscriber(self, PoseStamped, self.wire_target_pub_topic)
 
         # Visual Servoing timer
-        visual_servo_cb_group = ReentrantCallbackGroup()
-        self.visual_servo_timer = self.create_timer(0.1, self.ibvs_control, callback_group=visual_servo_cb_group)
+        visual_servo_callback_group = MutuallyExclusiveCallbackGroup()
+        self.visual_servo_timer = self.create_timer(0.1, self.ibvs_control, callback_group=visual_servo_callback_group)
 
         # Service
         activate_srv_cb_group = ReentrantCallbackGroup()
@@ -148,10 +152,9 @@ class WireGraspingNode(Node):
 
                 z_stop = 0.85
                 z_offset = 1.25
-                z_limit = 12.0
                 delta_z = z_c - z_offset - curr_z
                 vz = z_gain * delta_z
-                vz = min(vz, z_limit) # set the limit for the z velocity
+                vz = min(vz, self.v_z_limit) # set the limit for the z velocity
 
                 # prevents stability issues when the wire is too close to the camera
                 if delta_z < z_stop:
@@ -178,28 +181,37 @@ class WireGraspingNode(Node):
         
     def set_params(self):
         try:
-            # Access parameters
-            self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
-            self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
-            self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
-
+            # Services
             self.activate_srv_topic = self.get_parameter('activate_srv_topic').get_parameter_value().string_value
 
-            self.wire_viz_pub_topic = self.get_parameter('wire_viz_pub_topic').get_parameter_value().string_value
+            # Subscribers
+            self.declare_parameter('wire_target_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_target_pub_topic = self.get_parameter('wire_target_pub_topic').get_parameter_value().string_value            
+
+            # Publishers
+            self.declare_parameter('velocity_pub_topic', rclpy.Parameter.Type.STRING)
             self.velocity_pub_topic = self.get_parameter('velocity_pub_topic').get_parameter_value().string_value
 
-            self.line_threshold = self.get_parameter('line_threshold').get_parameter_value().integer_value
-            self.expansion_size = self.get_parameter('expansion_size').get_parameter_value().integer_value
+            with open(get_package_share_directory('visual_servoing') + '/config/visual_servo_config.yaml', 'r') as file:
+                self.visual_servo_config = yaml.safe_load(file)
 
-            self.world_frame_id = self.get_parameter('world_frame_id').get_parameter_value().string_value
-            self.camera_frame_id = self.get_parameter('camera_frame_id').get_parameter_value().string_value
-            self.tf_update_rate = self.get_parameter('tf_update_rate').get_parameter_value().double_value
+            self.y_wire_offset_from_camera_m = self.visual_servo_config['y_wire_offset_from_camera_m']
+            self.z_wire_offset_from_camera_m = self.visual_servo_config['z_wire_offset_from_camera_m']
 
-            self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
-            self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
-            self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value
-            self.yaw_covariance = self.get_parameter('yaw_covariance').get_parameter_value().double_value
-            self.pos_covariance = self.get_parameter('pos_covariance').get_parameter_value().double_value
+            self.kp_y_value = self.visual_servo_config['kp_y_value']
+            self.kd_y_value = self.visual_servo_config['kd_y_value']
+            self.ki_y_value = self.visual_servo_config['ki_y_value']
+            self.v_y_limit = self.visual_servo_config['v_y_limit']
+
+            self.kp_z_value = self.visual_servo_config['kp_z_value']
+            self.kd_z_value = self.visual_servo_config['kd_z_value']
+            self.ki_z_value = self.visual_servo_config['ki_z_value']
+            self.v_z_limit = self.visual_servo_config['v_z_limit']
+
+            self.kp_yaw_value = self.visual_servo_config['kp_yaw_value']
+            self.kd_yaw_value = self.visual_servo_config['kd_yaw_value']
+            self.ki_yaw_value = self.visual_servo_config['ki_yaw_value']
+            self.v_yaw_limit = self.visual_servo_config['v_yaw_limit']
 
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")

@@ -1,6 +1,17 @@
-max_distance_threshold: 0.15 # meters
+wire_matching_min_threshold_m: 0.15 # meters
 min_valid_kf_count_threshold: 15
 iteration_start_threshold: 0
-# yaw_covariance: 0.0349066 # radians
-yaw_covariance: 0.05 # radians
-pos_covariance: 0.20 # meters
+
+initial_yaw_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
+
+yaw_predict_covariance: 1e-3 # radians
+yaw_measurement_covariance: 0.1 # radians
+yaw_max_covariance: 0.10 # radians
+
+z_predict_covariance: 3e-3 # meters
+z_measurement_covariance: 0.30 # meters
+z_max_covariance: 0.30 # meters
+
+y_predict_covariance: 2e-3 # meters
+y_measurement_covariance: 0.20 # meters
+y_max_covariance: 0.20 # meters

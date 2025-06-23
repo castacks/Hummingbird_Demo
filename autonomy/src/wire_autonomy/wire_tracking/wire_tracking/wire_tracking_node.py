@@ -9,14 +9,18 @@ from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
+import yaml
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
+from ament_index_python.packages import get_package_share_directory
+
 from wire_interfaces.msg import WireDetections
 
+import wire_detection.wire_detection_utils as wdu
 import wire_tracking.coord_transforms as ct
 from wire_tracking.kalman_filters import PositionKalmanFilter, YawKalmanFilter
 
@@ -30,11 +34,8 @@ class WireTrackingNode(Node):
         self.set_params()
 
         self.position_kalman_filters = {}
-        self.vis_colors = {}
         self.yaw_kalman_filter = None
-        self.are_kfs_initialized = False
         self.max_kf_label = 0
-        self.line_length = None
         self.tracked_wire_id = None
         self.total_iterations = 0
 
@@ -48,24 +49,36 @@ class WireTrackingNode(Node):
         # Subscribers
         self.initialized = False
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
-        self.camera_pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.camera_pose_callback, 1)
 
-        self.wire_estimates_sub = Subscriber(self, WireDetections, '/wire_detections')
-        self.wire_estimates_sub = Subscriber(self, WireDetections, '/wire_detections')
+        if self.vizualize_wires:
+            self.rgb_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.r, 1)
 
-        # Publishers
+        self.pose_sub = Subscriber(self, Odometry, self.pose_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        self.wire_detection_sub = Subscriber(self, WireDetections, self.wire_detections_pub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+        if self.vizualize_wires:
+            self.rgb_sub = Subscriber(self, Image, self.rgb_image_sub_topic, qos_profile=rclpy.qos.qos_profile_sensor_data)
+            self.detection_pose_rgb_sync = ApproximateTimeSynchronizer(
+                [self.wire_detection_sub, self.pose_sub, self.rgb_sub],
+                queue_size=10,
+                slop=0.05
+            )
+            self.detection_pose_rgb_sync.registerCallback(self.pose_detection_rgb_callback)
+        else:
+            self.detection_pose_sync = ApproximateTimeSynchronizer(
+                [self.wire_detection_sub, self.pose_sub],
+                queue_size=10,
+                slop=0.05
+            )
+        self.detection_pose_sync.registerCallback(self.pose_detection_callback)
+
+        # Wire Publishers
+        self.wire_target_pub = self.create_publisher(PoseStamped, self.wire_target_pub_topic, 10)
+
+        # Visualization Publishers
         self.tracking_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 10)
         self.pose_viz_pub = self.create_publisher(PoseStamped, self.pose_viz_pub_topic, 10)
 
         self.get_logger().info("Wire Tracking Node initialized")
-
-    def camera_pose_callback(self, data):
-        if not self.initialized:
-            return
-        
-        # Update camera pose if needed
-        self.camera_pose = data.pose.pose
-        self.get_logger().info(f"Camera pose updated: {self.camera_pose.position.x}, {self.camera_pose.position.y}, {self.camera_pose.position.z}")
 
     def camera_info_callback(self, data):
         if self.initialized:
@@ -83,140 +96,148 @@ class WireTrackingNode(Node):
         self.get_logger().info("Wire Tracking Node initialized with camera info.")
         self.destroy_subscription(self.camera_info_sub)
 
-    def wire_estimates_callback(self, msg):
+    def local_to_global_yaw(self, image_yaw, H_wire_cam_pose):
+        """
+        Convert the local image yaw to a global yaw based on the pose of the camera in the world frame.
+        """
+        # Convert image yaw to radians
+       
+        
+        # Get the yaw from the pose in wire cam frame
+        cam_yaw_vector = np.array([np.cos(image_yaw), np.sin(image_yaw), 0.0]).reshape(-1, 1)
+        global_yaw_vector = H_wire_cam_pose[:3, :3] @ cam_yaw_vector
+        global_yaw = np.arctan2(global_yaw_vector[1], global_yaw_vector[0])
+        global_yaw = wdu.fold_angles_from_0_to_pi(global_yaw)
+        return global_yaw
+    
+    def pose_cam_pose_to_H_wire_cam(self, pose_cam_pose):
+        """
+        Convert the pose in the camera frame to a homogeneous transformation matrix in the wire cam frame.
+        """
+        # Convert the pose to a homogeneous transformation matrix
+        H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
+        # Transform to wire cam frame
+        H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
+        return H_wire_cam_to_world
+        
+    def pose_detection_callback(self, wire_detection_msg, pose_msg):
         if not self.initialized:
             return
         
-        global_midpoints = ct.image_to_world_pose(wire_midpoints, corresponding_depths, pose, self.camera_vector)
-
-        if self.are_kfs_initialized == False:
-            self.initialize_kfs(global_midpoints, global_yaw)
+        # deal with the wire angle if its in the detection message
+        if wire_detection_msg.avg_angle:
+            H_wire_cam_to_world = self.pose_cam_pose_to_H_wire_cam(pose_msg.pose)
+            global_yaw = self.local_to_global_yaw(wire_detection_msg.avg_angle, H_wire_cam_to_world)
+            if self.yaw_kalman_filter == None:
+                self.yaw_kalman_filter = YawKalmanFilter(global_yaw, self.wire_tracking_config)
+            else:
+                self.yaw_kalman_filter.update(global_yaw)
         else:
-            self.update_kfs(global_midpoints, global_yaw, pose)
+            if self.yaw_kalman_filter != None:
+                self.yaw_kalman_filter.predict()
 
-        # self.debug_kfs(detected_midpoints=wire_midpoints, depth_midpoints=corresponding_depths)=
+        if len(wire_detection_msg.wire_detections) > 0 and wire_detection_msg.avg_angle:
+            self.wire_detection_points = wire_detection_msg.wire_detections
+            midpoints_in_cam = np.array([
+                [wire_detection.midpoint.x, wire_detection.midpoint.y, wire_detection.midpoint.z]
+                for wire_detection in wire_detection_msg.wire_detections
+            ])
+            # Transform midpoints to world frame
+            yz_in_world = ct.points_in_cam_to_world(midpoints_in_cam, H_wire_cam_to_world)[:, 1:3]  # Get only y and z coordinates
+            if len(self.position_kalman_filters) == 0 or self.position_kalman_filters == {}:
+                for midpoint in yz_in_world:
+                    self.add_kf(midpoint)
+            else:
+                self.update_pos_kfs(yz_in_world)
+        else:
+            for kf in self.position_kalman_filters.values:
+                kf.predict()
+
+        self.total_iterations += 1
+
+        # self.debug_kfs()
+
         if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
-            min_distance = np.inf
+            min_depth = np.inf
             min_id = None
             for i, kf in self.position_kalman_filters.items():
-                if kf.valid_count >= self.valid_threshold:
-                    curr_pos = pose.position
-                    distance = ct.get_distance_between_3D_points(kf.curr_pos, np.array([curr_pos.x, curr_pos.y, curr_pos.z]))
-                    if distance < min_distance:
-                        min_distance = distance
+                if kf.valid_count >= self.min_valid_kf_count_threshold:
+                    depth = kf.curr_pos[2]
+                    if depth < min_depth:
+                        min_depth = depth
                         min_id = i
-            self.tracked_wire_id = min_id
+            self.tracked_wire_id = min_id     
 
-        if self.are_kfs_initialized:
-            debug_image = self.draw_kfs_viz(pose, wire_lines)
-        else:
-            debug_image = None        
-        self.total_iterations += 1
-        return debug_image
-    
-    def transform_pose_cam_to_wire_cam(self, pose_cam_pose):
-        # self.get_logger().info(f"Pose Cam Pose: {pose_cam_pose.position.x}, {pose_cam_pose.position.y}, {pose_cam_pose.position.z}")
-        H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
-        H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
-        # assert False, f"Pose to wire transform: {H_pose_cam_to_world}"
-        # H_wire_cam_to_world = H_pose_cam_to_world @ self.H_wire_cam_to_pose_cam
-        wire_cam_pose = ct.homogeneous_to_pose(H_wire_cam_to_world)
-        return wire_cam_pose
+        self.publish_wire_target()
 
-    def initialize_kfs(self, global_midpoints, global_yaw):
-        if not self.are_kfs_initialized:
-            # on initialization it if there are are wires that are too close together, it will merge them
-            consolidated_midpoints = []
-            for i in range(global_midpoints.shape[0]):
-                got_matched = False
-                mid = global_midpoints[i,:]
-                if len(consolidated_midpoints) == 0:
-                    consolidated_midpoints.append(mid)
-                    continue
-                else:
-                    for j, merged_mid in enumerate(consolidated_midpoints):
-                        distance = np.linalg.norm(mid - merged_mid, ord=2)
-                        if distance < self.distance_threshold:
-                            consolidated_midpoints[j] = (mid + merged_mid) / 2
-                            got_matched = True
-                            break
+    def pose_detection_rgb_callback(self, wire_detection_msg, pose_msg, rgb_msg):
+        if not self.initialized:
+            return
+        self.pose_detection_callback(wire_detection_msg, pose_msg)
 
-                if not got_matched:
-                    consolidated_midpoints.append(mid)
+        self.draw_kfs_viz
 
-            for mid in consolidated_midpoints:
-                self.add_kf(mid)
-
-            self.yaw_kalman_filter = YawKalmanFilter(global_yaw, yaw_covariance=self.yaw_covariance)
-            self.are_kfs_initialized = True
-            self.get_logger().info("Kalman Filters Initialized")
 
     def add_kf(self, midpoint):
         self.max_kf_label += 1
-        self.position_kalman_filters[self.max_kf_label] = PositionKalmanFilter(midpoint, pos_covariance=self.pos_covariance)
+        y0, z0 = midpoint[1], midpoint[2]
+        self.position_kalman_filters[self.max_kf_label] = PositionKalmanFilter(y0, z0, self.wire_tracking_config)
+        return self.max_kf_label
 
-    def debug_kfs(self, detected_midpoints = None, depth_midpoints = None, yaw=None, pose=None):
-        valid_counts = []
-        for i, kf in self.position_kalman_filters.items():
-            valid_counts.append(kf.valid_count)
-        if detected_midpoints is not None:
-            self.get_logger().info("Detected Midpoints: %s" % str(detected_midpoints))
-        if depth_midpoints is not None:
-            self.get_logger().info("Detected Depths: %s" % str(depth_midpoints))
-        if yaw is not None:
-            self.get_logger().info("Yaw: %s" % yaw)
-        if pose is not None:
-            self.get_logger().info("Pose: %s" % pose)
-        self.get_logger().info("Num KFs: %s" % len(self.position_kalman_filters))
-        self.get_logger().info("Valid Counts: %s" % str(valid_counts))
+    def debug_kfs(self):
+        if len(self.position_kalman_filters) > 0:
+            valid_counts = []
+            kf_midpoints = []
+            for i, kf in self.position_kalman_filters.items():
+                kf_midpoints.append(kf.curr_pos)
+                valid_counts.append(kf.valid_count)
 
-    def update_kfs(self, new_global_midpoints, global_yaw, pose):
+            self.get_logger().info("Detected Midpoints: %s" % str(kf_midpoints))
+            self.get_logger().info("valid_counts: %s" % str(valid_counts))
+            self.get_logger().info("Num KFs: %s" % len(self.position_kalman_filters))
+
+        if self.yaw_kalman_filter is not None:
+            yaw = self.yaw_kalman_filter.get_yaw()
+            self.get_logger().info("Wire global Yaw: %s" % yaw)
+
+    def update_pos_kfs(self, new_global_yz_midpoints):
+        assert len(new_global_yz_midpoints.shape) == 2, f"new_global_yz_midpoints should be 2D wtih a y and z value, got {new_global_yz_midpoints.shape}"
         matched_kf_ids = []
         new_midpoints = []
-        self.yaw_kalman_filter.update(global_yaw)
-        for midpoint in new_global_midpoints:
+        for midpoint in new_global_yz_midpoints:
             got_matched = False
             for kf_id, kf in self.position_kalman_filters.items():
-                closest_point = wd.find_closest_point_on_3d_line(midpoint, self.yaw_kalman_filter.get_yaw(), kf.curr_pos.flatten())
-                distance = np.linalg.norm(closest_point - kf.curr_pos.T)
+                distance = np.linalg.norm(kf.curr_pos - midpoint.T)
                 # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
-                if distance < self.distance_threshold:
+                if distance < self.wire_matching_min_threshold_m:
                     kf.update(midpoint)
                     matched_kf_ids.append(kf_id)
                     got_matched = True
                     break
-
             if not got_matched:
                 new_midpoints.append(midpoint)
 
         # Add new Kalman Filters for unmatched midpoints
         for midpoint in new_midpoints:
-            self.add_kf(midpoint)
+            matched_kf_ids.append(self.add_kf(midpoint))
 
         # Remove Kalman Filters that have not been updated for a while
-        kfs_to_remove = []
-        for kf_id, kf in self.position_kalman_filters.items():
+        for kf_id in list(self.position_kalman_filters.keys()):
             if kf_id not in matched_kf_ids:
-                kf_pos = (kf.curr_pos).T
-                x_img, y_img = ct.world_to_image_pose(kf_pos, pose, self.camera_vector)
-                if x_img > 0 and x_img < self.cx * 2 and y_img > 0 and y_img < self.cy * 2:
-                    kf.valid_count -= 1
+                kf = self.position_kalman_filters[kf_id]
+                kf.valid_count -= 1
+
                 if kf.valid_count < 0:
-                    kfs_to_remove.append(kf_id)
-        for kf_id in kfs_to_remove:
-            if kf_id == self.tracked_wire_id:
-                self.tracked_wire_id = None
-                self.get_logger().info("Tracked wire was removed")
-            self.position_kalman_filters.pop(kf_id)
-            self.vis_colors.pop(kf_id)
+                    if kf_id == self.tracked_wire_id:
+                        self.tracked_wire_id = None
+                        self.get_logger().info("Tracked wire was removed")
+                    self.position_kalman_filters.pop(kf_id)
 
-    def draw_kfs_viz(self, img, pose_in_world, wire_lines=None):
-
-        if wire_lines is not None:
-            green = (0, 255, 0)
-            for i in range(len(wire_lines)):
-                x0, y0, x1, y1 = wire_lines[i]
-                cv2.line(img, (x0, y0), (x1, y1), green, 1)
+    def draw_kfs_viz(self, img, wire_detections, pose_in_world):
+        green = (0, 255, 0)
+        for i in range(len(wire_lines)):
+            
+            cv2.line(img, (x0, y0), (x1, y1), green, 1)
 
         # assumes a up, right, forward world frame
         kf_yaw = self.yaw_kalman_filter.get_yaw()
@@ -255,7 +276,16 @@ class WireTrackingNode(Node):
             self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
             self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
             self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
+            self.declare_parameter('wire_detections_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
+        
+            # wire pub topics
+            self.declare_parameter('wire_target_pub_topic', rclpy.Parameter.Type.STRING)
+            self.wire_target_pub_topic = self.get_parameter('wire_target_pub_topic').get_parameter
 
+            # visulaization pub topics
+            self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
+            self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
             self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.wire_2d_viz_pub_topic = self.get_parameter('wire_2d_viz_pub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
@@ -264,18 +294,16 @@ class WireTrackingNode(Node):
             self.depth_pc_pub_topic = self.get_parameter('depth_pc_pub_topic').get_parameter_value().string_value
             self.declare_parameter('wire_3d_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.wire_3d_viz_pub_topic = self.get_parameter('wire_3d_viz_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('vizualize_wires', rclpy.Parameter.Type.BOOL)
+            self.vizualize_wires = self.get_parameter('vizualize_wires').get_parameter_value().bool_value
 
             # KF parameters
-            self.declare_parameter('max_distance_threshold', rclpy.Parameter.Type.DOUBLE)
-            self.distance_threshold = self.get_parameter('max_distance_threshold').get_parameter_value().double_value
-            self.declare_parameter('min_valid_kf_count_threshold', rclpy.Parameter.Type.INTEGER)
-            self.valid_threshold = self.get_parameter('min_valid_kf_count_threshold').get_parameter_value().integer_value
-            self.declare_parameter('iteration_start_threshold', rclpy.Parameter.Type.INTEGER)
-            self.target_start_threshold = self.get_parameter('iteration_start_threshold').get_parameter_value().integer_value
-            self.declare_parameter('yaw_covariance', rclpy.Parameter.Type.DOUBLE)
-            self.yaw_covariance = self.get_parameter('yaw_covariance').get_parameter_value().double_value
-            self.declare_parameter('pos_covariance', rclpy.Parameter.Type.DOUBLE)
-            self.pos_covariance = self.get_parameter('pos_covariance').get_parameter_value().double_value
+            with open(get_package_share_directory('wire_tracking') + '/config/wire_tracking_config.yaml', 'r') as file:
+                self.wire_tracking_config = yaml.safe_load(file)
+
+            self.wire_matching_min_threshold_m = self.wire_tracking_config['wire_matching_min_threshold_m']
+            self.min_valid_kf_count_threshold = self.wire_tracking_config['min_valid_kf_count_threshold']
+            self.iteration_start_threshold = self.wire_tracking_config['iteration_start_threshold']
 
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")

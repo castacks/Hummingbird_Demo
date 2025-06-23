@@ -11,6 +11,7 @@
     # internode publishers
     wire_detections_pub_topic: "/pincer/wire_detections"
     wire_target_pub_topic: "/pincer/wire_target"
+    velocity_pub_topic: "/mavros/setpoint_velocity/cmd_vel"
 
     # viz publishers
     wire_2d_viz_pub_topic: "/pincer/viz_detections_2d"

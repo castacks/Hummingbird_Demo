@@ -11,13 +11,14 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, ['launch/wire_tracking.launch.xml']),  # If you have a launch file
-        ('share/' + package_name + '/rviz', ['rviz/wire_tracking.rviz'])
+        ('share/' + package_name + '/rviz', ['rviz/wire_tracking.rviz']),
+        ('share/' + package_name + '/config', ['config/wire_tracking_config.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='Your Name',
     maintainer_email='your_email@example.com',
-    description='A visual servoing ROS 2 package',
+    description='Wire Tracking ROS 2 package',
     license='MIT',
     entry_points={
         'console_scripts': [
