@@ -133,6 +133,8 @@ services:
             - driver: nvidia # https://stackoverflow.com/a/70761193
               count: 1
               capabilities: [ gpu ]
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
     network_mode: host
     runtime: nvidia
     privileged: true

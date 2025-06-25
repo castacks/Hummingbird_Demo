@@ -63,8 +63,7 @@ def generate_launch_description():
             name='mavros_node',
             output='screen',
             parameters=[{
-                'fcu_url': '/dev/ttyUSB0:57600',  # Update if using a different port or baudrate
-                'gcs_url': 'udp://@',             # Optional — for forwarding MAVLink to GCS
+                'fcu_url': '/dev/ttyACM0:57600',  # Update if using a different port or baudrate
             }],
             condition=IfCondition(EnvironmentVariable('MAVROS'))
         ),
