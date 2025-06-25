@@ -86,102 +86,29 @@ class WireTrackingNode(Node):
         self.get_logger().info("Wire Tracking Node initialized with camera info.")
         self.destroy_subscription(self.camera_info_sub)
 
-    def local_to_global_yaw(self, image_yaw, H_wire_cam_pose):
+    def pose_callback(self, pose_msg):
         """
-        Convert the local image yaw to a global yaw based on the pose of the camera in the world frame.
+        Callback for the pose message. This is used to get the camera pose in the world frame.
         """
-        # Convert image yaw to radians
-       
-        
-        # Get the yaw from the pose in wire cam frame
-        cam_yaw_vector = np.array([np.cos(image_yaw), np.sin(image_yaw), 0.0]).reshape(-1, 1)
-        global_yaw_vector = H_wire_cam_pose[:3, :3] @ cam_yaw_vector
-        global_yaw = np.arctan2(global_yaw_vector[1], global_yaw_vector[0])
-        global_yaw = wdu.fold_angles_from_0_to_pi(global_yaw)
-        return global_yaw
-    
-    def pose_cam_pose_to_H_wire_cam(self, pose_cam_pose):
-        """
-        Convert the pose in the camera frame to a homogeneous transformation matrix in the wire cam frame.
-        """
-        # Convert the pose to a homogeneous transformation matrix
-        H_pose_cam_to_world = ct.pose_to_homogeneous(pose_cam_pose)
-        # Transform to wire cam frame
-        H_wire_cam_to_world = self.H_wire_cam_to_pose_cam @ H_pose_cam_to_world
-        return H_wire_cam_to_world
-        
-    def pose_detection_callback(self, pose_msg):
-
-        if self.previous_pose is None:
-            self.previous_pose = pose_msg.pose
-            return
-        
-        relative_pose = ct.relative_pose_transform(self.previous_pose, pose_msg.pose)
-
-
-    def pose_detection_callback(self, wire_detection_msg, pose_msg):
         if not self.initialized:
             return
+        if self.previous_downward_pose is None:
+            self.previous_downward_pose = pose_msg.pose
+            return
         
-        # deal with the wire angle if its in the detection message
-        if wire_detection_msg.avg_angle:
-            H_wire_cam_to_world = self.pose_cam_pose_to_H_wire_cam(pose_msg.pose)
-            global_yaw = self.local_to_global_yaw(wire_detection_msg.avg_angle, H_wire_cam_to_world)
-            if self.yaw_kalman_filter == None:
-                self.yaw_kalman_filter = YawKalmanFilter(global_yaw, self.wire_tracking_config)
-            else:
-                self.yaw_kalman_filter.update(global_yaw)
-        else:
-            if self.yaw_kalman_filter != None:
-                self.yaw_kalman_filter.predict()
+        relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose)
+        self.previous_downward_pose = pose_msg.pose
 
-        if len(wire_detection_msg.wire_detections) > 0 and wire_detection_msg.avg_angle:
-            self.wire_detection_points = wire_detection_msg.wire_detections
-            midpoints_in_cam = np.array([
-                [wire_detection.midpoint.x, wire_detection.midpoint.y, wire_detection.midpoint.z]
-                for wire_detection in wire_detection_msg.wire_detections
-            ])
-            # Transform midpoints to world frame
-            yz_in_world = ct.points_in_cam_to_world(midpoints_in_cam, H_wire_cam_to_world)[:, 1:3]  # Get only y and z coordinates
-            if len(self.position_kalman_filters) == 0 or self.position_kalman_filters == {}:
-                for midpoint in yz_in_world:
-                    self.add_kf(midpoint)
-            else:
-                self.update_pos_kfs(yz_in_world)
-        else:
-            for kf in self.position_kalman_filters.values:
-                kf.predict()
+        if self.yaw_kalman_filter is not None:
+            self.yaw_kalman_filter.predict(relative_pose_transform)
 
-        self.total_iterations += 1
+    def get_relative_transform_in_wire_cam(self, relative_pose_transform):
+        wire_translations = np.array([[relative_pose_transform[3, 1], relative_pose_transform[3, 0], -relative_pose_transform[3, 2]]]).T
+                                                                
 
-        # self.debug_kfs()
-
-        if self.tracked_wire_id is None and self.total_iterations > self.target_start_threshold:
-            min_depth = np.inf
-            min_id = None
-            for i, kf in self.position_kalman_filters.items():
-                if kf.valid_count >= self.min_valid_kf_count_threshold:
-                    depth = kf.curr_pos[2]
-                    if depth < min_depth:
-                        min_depth = depth
-                        min_id = i
-            self.tracked_wire_id = min_id     
+    def target_timer_callback(self):
 
         self.publish_wire_target()
-
-    def pose_detection_rgb_callback(self, wire_detection_msg, pose_msg, rgb_msg):
-        if not self.initialized:
-            return
-        self.pose_detection_callback(wire_detection_msg, pose_msg)
-
-        self.draw_kfs_viz
-
-
-    def add_kf(self, midpoint):
-        self.max_kf_label += 1
-        y0, z0 = midpoint[1], midpoint[2]
-        self.position_kalman_filters[self.max_kf_label] = PositionKalmanFilter(y0, z0, self.wire_tracking_config)
-        return self.max_kf_label
 
     def debug_kfs(self):
         if len(self.position_kalman_filters) > 0:
@@ -198,39 +125,6 @@ class WireTrackingNode(Node):
         if self.yaw_kalman_filter is not None:
             yaw = self.yaw_kalman_filter.get_yaw()
             self.get_logger().info("Wire global Yaw: %s" % yaw)
-
-    def update_pos_kfs(self, new_global_yz_midpoints):
-        assert len(new_global_yz_midpoints.shape) == 2, f"new_global_yz_midpoints should be 2D wtih a y and z value, got {new_global_yz_midpoints.shape}"
-        matched_kf_ids = []
-        new_midpoints = []
-        for midpoint in new_global_yz_midpoints:
-            got_matched = False
-            for kf_id, kf in self.position_kalman_filters.items():
-                distance = np.linalg.norm(kf.curr_pos - midpoint.T)
-                # if the closest point on the detected line is close enough to an existing Kalman Filter, update it
-                if distance < self.wire_matching_min_threshold_m:
-                    kf.update(midpoint)
-                    matched_kf_ids.append(kf_id)
-                    got_matched = True
-                    break
-            if not got_matched:
-                new_midpoints.append(midpoint)
-
-        # Add new Kalman Filters for unmatched midpoints
-        for midpoint in new_midpoints:
-            matched_kf_ids.append(self.add_kf(midpoint))
-
-        # Remove Kalman Filters that have not been updated for a while
-        for kf_id in list(self.position_kalman_filters.keys()):
-            if kf_id not in matched_kf_ids:
-                kf = self.position_kalman_filters[kf_id]
-                kf.valid_count -= 1
-
-                if kf.valid_count < 0:
-                    if kf_id == self.tracked_wire_id:
-                        self.tracked_wire_id = None
-                        self.get_logger().info("Tracked wire was removed")
-                    self.position_kalman_filters.pop(kf_id)
 
     def draw_kfs_viz(self, img, wire_detections, pose_in_world):
         green = (0, 255, 0)
@@ -300,7 +194,6 @@ class WireTrackingNode(Node):
             with open(get_package_share_directory('wire_tracking') + '/config/wire_tracking_config.yaml', 'r') as file:
                 self.wire_tracking_config = yaml.safe_load(file)
 
-            self.wire_matching_min_threshold_m = self.wire_tracking_config['wire_matching_min_threshold_m']
             self.min_valid_kf_count_threshold = self.wire_tracking_config['min_valid_kf_count_threshold']
             self.iteration_start_threshold = self.wire_tracking_config['iteration_start_threshold']
 

@@ -78,41 +78,6 @@ def points_in_cam_to_world(points_in_cam, H_cam_to_world):
     points_in_world = ((H_cam_to_world @ points_in_cam_homogeneous.T).T)[:,:3]
     
     return points_in_world
-    
-# def image_to_world_pose(image_points, depth, pose_in_world, camera_vector):
-#     ''' 
-#     Convert image points to world points using a pose
-    
-#     Parameters:
-#     image_points -- the image points in the image frame (Nx2)
-#     depth -- the depth of the image points (Nx1)
-#     pose_in_world -- the pose of the camera in the world frame
-    
-#     Returns:
-#     world_points -- the world points in the world frame (Nx3)
-#     '''
-#     assert len(image_points) == len(depth), "The number of image points must match the number of depth values"
-#     assert image_points.shape[1] == 2 and image_points.shape[0] == depth.shape[0], "Image points must be Nx2 and depth must be Nx1"
-#     camera_points_x, camera_points_y, camera_points_z = image_to_camera(image_points, depth.reshape(-1, 1), camera_vector)
-
-#     # transforming from camera convention to world convention
-#     camera_points_in_world_x = - camera_points_y
-#     camera_points_in_world_y = camera_points_x
-#     camera_points_in_world_z = camera_points_z
-
-#     # zed gives pose of camera going to world
-#     H_cam_to_world = pose_to_homogeneous(pose_in_world)
-#     H_world_to_cam = np.linalg.inv(H_cam_to_world)
-
-#     # Convert the point to a numpy array
-#     point_vec = np.vstack((camera_points_in_world_x, camera_points_in_world_y, camera_points_in_world_z, np.ones_like(camera_points_x))).T
-#     assert len(point_vec.shape) == 2, f"Point vector must be Nx4, got {point_vec.shape}"
-#     assert point_vec.shape[1] == 4 and point_vec.shape[0] == len(image_points), f"Point vector must be Nx4, got {point_vec.shape}"
-
-#     # Apply the transform: Rotate then translate
-#     world_points = ((H_world_to_cam @ point_vec.T).T)[:, :3]
-
-#     return world_points
 
 def world_to_image_pose(world_points, pose_in_world, camera_vector):
     '''
@@ -206,3 +171,24 @@ def get_distance_between_3D_points(point1, point2):
     # Calculate the Euclidean distance
     distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
     return distance
+
+def get_relative_transform(pose1, pose2):
+    """
+    Get the relative transformation from pose1 to pose2.
+    
+    Parameters:
+    pose1, pose2 -- the poses in the world frame
+
+    Returns:
+    relative_transform -- the relative transformation from pose1 to pose2
+    """
+    assert isinstance(pose1, Pose) and isinstance(pose2, Pose), "Both inputs must be Pose messages"
+    
+    # Convert poses to homogeneous matrices
+    H1 = pose_to_homogeneous(pose1)
+    H2 = pose_to_homogeneous(pose2)
+    
+    # Calculate the relative transformation
+    relative_transform = np.linalg.inv(H1) @ H2
+    
+    return relative_transform
