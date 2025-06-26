@@ -11,7 +11,7 @@ setup(
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, ['launch/visual_servo_launch.xml']),  # If you have a launch file
-        ('share/' + package_name, + '/config', ['config/visual_servo_config.yaml']),  # If you have a config file
+        ('share/' + package_name + '/config', ['config/visual_servo_config.yaml']),  # If you have a config file
         
     ],
     install_requires=['setuptools'],
