@@ -85,7 +85,7 @@ def generate_launch_description():
                 '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
                 '/wire_cam/zed_node/depth/depth_registered', 
                 '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
-                '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info']
+                '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
             output='log',
             condition=IfCondition(EnvironmentVariable('RECORD'))
         ),
