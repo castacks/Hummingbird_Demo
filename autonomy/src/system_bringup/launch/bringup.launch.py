@@ -79,7 +79,7 @@ def generate_launch_description():
 
         # Rosbag recording process
         ExecuteProcess(
-            cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60', '-a',
+            cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
                  '-o', ['/root/data_collection/', 'wire_tracking_', date],
                 '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color', 
                 '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
