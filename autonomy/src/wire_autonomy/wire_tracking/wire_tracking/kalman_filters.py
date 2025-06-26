@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-class PositionKalmanFilter:
+class PositionKalmanFilters:
     def __init__(self, wire_tracking_config, camera_intrinsics, image_size):
         """
         Initialize the Kalman Filter.
@@ -14,20 +14,23 @@ class PositionKalmanFilter:
         - x0: Initial state estimate.
         - P0: Initial estimate covariance.
         """
-        self.z_predict_cov = wire_tracking_config['z_predict_covariance']
-        self.z_measurement_cov = wire_tracking_config['z_measurement_covariance']
-        self.z_max_covariance = wire_tracking_config['z_max_covariance']
+        self.z_predict_cov = wire_tracking_config['z_predict_covariance'] ** 2  # Process noise covariance for z, multiplied by 2 for better tracking
+        self.z_measurement_cov = wire_tracking_config['z_measurement_covariance'] ** 2  # Process noise covariance for z, multiplied by 2 for better tracking
+        self.z_max_covariance = wire_tracking_config['z_max_covariance'] ** 2 # Maximum covariance for z, multiplied by 2 for better tracking
 
-        self.y_predict_cov = wire_tracking_config['y_predict_covariance']
-        self.y_measurement_cov = wire_tracking_config['y_measurement_covariance']
-        self.y_max_covariance = wire_tracking_config['y_max_covariance']
+        self.y_predict_cov = wire_tracking_config['y_predict_covariance'] ** 2  # Process noise covariance for y, multiplied by 2 for better tracking
+        self.y_measurement_cov = wire_tracking_config['y_measurement_covariance'] ** 2  # Measurement noise covariance for y, multiplied by 2 for better tracking
+        self.y_max_covariance = wire_tracking_config['y_max_covariance'] ** 2  # Maximum covariance for y, multiplied by 2 for better tracking
 
-        self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier']
+        self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier'] 
         self.wire_matching_min_threshold_m = wire_tracking_config['wire_matching_min_threshold_m']
         self.valid_count_buffer = wire_tracking_config['valid_count_buffer']  # Buffer for valid counts
+        self.min_valid_kf_count_threshold = wire_tracking_config['min_valid_kf_count_threshold']  # Minimum valid count threshold for Kalman filter points
 
         self.camera_intrinsics = camera_intrinsics  # Store camera intrinsics for future use
         self.image_size = image_size
+
+        self.initialized = False  # Flag to check if the Kalman filter is initialized
 
         self.kf_ids = np.array([]).reshape(0, 1)  # Store Kalman filter IDs for visualization
         self.kf_points = np.array([]).reshape(0, 2)  # Store distance perpendicular to wire angle, and height
@@ -85,9 +88,9 @@ class PositionKalmanFilter:
 
     def initialize_kfs(self, camera_points, wire_yaw):
         assert camera_points.shape[1] == 3, f"camera_points shape: {camera_points.shape}"  # Ensure points are in (x, y, z) format, N x 3
-
         dists = self.get_dists_from_xys(camera_points[:, :2], wire_yaw)
         self.add_kfs(dists.flatten(), camera_points[:, 2])  # Add Kalman filter points with distances and heights
+        self.initialized = True  # Set the initialized flag to True
 
     def predict(self, relative_H_transform, previous_wire_yaw, current_wire_yaw):
         """Predict the state and estimate covariance after a relative transformation."""
@@ -189,6 +192,24 @@ class PositionKalmanFilter:
         image_points = image_points[:, :2]  # Keep only (x, y)
         in_frame = image_points[:, 0] >= 0 and image_points[:, 0] < self.image_size[0] and image_points[:, 1] >= 0 and image_points[:, 1] < self.image_size[1]
         return in_frame
+    
+    def get_target_id(self):
+        """
+        Get the ID of the closest Kalman filter point.
+        
+        Returns:
+        - int: ID of the closest Kalman filter point.
+        """
+        if self.target_kf_id is not None and self.target_kf_id in self.kf_ids:
+            return self.target_kf_id
+        if self.kf_ids.size == 0:
+            return None
+        else:
+            closest_index = np.argmin(self.kf_points[:, 1])  # Find the index of the Kalman filter point with the minimum height
+            if self.valid_counts[closest_index] > self.valid_count_buffer
+            self.target_kf_id = self.kf_ids[closest_index, 0]
+            kf_point = self.get_xys_from_dists(self.kf_points[closest_index, 0], self.kf_points[closest_index, 1])
+        return self.target_kf_id
 
     def generate_viz_color(self, num_colors=1):
         """
@@ -209,7 +230,7 @@ class PositionKalmanFilter:
         return rgb_colors
     
 class DirectionKalmanFilter:
-    def __init__(self, direction0, wire_tracking_config):
+    def __init__(self, wire_tracking_config):
         """
         Initialize the Kalman Filter.
         
@@ -221,18 +242,28 @@ class DirectionKalmanFilter:
         - x0: Initial state estimate.
         - P0: Initial estimate covariance.
         """
-        assert isinstance(direction0, (list, np.ndarray)), "direction0 must be a list or numpy array"
-        assert len(direction0) == 3, "direction0 must have three elements (vx, vy, vz)"
         self.Q_val = wire_tracking_config['yaw_predict_covariance'] ** 2  # Process noise covariance
         self.R_val = wire_tracking_config['yaw_measurement_covariance'] ** 2  # Measurement noise covariance
         self.max_yaw_covariance = wire_tracking_config['max_yaw_covariance'] ** 2  # Maximum yaw covariance
         self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier']
 
-        self.R = np.eye(3) * self.R_val  # Measurement noise covariance matrixq
+        self.R = np.eye(3) * self.R_val  # Measurement noise covariance matrix
         self.Q = np.eye(3) * self.Q_val  # Process noise covariance matrix
 
-        self.curr_direction = np.array(direction0).reshape(-1, 1)  # Current direction vector
-        self.P = self.inital_cov_multiplier * self.R  # Initial estimate covariance
+        self.initialized = False  # Flag to check if the Kalman filter is initialized
+
+    def initialize(self, direction0):
+        """
+        Initialize the Kalman Filter with a new direction.
+        
+        Parameters:
+        - direction0: Initial direction vector as a list or numpy array.
+        """
+        assert isinstance(direction0, (list, np.ndarray)), "direction0 must be a list or numpy array"
+        assert len(direction0) == 3, "direction0 must have three elements (vx, vy, vz)"
+        self.curr_direction = np.array(direction0).reshape(-1, 1)
+        self.P = self.inital_cov_multiplier * self.R  # Reset the covariance matrix
+        self.initialized = True  # Set the initialized flag to True
 
     def predict(self, relative_rotation):
         """
@@ -244,6 +275,7 @@ class DirectionKalmanFilter:
         self.curr_direction /= np.linalg.norm(self.curr_direction)  # Normalize the direction vector
         assert self.curr_direction.shape == (3, 1), f"curr_direction shape: {self.curr_direction.shape}"
         self.P = relative_rotation @ self.P @ relative_rotation.T + self.Q
+        return self.get_yaw()  # Return the predicted yaw angle
 
     def update(self, measured_direction):
         """
@@ -270,7 +302,7 @@ class DirectionKalmanFilter:
     def get_yaw(self):
         return np.arctan2(self.curr_direction[1, 0], self.curr_direction[0, 0])
     
-    def get_direction_from_line_end_points(self, start, end):
+    def get_direction_from_line_end_points(self, start, end, reference_direction=None):
         """
         Get the direction vector from two line end points.
         
@@ -284,9 +316,23 @@ class DirectionKalmanFilter:
         assert start.shape == (3,) and end.shape == (3,), "start and end must be 3D points"
         direction = end - start
         direction = direction / np.linalg.norm(direction)
-        if self.curr_direction is not None and np.dot(direction, self.curr_direction) < 0:
+        
+        reference_direction = self.curr_direction if self.curr_direction is not None else reference_direction
+        if np.dot(direction, reference_direction) < 0:
             direction = -direction
+        
         return direction
+    
+    def get_direction(self):
+        """
+        Get the current direction vector.
+        
+        Returns:
+        - direction: np.array, normalized direction vector
+        """
+        if not self.initialized:
+            raise ValueError("Kalman filter is not initialized. Call initialize() first.")
+        return self.curr_direction.flatten()
 
 if __name__ == "__main__":
     # Example usage
@@ -307,7 +353,7 @@ if __name__ == "__main__":
     camera_intrinsics = np.array([[1000, 0, 320], [0, 1000, 240], [0, 0, 1]])  # Example camera intrinsics
     image_size = (640, 480)  # Example image size
     
-    kf = PositionKalmanFilter(wire_tracking_config, camera_intrinsics, image_size)
+    kf = PositionKalmanFilters(wire_tracking_config, camera_intrinsics, image_size)
     print("Kalman Filter initialized.")
     initial_cam_points = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     wire_yaw = np.pi / 4  # Example yaw angle

@@ -43,14 +43,14 @@ class DroneControlNode(Node):
         # Get parameters
         self.takeoff_wait_time = 10.
         self.takeoff_height = 5.
-        self.control_rate_hz_hz = 3.0 # hz
+        self.control_rate_hz = 3.0 # hz
 
         # MAVROS service clients
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
-        self.arming_client = self.create_client(CommandBool, 'interface/mavros/cmd/arming')
-        self.takeoff_client = self.create_client(CommandTOL, 'interface/mavros/cmd/takeoff')
+        self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
+        self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
 
-        self.control_publisher = self.create_publisher(PositionTarget, '/mavros/setpoint_raw/local', 10)
+        self.control_publisher = self.create_publisher(PositionTarget, '/mavros/setpoint_velocity/cmd_vel', 10)
 
         # Start mission
         self.set_guided_mode_and_takeoff()
