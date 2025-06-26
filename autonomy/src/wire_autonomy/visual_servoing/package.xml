@@ -15,10 +15,6 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>cv_bridge</depend>
-  <depend>torch</depend> 
-  <depend>torchvision</depend> 
-  <depend>airstack_msgs</depend>
-  
   <buildtool_depend>ament_python</buildtool_depend>
 
   <exec_depend>python3</exec_depend> <!-- Specify any runtime dependencies -->

@@ -84,13 +84,12 @@ class WireGraspingNode(Node):
         except Exception as e:
             self.get_logger().info(f"TF lookup failed: {e}")
             return
-        pose = ct.tf_to_pose(transform)
 
         debug_image = None
-        if self.received_camera_info and self.activate_wire_grasping and self.received_first_tf:
-            # transform pose cam pose to wire cam pose
-            debug_image = self.detect_lines_and_update(rgb, depth, pose)
-            self.ibvs_control(pose)
+        # if self.received_camera_info and self.activate_wire_grasping and self.received_first_tf:
+        #     # transform pose cam pose to wire cam pose
+        #     debug_image = self.detect_lines_and_update(rgb, depth, pose)
+        #     self.ibvs_control(pose)
 
         if debug_image is None:
             viz_pub_msg = self.bridge.cv2_to_imgmsg(rgb, "rgb8")
@@ -120,12 +119,8 @@ class WireGraspingNode(Node):
         vel_msg.twist.angular.z = v_yaw
         self.velocity_pub.publish(vel_msg)
 
-    def ibvs_control(self, pose):
-            x_w, y_w, z_w = self.position_kalman_filters[self.tracked_wire_id].curr_pos
-            x_c, y_c, z_c = ct.world_to_camera(np.array([[x_w, y_w, z_w]]), pose, self.camera_vector)
+    def ibvs_control(self, x, y, z, pose):
             image_yaw = self.get_image_angle_from_kfs(pose)
-
-            x, y = ct.world_to_image(np.array([[x_w, y_w, z_w]]), pose, self.camera_vector)
             if x > 0 and x < self.cx * 2 and y > 0 and y < self.cy * 2:
                 curr_z = pose.position.z
 
@@ -135,8 +130,8 @@ class WireGraspingNode(Node):
                 e = np.array([[e_u], [e_v]])
                 # Compute interaction matrix for translation only
                 L = np.array([
-                                [-self.fy/z_c, 0, y/z_c],
-                                [0, -self.fx/z_c, x/z_c]
+                                [-self.fy/z, 0, y/z],
+                                [0, -self.fx/z, x/z]
                             ])
                 # Compute the pseudo-inverse of the interaction matrix
                 L_inv = np.linalg.pinv(L)
@@ -148,7 +143,7 @@ class WireGraspingNode(Node):
 
                 z_stop = 0.85
                 z_offset = 1.25
-                delta_z = z_c - z_offset - curr_z
+                delta_z = z - z_offset - curr_z
                 vz = z_gain * delta_z
                 vz = min(vz, self.v_z_limit) # set the limit for the z velocity
 
