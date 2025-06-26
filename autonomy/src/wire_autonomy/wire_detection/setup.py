@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['launch/wire_detection.launch.xml']),  # If you have a launch file
         ('share/' + package_name + '/rviz', ['rviz/wire_detection.rviz']),
         ('share/' + package_name + '/config', ['config/wire_detection_config.yaml']),
-        ('share/' + package_name + '/utils', ['wire_detection_utils.py']),
+        ('share/' + package_name + '/utils', ['wire_detection/wire_detection_utils.py']),
 
     ],
     install_requires=['setuptools'],
