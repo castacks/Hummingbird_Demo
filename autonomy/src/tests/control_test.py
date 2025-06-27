@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from mavros_msgs.msg import PositionTarget, AttitudeTarget
 import time
@@ -50,7 +49,7 @@ class DroneControlNode(Node):
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
 
-        self.control_publisher = self.create_publisher(PositionTarget, '/mavros/setpoint_velocity/cmd_vel', 10)
+        self.control_publisher = self.create_publisher(PositionTarget, '/mavros/setpoint_raw/local', 10)
 
         # Start mission
         self.set_guided_mode_and_takeoff()
@@ -97,35 +96,15 @@ class DroneControlNode(Node):
 
     def start_publishing_control(self):
         self.get_logger().info("Starting control publishing...")
-        rate = self.create_rate(self.control_rate_hz)
-
-        x = 10.
-        y = 0.
-        z = self.takeoff_height
-        start_time = time.time()
-
-        yaw = 0.
-
         while rclpy.ok():
-            current_time = time.time() - start_time
+            msg = PositionTarget()
+            msg.coordinate_frame = PositionTarget.FRAME_BODY_NED
+            msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW = 1024
 
-            if self.do_plan:
-                x = self.x_plan.get_value_at_time(current_time)
-                y = self.y_plan.get_value_at_time(current_time)
-                print(x, y)
-            
-            elif self.setpoint_mode == POS_VEL_RAW:
-                print('POS_VEL_RAW')
-                msg = PositionTarget()
-                msg.coordinate_frame = PositionTarget.FRAME_BODY_NED
-                msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW_RATE
-                msg.position.x = x
-                msg.position.y = y
-                msg.position.z = z
-                msg.velocity.x = 1.0
-                msg.velocity.y = 0.
-                msg.velocity.z = 0.
-                msg.yaw = 0.0
+            msg.velocity.x = 1.0
+            msg.velocity.y = 0.
+            msg.velocity.z = 0.
+            msg.yaw_rate = 0.0
 
             self.control_publisher.publish(msg)
             time.sleep(1./self.control_rate_hz)

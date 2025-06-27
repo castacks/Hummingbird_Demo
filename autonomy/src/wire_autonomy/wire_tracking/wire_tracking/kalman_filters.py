@@ -78,6 +78,9 @@ class PositionKalmanFilters:
         - kf_id: ID of the Kalman filter point to remove.
         """
         idx = np.where(self.valid_counts < 0)
+        target_id_index = np.where(self.kf_ids == self.target_kf_id)[0]
+        if target_id_index.size > 0:
+            self.target_kf_id = None  # Reset target ID if it is stale
         if idx.size > 0:
             self.kf_ids = np.delete(self.kf_ids, idx, axis=0)
             self.kf_points = np.delete(self.kf_points, idx, axis=0)
@@ -202,14 +205,37 @@ class PositionKalmanFilters:
         """
         if self.target_kf_id is not None and self.target_kf_id in self.kf_ids:
             return self.target_kf_id
+        
         if self.kf_ids.size == 0:
             return None
+        
         else:
-            closest_index = np.argmin(self.kf_points[:, 1])  # Find the index of the Kalman filter point with the minimum height
-            if self.valid_counts[closest_index] > self.valid_count_buffer
-            self.target_kf_id = self.kf_ids[closest_index, 0]
-            kf_point = self.get_xys_from_dists(self.kf_points[closest_index, 0], self.kf_points[closest_index, 1])
+            valid_mask = self.valid_counts > self.valid_count_buffer
+            if not np.any(valid_mask):
+                return None
+            else:
+                valid_indices = np.where(valid_mask)[0]
+                valid_heights = self.kf_points[valid_indices, 1]
+                min_height_idx_within_valid = np.argmin(valid_heights)
+                closest_index = valid_indices[min_height_idx_within_valid]
+                self.target_kf_id = self.kf_ids[closest_index, 0]
         return self.target_kf_id
+    
+    def get_kf_by_id(self, kf_id):
+        """
+        Get the Kalman filter point by its ID.
+        
+        Parameters:
+        - kf_id: ID of the Kalman filter point to get.
+        
+        Returns:
+        - np.array: Kalman filter point in (distance, height) format.
+        """
+        if kf_id in self.kf_ids:
+            index = np.where(self.kf_ids == kf_id)[0][0]
+            return self.kf_points[index, :]
+        else:
+            raise ValueError(f"Kalman filter point with ID {kf_id} not found.")
 
     def generate_viz_color(self, num_colors=1):
         """

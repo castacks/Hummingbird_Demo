@@ -17,6 +17,8 @@ from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallb
 # For synchronized message filtering
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 
+from wire_interfaces.msg import WireTarget
+
 from ament_index_python.packages import get_package_share_directory
 
 # ignore future deprecated warnings
@@ -32,9 +34,12 @@ class WireGraspingNode(Node):
         self.activate_wire_grasping = False
         self.initialized = False
 
+        self.delta_theta = 0.1
+        self.desired_theta = 0.0
+        self.desired_rho = 0.0
+
         # Subscribers
-        self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1)
-        self.wire_target_sub = Subscriber(self, PoseStamped, self.wire_target_pub_topic)
+        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_pub_topic, self.input_callback, 1)
 
         # Visual Servoing timer
         visual_servo_callback_group = MutuallyExclusiveCallbackGroup()
@@ -46,7 +51,6 @@ class WireGraspingNode(Node):
 
         # Publishers
         self.velocity_pub = self.create_publisher(TwistStamped, self.velocity_pub_topic, 1)
-        self.tracking_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 10)
 
         self.get_logger().info("Wire Grasping Node initialized")
         
@@ -65,37 +69,6 @@ class WireGraspingNode(Node):
         self.initialized = True
         self.get_logger().info("Visual Servoing Node initialized with camera info.")
         self.destroy_subscription(self.camera_info_sub)
-
-    def input_callback(self, rgb_msg, depth_msg):
-        if self.line_length is None:
-            self.line_length = max(rgb_msg.width, rgb_msg.height) * 2
-        try:
-            # Convert the ROS image messages to OpenCV images
-            bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
-        except Exception as e:
-            rclpy.logerr("CvBridge Error: {0}".format(e))
-            return
-        
-        try:
-            transform = self.tf_buffer.lookup_transform(self.world_frame_id, self.camera_frame_id, rgb_msg.header.stamp).transform
-            self.received_first_tf = True
-        except Exception as e:
-            self.get_logger().info(f"TF lookup failed: {e}")
-            return
-
-        debug_image = None
-        # if self.received_camera_info and self.activate_wire_grasping and self.received_first_tf:
-        #     # transform pose cam pose to wire cam pose
-        #     debug_image = self.detect_lines_and_update(rgb, depth, pose)
-        #     self.ibvs_control(pose)
-
-        if debug_image is None:
-            viz_pub_msg = self.bridge.cv2_to_imgmsg(rgb, "rgb8")
-        else:
-            viz_pub_msg = self.bridge.cv2_to_imgmsg(debug_image, "rgb8")
-        self.tracking_viz_pub.publish(viz_pub_msg) 
         
     def activate_callback(self, request, response):
         if request.data:
@@ -119,7 +92,38 @@ class WireGraspingNode(Node):
         vel_msg.twist.angular.z = v_yaw
         self.velocity_pub.publish(vel_msg)
 
-    def ibvs_control(self, x, y, z, pose):
+    def ibvs_control_plucker(self, theta0, rho0, pitch, center_point):
+        if self.activate_wire_grasping:
+            theta1 = theta0 + self.delta_theta
+            theta2 = theta0 - self.delta_theta
+            x1, y1 = center_point[0] + rho0 * np.cos(theta1), center_point[1] + rho0 * np.sin(theta1)
+            x2, y2 = center_point[0] + rho0 * np.cos(theta2), center_point[1] + rho0 * np.sin(theta2)
+            z1 = center_point[2] + pitch * np.linalg.norm(center_point[:2] - np.array([x1, y1]))
+            z2 = center_point[2] + pitch * np.linalg.norm(center_point[:2] - np.array([x2, y2]))
+            rho1 = rho0 / (np.cos(theta1) * np.cose(theta0) + np.sin(theta1) * np.sin(theta0))
+            rho2 = rho0 / (np.cos(theta2) * np.cos(theta0) + np.sin(theta2) * np.sin(theta0))
+            z0 = center_point[2]
+            assert rho1 == rho2, "rho1 and rho2 should be equal, got {}, {}".format(rho1, rho2)
+            L_theta_vx = (1 / (2 * rho1)) * (np.cos(theta1) / z1 - np.cos(theta2) / z2) * np.cot(self.delta_theta) +  (1 / (2 * rho1)) * (np.sin(theta2) / z2 + np.sin(theta1) / z1)
+            L_theta_vy = (1 / (2 * rho1)) * (np.sin(theta1) / z1 - np.sin(theta2) / z2) * np.cot(self.delta_theta) +  (1 / (2 * rho1)) * (np.cos(theta2) / z2 + np.cos(theta1) / z1)
+            L = np.array([
+                [ - np.cos(theta0) / z0, - np.sin(theta0) / z0, rho0 / z0],
+                [L_theta_vx, L_theta_vy, 1 / (2 * z2) - 1 / (2 * z1)]
+            ])
+            error_theta = theta0 - self.desired_theta
+            error_rho = rho0 - self.desired_rho
+            e = np.array([[error_theta], [error_rho]])
+            L_inv = np.linalg.pinv(L)
+            v = - np.dot(L_inv, e)
+            vx, vy, _ = v.flatten()
+            vz = center_point[2] - self.z_wire_offset_from_camera_m
+            
+
+
+
+
+
+    def ibvs_control_point(self, x, y, z, pose):
             image_yaw = self.get_image_angle_from_kfs(pose)
             if x > 0 and x < self.cx * 2 and y > 0 and y < self.cy * 2:
                 curr_z = pose.position.z

@@ -48,7 +48,7 @@ class WireDetectorNode(Node):
         self.wire_detections_pub = self.create_publisher(WireDetections, self.wire_detections_pub_topic, 1)
 
         # Publishers
-        self.wire_2d_viz_pub = self.create_publisher(Image, self.wire_2d_viz_pub_topic, 1)
+        self.detection_2d_pub = self.create_publisher(Image, self.detections_2d_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
         self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
         self.wire_3d_viz_pub= self.create_publisher(Marker, self.wire_3d_viz_pub_topic, 1)
@@ -214,8 +214,8 @@ class WireDetectorNode(Node):
             self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
 
             # viz pub topics
-            self.declare_parameter('wire_2d_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.wire_2d_viz_pub_topic = self.get_parameter('wire_2d_viz_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('detections_2d_pub_topic', rclpy.Parameter.Type.STRING)
+            self.detections_2d_pub_topic = self.get_parameter('detections_2d_pub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
             self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
             self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)

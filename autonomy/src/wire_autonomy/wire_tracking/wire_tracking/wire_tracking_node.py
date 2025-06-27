@@ -18,7 +18,7 @@ from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 from ament_index_python.packages import get_package_share_directory
 
-from wire_interfaces.msg import WireDetections
+from wire_interfaces.msg import WireDetections, WireTarget
 
 import wire_detection.wire_detection_utils as wdu
 import wire_tracking.coord_transforms as ct
@@ -163,15 +163,32 @@ class WireTrackingNode(Node):
         self.total_iterations += 1
                                                                 
     def target_timer_callback(self):
-
-        if self.total_iterations > self.iteration_start_threshold:
+        if self.total_iterations < self.iteration_start_threshold:
+            return
+        
+        if self.tracked_wire_id is None:
+            self.tracked_wire_id = self.position_kalman_filters.get_target_id()
             if self.tracked_wire_id is None:
-                self.tracked_wire_id = self.position_kalman_filters.get_closest_wire()
-                if self.tracked_wire_id is None:
-                    self.get_logger().info("No wire detected, skipping target publish.")
-                    return
+                raise ValueError("No valid wire ID found for tracking.")
+        if self.tracked_wire_id not in self.position_kalman_filters.kf_ids:
+            raise ValueError("Tracked wire ID not found in Kalman filters.")
+        
+        if self.tracked_wire_id is not None and self.position_kalman_filters.initialized:
+            target_kf = self.position_kalman_filters.get_kf_by_id(self.tracked_wire_id)
+            target_theta, target_rho, target_pitch, target_xyz = self.transform_kf_id_to_2d_plucker(self.tracked_wire_id)
+            if target_kf is None:
+                self.get_logger().info("No valid Kalman filter found for tracked wire ID.")
+                return
+            
+            target_msg = WireTarget()
+            target_msg.target_angle = target_theta
+            target_msg.target_distance = target_rho
+            target_msg.target_pitch = target_pitch
+            target_msg.target_point.x = target_xyz[0]
+            target_msg.target_point.y = target_xyz[1]
+            target_msg.target_point.z = target_xyz[2]
 
-        self.publish_wire_target()
+            self.publish_wire_target()
 
     def debug_kfs(self):
         if len(self.position_kalman_filters) > 0:
@@ -196,7 +213,8 @@ class WireTrackingNode(Node):
         valid_colors = self.position_kalman_filters.kf_colors[valid_kfs_ids, :]
         wire_direction_estimate = self.direction_kalman_filter.get_direction()
         wire_yaw = self.direction_kalman_filter.get_yaw()
-        valid_xyz_points = self.position_kalman_filters.get_xys_from_dists(valid_points[:, 0], wire_direction_estimate)
+
+        valid_xyz_points = self.position_kalman_filters.get_xys_from_dists(valid_points[:, 0], wire_yaw)
         start_points = valid_xyz_points + 20 * wire_direction_estimate
         end_points = valid_xyz_points - 20 * wire_direction_estimate
         image_start_points = self.camera_matrix @ start_points.T
@@ -211,6 +229,32 @@ class WireTrackingNode(Node):
             if i == target_kf_ind:
                 cv2.circle(img, center, 10, (0, 255, 0), 2)
         return img
+    
+    def transform_kf_id_to_2d_plucker(self, kf_id):
+        kf_dh = self.position_kalman_filters.get_kf_by_id(kf_id)
+        if kf_dh is None:
+            self.get_logger().info(f"No Kalman filter found for ID {kf_id}.")
+            return None
+        
+        wire_direction = self.direction_kalman_filter.get_direction()
+        wire_yaw = self.direction_kalman_filter.get_yaw()
+        xy_point = self.position_kalman_filters.get_xys_from_dists(kf_dh.curr_pos[0], self.direction_kalman_filter.get_yaw())
+        kf_point = np.array([xy_point[0], xy_point[1], kf_dh[1]])        
+        start_point = kf_point + 20 * wire_direction
+        end_point = kf_point - 20 * wire_direction
+        start_point_2d = self.camera_matrix @ start_point.T
+        end_point_2d = self.camera_matrix @ end_point.T
+        kf_point_2d = self.camera_matrix @ kf_point.T
+
+        start_point_2d = (int(start_point_2d[0] / start_point_2d[2]), int(start_point_2d[1] / start_point_2d[2]))
+        end_point_2d = (int(end_point_2d[0] / end_point_2d[2]), int(end_point_2d[1] / end_point_2d[2]))
+        kf_point_2d = (int(kf_point_2d[0] / kf_point_2d[2]), int(kf_point_2d[1] / kf_point_2d[2]))
+        kf_point_2d[2] = kf_dh.curr_pos[1]  # z coordinate in world frame
+
+        pitch = np.arctan2(start_point[2] - end_point[2], np.linalg.norm(start_point_2d - end_point_2d))
+        theta = np.arctan2(start_point_2d[1] - end_point_2d[1], start_point_2d[0] - end_point_2d[0])
+        rho = np.linalg.norm((np.array(start_point_2d) + np.array(end_point_2d)) / 2.0)
+        return theta, rho, pitch, kf_point_2d
     
     def rgb_callback(self, rgb_msg):
         """

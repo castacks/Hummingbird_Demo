@@ -18,11 +18,11 @@
     pose_viz_pub_topic: "/pincer/viz_pose"
     depth_pc_pub_topic: "/pincer/depth_pc_viz"
 
-    detections_2d_pub_topic: "/pincer/viz_detections_2d"
-    detections_3d_pub_topic: "/pincer/viz_detections_3d"
+    detections_2d_pub_topic: "/pincer/detections_2d_viz"
+    detections_3d_pub_topic: "/pincer/detections_3d_viz"
 
-    tracking_2d_pub_topic: "/pincer/viz_tracking_2d"
-    tracking_3d_pub_topic: "/pincer/viz_tracking_3d"
+    tracking_2d_pub_topic: "/pincer/tracking_2d_viz"
+    tracking_3d_pub_topic: "/pincer/tracking_3d_viz"
 
     # general settings
     use_cpu: true
