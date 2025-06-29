@@ -1,26 +1,29 @@
 #!/usr/bin/env python
 
+import numpy as np
+import cv2
+import yaml
+import os
+import bisect
+
 import rclpy
 import rclpy.clock
 from rclpy.node import Node
-import numpy as np
-import cv2
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
+from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
-import yaml
+from std_msgs.msg import ColorRGBA
+from geometry_msgs.msg import Point
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
-# For synchronized message filtering
-from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 from ament_index_python.packages import get_package_share_directory
 
 from wire_interfaces.msg import WireDetections, WireTarget
 
-import wire_detection.wire_detection_utils as wdu
 import wire_tracking.coord_transforms as ct
 from wire_tracking.kalman_filters import PositionKalmanFilters, DirectionKalmanFilter
 
@@ -65,18 +68,20 @@ class WireTrackingNode(Node):
 
         pose_callback_group = ReentrantCallbackGroup()
         self.pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data, callback_group=pose_callback_group)
+        self.relative_transform_queue = []  # Queue to hold relative pose transforms
         self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_pub_topic, self.wire_detection_callback, 1, callback_group=pose_callback_group)
 
         if self.vizualize_wires:
             self.rgb_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.rgb_callback, rclpy.qos.qos_profile_sensor_data)
+            self.rgb_queue = []
 
         # Wire Publishers
         self.wire_target_pub = self.create_publisher(PoseStamped, self.wire_target_pub_topic, 10)
         self.wire_target_pub_timer = self.create_timer(1.0 / self.target_publish_frequency_hz, self.target_timer_callback)
 
         # Visualization Publishers
-        self.tracking_viz_pub = self.create_publisher(Image, self.wire_viz_pub_topic, 10)
-        self.pose_viz_pub = self.create_publisher(PoseStamped, self.pose_viz_pub_topic, 10)
+        self.tracking_2d_pub = self.create_publisher(Image, self.tracking_2d_pub_topic, 1)
+        self.tracking_3d_pub = self.create_publisher(Marker, self.tracking_3d_pub_topic, 1) 
 
         self.get_logger().info("Wire Tracking Node initialized")
 
@@ -110,13 +115,39 @@ class WireTrackingNode(Node):
         
         relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose)
         relative_wire_transform = self.get_relative_transform_in_wire_cam(relative_pose_transform)
+        stamp = pose_msg.header.stamp.sec + pose_msg.header.stamp.nanosec * 1e-9
+
+        # Add the relative pose transform to the queue
+        bisect.insort(self.relative_transform_queue, (stamp, relative_wire_transform))
         self.previous_downward_pose = pose_msg.pose
 
-        if self.direction_kalman_filter.initialized:
-            previous_yaw = self.direction_kalman_filter.get_yaw()
-            curr_yaw = self.direction_kalman_filter.predict(relative_pose_transform)
-        if self.position_kalman_filters.initialized:
-            self.position_kalman_filters.predict(relative_wire_transform, previous_yaw, curr_yaw)
+    def predict_kfs_up_to_current_pose(self, input_stamp):
+        """
+        Predict the Kalman filters up to the current pose timestamp.
+        """
+        if not self.initialized or not self.position_kalman_filters.initialized:
+            self.get_logger().info("Wire Tracking Node not initialized yet. Waiting for camera info.")
+            return
+        if len(self.relative_transform_queue) == 0:
+            self.get_logger().info("No relative pose transforms available. Waiting for pose updates.")
+            return
+        idx = bisect.bisect_right(self.relative_transform_queue, (input_stamp, None))
+
+        poses = self.relative_transform_queue[:idx]
+        if len(poses) == 0:
+            self.get_logger().info("No relative pose transforms available for prediction.")
+            return
+        
+        for stamp, relative_pose_transform in poses:
+            if self.direction_kalman_filter.initialized:
+                previous_yaw = self.direction_kalman_filter.get_yaw()
+                curr_yaw = self.direction_kalman_filter.predict(relative_pose_transform)
+            
+            if self.position_kalman_filters.initialized:
+                self.position_kalman_filters.predict(relative_pose_transform, previous_yaw, curr_yaw)
+
+        # clear the queue up to the current pose
+        self.relative_transform_queue = self.relative_transform_queue[idx:]
 
     def get_relative_transform_in_wire_cam(self, relative_pose_transform):
         """
@@ -130,6 +161,18 @@ class WireTrackingNode(Node):
         """
         Callback for the wire detections message. This is used to update the Kalman filters with the new wire detections.
         """
+        wire_detection_stamp = wire_detections_msg.header.stamp.sec + wire_detections_msg.header.stamp.nanosec * 1e-9
+        if not self.initialized or not self.position_kalman_filters.initialized
+            self.get_logger().info("Wire Tracking Node not initialized yet. Waiting for camera info.")
+            return
+        
+        if len(self.relative_transform_queue) == 0:
+            self.get_logger().info("No relative pose transforms available. Waiting for pose updates.")
+            return
+        
+        # Get the most recent relative pose transform
+        self.predict_kfs_up_to_current_pose(wire_detection_stamp)
+        
         if wire_detections_msg.avg_angle is None or wire_detections_msg.avg_angle == 0.0 or len(wire_detections_msg.wire_lines) == 0:
             self.get_logger().info("No wire detections received.")
             return
@@ -159,9 +202,24 @@ class WireTrackingNode(Node):
             self.direction_kalman_filter.update(wire_points_xyz, self.direction_kalman_filter.get_yaw())
         else:
             self.direction_kalman_filter.initialize(wire_points_xyz, self.direction_kalman_filter.get_yaw())
-
         self.total_iterations += 1
-                                                                
+
+        if self.wire_viz_2d:
+            # find closest rgb timestamp to the wire detection timestamp
+            rgb_index = bisect.bisect_right(self.rgb_queue, (wire_detection_stamp, None)) - 1
+            if rgb_index < len(self.rgb_queue):
+                rgb_stamp, rgb_image = self.rgb_queue[rgb_index]
+                # Draw the Kalman filters on the RGB image
+                img = self.draw_kfs_viz(rgb_image.copy(), wire_detections=wire_points_xyz)
+                img_msg = self.bridge.cv2_to_imgmsg(img, encoding='bgr8')
+                img_msg.header.stamp.sec = int(rgb_stamp)
+                img_msg.header.stamp.nanosec = int((rgb_stamp - int(rgb_stamp)) * 1e9)
+                self.tracking_2d_pub_topic.publish(img_msg)
+
+        if self.wire_viz_3d:
+            # Draw the Kalman filters on the 3D visualization
+            self.visualize_3d_wires()
+                                            
     def target_timer_callback(self):
         if self.total_iterations < self.iteration_start_threshold:
             return
@@ -206,15 +264,14 @@ class WireTrackingNode(Node):
             yaw = self.direction_kalman_filter.get_yaw()
             self.get_logger().info("Wire global Yaw: %s" % yaw)
 
-    def draw_kfs_viz(self, img):
+    def draw_kfs_viz(self, img, wire_detections=None):
         # assumes a up, right, forward world frame
         valid_kfs_ids = self.position_kalman_filters.valid_counts > self.min_valid_kf_count_threshold
-        valid_points = self.position_kalman_filters.kf_points[valid_kfs_ids, :]
         valid_colors = self.position_kalman_filters.kf_colors[valid_kfs_ids, :]
         wire_direction_estimate = self.direction_kalman_filter.get_direction()
         wire_yaw = self.direction_kalman_filter.get_yaw()
 
-        valid_xyz_points = self.position_kalman_filters.get_xys_from_dists(valid_points[:, 0], wire_yaw)
+        valid_xyz_points = self.position_kalman_filters.get_kf_xyzs(wire_yaw, inds=valid_kfs_ids)
         start_points = valid_xyz_points + 20 * wire_direction_estimate
         end_points = valid_xyz_points - 20 * wire_direction_estimate
         image_start_points = self.camera_matrix @ start_points.T
@@ -228,8 +285,56 @@ class WireTrackingNode(Node):
             cv2.circle(img, center, 5, color.tolist(), -1)
             if i == target_kf_ind:
                 cv2.circle(img, center, 10, (0, 255, 0), 2)
+
+        if wire_detections is not None:
+            for wire_detection in wire_detections.wire_detections:
+                start = (int(wire_detection.start.x), int(wire_detection.start.y))
+                end = (int(wire_detection.end.x), int(wire_detection.end.y))
+                image_start = self.camera_matrix @ np.array([start[0], start[1], start[2]]).T
+                image_end = self.camera_matrix @ np.array([end[0], end[1], end[2]]).T
+                start = (int(image_start[0] / image_start[2]), int(image_start[1] / image_start[2]))
+                end = (int(image_end[0] / image_end[2]), int(image_end[1] / image_end[2]))
+                cv2.line(img, start, end, (255, 0, 0), 2)
+
         return img
     
+    def visualize_3d_wires(self):
+        if self.position_kalman_filters and self.initialized:
+            # Publish wire visualization
+            marker = Marker()
+            marker.header.frame_id = "/map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "lines"
+            marker.id = 0
+            marker.type = Marker.LINE_LIST
+            marker.action = Marker.ADD
+            line_scale = 0.05
+            marker.scale.x = line_scale
+            marker.scale.y = line_scale
+            marker.scale.z = line_scale
+
+            kf_ids = self.position_kalman_filters.kf_ids
+            kf_xyzs = self.position_kalman_filters.get_kf_xyzs(self.direction_kalman_filter.get_yaw())
+            wire_direction = self.direction_kalman_filter.get_direction()
+            start_points = kf_xyzs + 20 * wire_direction
+            end_points = kf_xyzs - 20 * wire_direction
+            for i in range(len(kf_ids)):
+                start = start_points[i].astype(np.float32)
+                end = end_points[i].astype(np.float32)
+
+                # Create Point objects for the start and end points
+                p1 = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
+                p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
+                marker.points.append(p1)
+                marker.points.append(p2)
+
+                if kf_ids[i] == self.tracked_wire_id:
+                    marker.colors.append(ColorRGBA(r=0.0, g=0.0, b=1.0, a=1.0))
+                else:
+                    marker.colors.append(ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0))
+        
+            self.wire_3d_viz_pub.publish(marker)
+
     def transform_kf_id_to_2d_plucker(self, kf_id):
         kf_dh = self.position_kalman_filters.get_kf_by_id(kf_id)
         if kf_dh is None:
@@ -237,21 +342,21 @@ class WireTrackingNode(Node):
             return None
         
         wire_direction = self.direction_kalman_filter.get_direction()
-        wire_yaw = self.direction_kalman_filter.get_yaw()
-        xy_point = self.position_kalman_filters.get_xys_from_dists(kf_dh.curr_pos[0], self.direction_kalman_filter.get_yaw())
-        kf_point = np.array([xy_point[0], xy_point[1], kf_dh[1]])        
-        start_point = kf_point + 20 * wire_direction
-        end_point = kf_point - 20 * wire_direction
+        kf_xyzs = self.position_kalman_filters.get_kf_xyzs(self.direction_kalman_filter.get_yaw())     
+        start_point = kf_xyzs + 20 * wire_direction
+        end_point = kf_xyzs - 20 * wire_direction
         start_point_2d = self.camera_matrix @ start_point.T
         end_point_2d = self.camera_matrix @ end_point.T
-        kf_point_2d = self.camera_matrix @ kf_point.T
+        kf_point_2d = self.camera_matrix @ kf_xyzs.T
 
         start_point_2d = (int(start_point_2d[0] / start_point_2d[2]), int(start_point_2d[1] / start_point_2d[2]))
         end_point_2d = (int(end_point_2d[0] / end_point_2d[2]), int(end_point_2d[1] / end_point_2d[2]))
         kf_point_2d = (int(kf_point_2d[0] / kf_point_2d[2]), int(kf_point_2d[1] / kf_point_2d[2]))
         kf_point_2d[2] = kf_dh.curr_pos[1]  # z coordinate in world frame
 
+        # pitch is z change per pixel change in 2D
         pitch = np.arctan2(start_point[2] - end_point[2], np.linalg.norm(start_point_2d - end_point_2d))
+        # theta is in the image plane, from end to start
         theta = np.arctan2(start_point_2d[1] - end_point_2d[1], start_point_2d[0] - end_point_2d[0])
         rho = np.linalg.norm((np.array(start_point_2d) + np.array(end_point_2d)) / 2.0)
         return theta, rho, pitch, kf_point_2d
@@ -260,17 +365,15 @@ class WireTrackingNode(Node):
         """
         Callback for the RGB image. This is used to visualize the wire tracking.
         """
-        if not self.initialized:
+        if not self.initialized or not self.position_kalman_filters.initialized:
+            self.get_logger().info("Wire Tracking Node not initialized yet. Waiting for camera info.")
             return
         
-        bridge = CvBridge()
-        rgb = bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
-        
-        if self.position_kalman_filters.initialized:
-            rgb = self.draw_kfs_viz(rgb)
-        
-        viz_pub_msg = bridge.cv2_to_imgmsg(rgb, encoding='bgr8')
-        self.tracking_viz_pub.publish(viz_pub_msg)
+        if len(self.rgb_queue) >= 10:
+            self.rgb_queue.pop(0)
+        stamp = rgb_msg.header.stamp.sec + rgb_msg.header.stamp.nanosec * 1e-9
+        rgb = self.bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
+        self.rgb_queue.append(stamp, rgb)
         
     def set_params(self):
         try:
@@ -289,12 +392,16 @@ class WireTrackingNode(Node):
             # visulaization pub topics
             self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
             self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
+
             self.declare_parameter('tracking_2d_pub_topic', rclpy.Parameter.Type.STRING)
             self.tracking_2d_pub_topic = self.get_parameter('tracking_2d_pub_topic').get_parameter_value().string_value
             self.declare_parameter('tracking_3d_pub_topic', rclpy.Parameter.Type.STRING)
             self.tracking_3d_pub_topic = self.get_parameter('tracking_3d_pub_topic').get_parameter_value().string_value
-            self.declare_parameter('vizualize_wires', rclpy.Parameter.Type.BOOL)
-            self.vizualize_wires = self.get_parameter('vizualize_wires').get_parameter_value().bool_value
+
+            wire_viz = os.getenv('WIRE_VIZ', None).lower()
+            wire_mode = os.getenv('WIRE_MODE', None).lower().astype(int)
+            self.wire_viz_2d = wire_viz == 'true' and wire_mode == 2
+            self.wire_viz_3d = wire_viz == 'true'
 
             # KF parameters
             with open(get_package_share_directory('wire_tracking') + '/config/wire_tracking_config.yaml', 'r') as file:

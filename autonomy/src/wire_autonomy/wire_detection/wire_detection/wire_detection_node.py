@@ -3,15 +3,16 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 import cv2
+import os
+import time
+
 from std_msgs.msg import Header, ColorRGBA
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 from geometry_msgs.msg import Point
 import sensor_msgs_py.point_cloud2 as pc2
-from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-import time
 
 from wire_interfaces.msg import WireDetection, WireDetections
 
@@ -118,10 +119,16 @@ class WireDetectorNode(Node):
 
         # publish a point cloud for the wires
         self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")
-        if self.vizualize_wires:
+
+        # Publish the 3D visualizations if the wire visualization is enabled
+        if self.wire_viz_3d:
             self.visualize_3d_point_cloud(depth, rgb)
             self.visualize_3d_wires(fitted_lines)
+
+        # Publish the 3d visualizations if the wire visualization is enabled and wire tracking is not enabled
+        if self.wire_viz_2d:
             if fitted_lines is not None and len(fitted_lines) > 0:
+                rgb_masked = vu.draw_lines_on_image(rgb_masked.copy(), fitted_lines, self.camera_matrix, color=(0, 255, 0), thickness=2)
                 masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
                 self.wire_2d_viz_pub.publish(masked_msg)
             else:
@@ -226,8 +233,10 @@ class WireDetectorNode(Node):
             # general parameters 
             self.declare_parameter('use_cpu', rclpy.Parameter.Type.BOOL)
             self.use_cpu = self.get_parameter('use_cpu').get_parameter_value().bool_value
-            self.declare_parameter('vizualize_wires', rclpy.Parameter.Type.BOOL)
-            self.vizualize_wires = self.get_parameter('vizualize_wires').get_parameter_value().bool_value
+            wire_viz = os.getenv('WIRE_VIZ', None).lower()
+            wire_mode = os.getenv('WIRE_MODE', None).lower().astype(int)
+            self.wire_viz_2d = wire_viz == 'true' and wire_mode == 1
+            self.wire_viz_3d = wire_viz == 'true'
 
         except Exception as e:
             self.get_logger().info(f"Error in declare_parameters: {e}")

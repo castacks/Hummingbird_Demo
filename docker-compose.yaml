@@ -117,14 +117,13 @@ services:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - NDDS_QOS_PROFILE=/root/rti_sensor_qos_profile.xml
-      - DETECTION=${DETECTION}
-      - TRACKING=${TRACKING}
+      - WIRE_MODE=${WIRE_MODE}
+      - WIRE_VIZ=${WIRE_VIZ}
       - RECORD=${RECORD}
       - RVIZ=${RVIZ}
       - VO=${VO}
       - SERVO=${SERVO}
       - MAVROS=${MAVROS}
-      - VIZ_3D=${VIZ_3D}
     deploy:
       # let it use the GPU
       resources:

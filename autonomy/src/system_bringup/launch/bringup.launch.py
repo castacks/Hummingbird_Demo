@@ -10,46 +10,39 @@ from launch.conditions import IfCondition
 def generate_launch_description():
     # Get current date for rosbag naming
     date = str(os.popen('date +%Y-%m-%d_%H:%M:%S').read().strip())
+    # specify which RViz configuration to use based on WIRE_MODE
+    rviz_config_path = PythonExpression([
+            '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
+            FindPackageShare('wire_detection').find('wire_detection'), '/rviz/wire_detection.rviz"']),
     system_launch = LaunchDescription([
-        # Wire tracking node (launch if DETECTION is true)
+        # Wire tracking node (launch if WIRE_MODE is set to 2)
         Node(
             package='wire_tracking',
             executable='wire_tracking_node',
             name='wire_tracking_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('TRACKING')]))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('WIRE_MODE'), '" == "2"'])),
         ),
-        # Wire detection node (launch if WIRE_SYS is true and USE_TRACKING is false)
+        # Wire detection node (launch if WIRE_MODE is set to 1 or 2)
         Node(
             package='wire_detection',
             executable='wire_detection_node',
             name='wire_detection_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('DETECTION')]))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('WIRE_MODE'), '" == "1" or "', EnvironmentVariable('WIRE_MODE'), '" == "2"'])),
         ),
-        # Wire Tracking RViz (launch if RVIZ is true and USE_TRACKING is true)
+        # RViz Node (launch if RVIZ is true)
         Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             arguments=[
-                '-d', FindPackageShare('wire_tracking').find('wire_tracking') + '/rviz/wire_tracking.rviz',
+                '-d', rviz_config_path,
                 '--ros-args', '--log-level', 'WARN'
             ],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and ', EnvironmentVariable('TRACKING')]))
+            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ')]))
         ),
-        # Wire Detection RViz (launch if RVIZ is true and USE_TRACKING is false)
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            arguments=[
-                '-d', FindPackageShare('wire_detection').find('wire_detection') + '/rviz/wire_detection.rviz',
-                '--ros-args', '--log-level', 'WARN'
-            ],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ'), ' and not ', EnvironmentVariable('TRACKING'), ' and ', EnvironmentVariable('DETECTION')]))
-        ),
-
+        # Visual Servoing Node (launch if SERVO is true)
         Node(
             package='visual_servoing',
             executable='visual_servoing_node',
@@ -57,6 +50,7 @@ def generate_launch_description():
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
             condition=IfCondition(EnvironmentVariable('SERVO'))
         ),
+        # MAVROS Node (launch if MAVROS is set)
         Node(
             package='mavros',
             executable='mavros_node',
@@ -76,7 +70,6 @@ def generate_launch_description():
             parameters=[{'config_file': FindPackageShare('vins').find('vins') + '/config/zedx/zedx_stereo_config.yaml'}],
             condition=IfCondition(EnvironmentVariable('VO'))
         ),
-
         # Rosbag recording process
         ExecuteProcess(
             cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
@@ -89,7 +82,6 @@ def generate_launch_description():
             output='log',
             condition=IfCondition(EnvironmentVariable('RECORD'))
         ),
-
     ])
 
     return system_launch

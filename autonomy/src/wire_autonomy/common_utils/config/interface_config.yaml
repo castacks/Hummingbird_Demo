@@ -26,4 +26,3 @@
 
     # general settings
     use_cpu: true
-    vizualize_wires: true

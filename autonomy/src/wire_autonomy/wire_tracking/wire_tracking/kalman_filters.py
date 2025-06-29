@@ -50,7 +50,7 @@ class PositionKalmanFilters:
         self.max_kf_id = 0
         self.target_kf_id = None  # ID of the Kalman filter point to track
 
-    def add_kfs(self, dists0, zs0):
+    def add_kfs(self, dhs0):
         """
         Add multiple new Kalman filter points.
         
@@ -58,17 +58,16 @@ class PositionKalmanFilters:
         - dists0: Initial distance coordinates
         - z0: Initial z-coordinate.
         """
-        if np.isscalar(dists0):
-            dists0 = np.array([dists0])
-        if np.isscalar(zs0):
-            z0 = np.array([zs0])
+        if np.isscalar(dhs0):
+            dhs0 = np.array([dhs0])
+
         self.max_kf_id += 1
-        new_ids = np.arange(self.max_kf_id, self.max_kf_id + len(dists0)).reshape(-1, 1)
+        new_ids = np.arange(self.max_kf_id, self.max_kf_id + len(dhs0)).reshape(-1, 1)
         self.kf_ids = np.vstack((self.kf_ids, new_ids))
-        self.kf_points = np.vstack((self.kf_points, np.column_stack((dists0, zs0))))
-        self.kf_covariances = np.vstack((self.kf_covariances, np.tile(self.P_init, (len(dists0), 1, 1))))
-        self.kf_colors = np.vstack((self.kf_colors, self.generate_viz_color(len(dists0))))
-        self.valid_counts = np.vstack((self.valid_counts, np.full((len(dists0), 1), self.valid_count_buffer)))
+        self.kf_points = np.vstack((self.kf_points, dhs0))
+        self.kf_covariances = np.vstack((self.kf_covariances, np.tile(self.P_init, (len(dhs0), 1, 1))))
+        self.kf_colors = np.vstack((self.kf_colors, self.generate_viz_color(len(dhs0))))
+        self.valid_counts = np.vstack((self.valid_counts, np.full((len(dhs0), 1), self.valid_count_buffer)))
 
     def remove_stale_kfs(self):
         """
@@ -77,7 +76,7 @@ class PositionKalmanFilters:
         Parameters:
         - kf_id: ID of the Kalman filter point to remove.
         """
-        idx = np.where(self.valid_counts < 0)
+        idx = np.where(self.valid_counts < 0)[0]
         target_id_index = np.where(self.kf_ids == self.target_kf_id)[0]
         if target_id_index.size > 0:
             self.target_kf_id = None  # Reset target ID if it is stale
@@ -91,21 +90,18 @@ class PositionKalmanFilters:
 
     def initialize_kfs(self, camera_points, wire_yaw):
         assert camera_points.shape[1] == 3, f"camera_points shape: {camera_points.shape}"  # Ensure points are in (x, y, z) format, N x 3
-        dists = self.get_dists_from_xys(camera_points[:, :2], wire_yaw)
-        self.add_kfs(dists.flatten(), camera_points[:, 2])  # Add Kalman filter points with distances and heights
+        dhs = self.get_dh_from_xyzs(camera_points, wire_yaw)
+        self.add_kfs(dhs)  # Add Kalman filter points with distances and heights
         self.initialized = True  # Set the initialized flag to True
 
     def predict(self, relative_H_transform, previous_wire_yaw, current_wire_yaw):
         """Predict the state and estimate covariance after a relative transformation."""
         assert relative_H_transform.shape == (4, 4), f"relative_H_transform shape: {relative_H_transform.shape}"  # Ensure transformation matrix is 4x4
         # update the kalman points
-        xy_points = self.get_xys_from_dists(self.kf_points[:, 0], previous_wire_yaw)
-        xyz_points = np.hstack((xy_points, self.kf_points[:, 1].reshape(-1, 1)))
+        xyz_points = self.get_kf_xyzs(previous_wire_yaw)  # Get the Kalman filter points in (x, y, z) format
         transformed_points = np.dot(relative_H_transform[:3, :3], xyz_points.T).T + relative_H_transform[:3, 3]
         assert transformed_points.shape == (self.kf_points.shape[0], 3), f"transformed_points shape: {transformed_points.shape}"  # Ensure transformed points are in (x, y, z) format
-        new_kf_dists = self.get_dists_from_xys(transformed_points[:, :2], current_wire_yaw)
-        self.kf_points[:, 0] = new_kf_dists.flatten()
-        self.kf_points[:, 1] = transformed_points[:, 2]
+        self.kf_points = self.get_dh_from_xyzs(transformed_points, current_wire_yaw)
 
         # Update the covariance matrix for every Kalman filter point
         J = np.zeros((2, 2))
@@ -130,12 +126,11 @@ class PositionKalmanFilters:
         S = self.kf_covariances + self.R
         K = self.kf_covariances @ np.linalg.inv(S)
 
-        measured_dists = self.get_dists_from_xys(cam_points[:, :2], wire_yaw)
-        dh_measured = np.hstack((measured_dists, cam_points[:, 2].reshape(-1, 1)))  # Combine distances and heights
-        assert dh_measured.shape[1] == 2, f"dh_measured shape: {dh_measured.shape}"  # Ensure points are in (distance, height) format
+        dhs_measured = self.get_dh_from_xyzs(cam_points, wire_yaw)  # Convert camera points to (distance, height) format
+        assert dhs_measured.shape[1] == 2, f"dhs_measured shape: {dhs_measured.shape}"  # Ensure points are in (distance, height) format
 
-        comp_diffs = dh_measured[:, None, :] - self.kf_points[None, :, :] # gives a distance matrix of shape (N, M, 2) where N is the number of measured points and M is the number of Kalman filter points
-        assert comp_diffs.shape == (dh_measured.shape[0], self.kf_points.shape[0], 2), f"comp_diffs shape: {comp_diffs.shape}"  # Ensure differences are in (kf_points, cam_points, 2) format
+        comp_diffs = dhs_measured[:, None, :] - self.kf_points[None, :, :] # gives a distance matrix of shape (N, M, 2) where N is the number of measured points and M is the number of Kalman filter points
+        assert comp_diffs.shape == (dhs_measured.shape[0], self.kf_points.shape[0], 2), f"comp_diffs shape: {comp_diffs.shape}"  # Ensure differences are in (kf_points, cam_points, 2) format
 
         comp_dists = np.linalg.norm(comp_diffs, axis=2)  # Compute
         matched_points = comp_dists < self.wire_matching_min_threshold_m  # Check if the minimum distance is below the threshold
@@ -143,7 +138,7 @@ class PositionKalmanFilters:
         # Find Kalman filter points that were not matched, and decrement their valid counts
         unmatched_kfs = np.where(np.all(~matched_points, axis=0))[0]
         if unmatched_kfs.size > 0:
-            kfs_in_frame = self.check_kfs_inframe(self.kf_points[unmatched_kfs, :], wire_yaw)
+            kfs_in_frame = self.check_kfs_inframe(unmatched_kfs, wire_yaw)
             valid_unmatched_indices = unmatched_kfs[kfs_in_frame]  # Get indices of Kalman filter points that are not in the current frame
             self.valid_counts[valid_unmatched_indices] -= 1  # Decrement the valid count for these Kalman filter points
 
@@ -155,29 +150,34 @@ class PositionKalmanFilters:
                 matched_index = matched_index[0][0]  # Get the first matched index
                 assert np.isscalar(matched_index), f"matched_index should be a scalar, got {matched_index}"  # Ensure matched_index is a scalar
                 # update the Kalman filter point with the measurement
-                y = dh_measured[i, :] - self.kf_points[matched_index, :]
+                y = dhs_measured[i, :] - self.kf_points[matched_index, :]
                 self.kf_points[matched_index, :] += (K[matched_index, :] @ y.T).T
                 # Update the covariance matrix
                 self.kf_covariances[matched_index, :, :] = (np.eye(2) - K[matched_index, :]) @ self.kf_covariances[matched_index, :]
                 self.valid_counts[matched_index] += 1  # Increment the valid count for the Kalman filter point
             else: # if no matches add a new Kalman filter point
-                self.add_kfs(dh_measured[i, 0], dh_measured[i, 1])
+                self.add_kfs(dhs_measured[i, :])  # Add a new Kalman filter point with the measured distance and height
         
         # Remove stale Kalman filter points
         num_removed = self.remove_stale_kfs()
         if num_removed > 0:
             print(f"Removed {num_removed} stale Kalman filter points.")
                                                 
-    def get_dists_from_xys(self, xy_points, wire_yaw):
-        dists = xy_points[:, 0] * -np.sin(wire_yaw) + xy_points[:, 1] * np.cos(wire_yaw)
-        return dists.reshape(-1, 1)
+    def get_dh_from_xyzs(self, xyz_points, wire_yaw):
+        dists = xyz_points[:, 0] * -np.sin(wire_yaw) + xyz_points[:, 1] * np.cos(wire_yaw)
+        heights = xyz_points[:, 2]  # Height is the third coordinate
+        return np.column_stack((dists, heights))  # Combine distances and heights into a single array
     
-    def get_xys_from_dists(self, dists, wire_yaw):
-        x = dists * -np.sin(wire_yaw)
-        y = dists * np.cos(wire_yaw)
-        return np.column_stack((x, y))
+    def get_kf_xyzs(self, wire_yaw, inds=None):
+        if inds is None:
+            inds = np.arange(self.kf_points.shape[0])
+
+        x = self.kf_points[inds, 0] * -np.sin(wire_yaw)
+        y = self.kf_points[inds, 0] * np.cos(wire_yaw)
+        z = self.kf_points[inds, 1]  # Height is the second coordinate
+        return np.column_stack((x, y, z))  # Combine x, y, z into a single array
     
-    def check_kfs_inframe(self, kf_points, camera_yaw):
+    def check_kfs_inframe(self, kf_ids, camera_yaw):
         """
         Check if a Kalman filter point is in the current frame.
         
@@ -187,13 +187,17 @@ class PositionKalmanFilters:
         Returns:
         - bool: True if the Kalman filter point is in the current frame, False otherwise.
         """
-        xy_points = self.get_xys_from_dists(kf_points[:, 0], camera_yaw)
-        xyz_points = np.hstack((xy_points, kf_points[:, 1].reshape(-1, 1)))  # Combine distances and heights
+        xyz_points = self.get_kf_xyzs(camera_yaw, inds=kf_ids)
         image_points = np.dot(self.camera_intrinsics, xyz_points.T).T
         image_points /= image_points[:, 2][:, np.newaxis]  # Normalize by the third coordinate
         assert image_points.shape[1] == 3, f"image_points shape: {image_points.shape}"  # Ensure points are in (x, y, z)
         image_points = image_points[:, :2]  # Keep only (x, y)
-        in_frame = image_points[:, 0] >= 0 and image_points[:, 0] < self.image_size[0] and image_points[:, 1] >= 0 and image_points[:, 1] < self.image_size[1]
+        in_frame = (
+            (image_points[:, 0] >= 0) &
+            (image_points[:, 0] < self.image_size[0]) &
+            (image_points[:, 1] >= 0) &
+            (image_points[:, 1] < self.image_size[1])
+        )        
         return in_frame
     
     def get_target_id(self):
@@ -374,7 +378,9 @@ if __name__ == "__main__":
         'valid_count_buffer': 3,  # Buffer for valid counts
         'yaw_predict_covariance': 0.1,
         'yaw_measurement_covariance': 0.05,
-        'max_yaw_covariance': 0.5
+        'max_yaw_covariance': 0.5,
+        'initial_yaw_covariance_multiplier': 2.0,
+        'min_valid_kf_count_threshold': 2  # Minimum valid count threshold for Kal
     }
     camera_intrinsics = np.array([[1000, 0, 320], [0, 1000, 240], [0, 0, 1]])  # Example camera intrinsics
     image_size = (640, 480)  # Example image size
@@ -384,13 +390,13 @@ if __name__ == "__main__":
     initial_cam_points = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     wire_yaw = np.pi / 4  # Example yaw angle
     kf.initialize_kfs(initial_cam_points, wire_yaw)
-    print("Kalman Filters initialized with camera points and wire yaw.")
+    print("Initialized Kalman Filter points:", kf.kf_points)
     relative_H_transform = np.eye(4)  # Identity transformation for simplicity
     previous_wire_yaw = wire_yaw
     current_wire_yaw = wire_yaw # Example new
     kf.predict(relative_H_transform, previous_wire_yaw, current_wire_yaw)
-    print("Kalman Filters predicted state after transformation.")
+    print("Predicted Kalman Filter points:", kf.kf_points)
     measured_cam_points = np.array([[1.1, 2.1, 3.1], [4.1, 5.1, 6.1], [11.1, 12.1, 13.1]])
+    # measured_cam_points = np.array([[1.1, 2.1, 3.1], [4.1, 5.1, 6.1]])
     kf.update(measured_cam_points, current_wire_yaw)
-    print("Kalman Filters updated state with new measurements.")
-    print("Current Kalman Filter points:", kf.kf_points)
+    print("Uodated Kalman Filter points:", kf.kf_points)
