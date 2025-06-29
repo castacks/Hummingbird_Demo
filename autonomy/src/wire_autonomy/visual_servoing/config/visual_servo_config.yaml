@@ -1,10 +1,10 @@
 y_wire_offset_from_camera_m: 0.0
 z_wire_offset_from_camera_m: 0.0
 
-kp_y_value: 0.0
-kd_y_value: 0.0
-ki_y_value: 0.0
-v_y_limit: 0.0
+kp_xy_value: 0.0
+kd_xy_value: 0.0
+ki_xy_value: 0.0
+v_xy_limit: 0.0
 
 kp_z_value: 0.0
 kd_z_value: 0.0
