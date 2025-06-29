@@ -38,6 +38,15 @@ class WireGraspingNode(Node):
         self.desired_theta = 0.0
         self.desired_rho = 0.0
 
+        self.prev_ex = None
+        self.prev_ey = None
+        self.prev_ez = None
+        self.prev_error_theta = 0.0
+        self.integral_ex = 0.0
+        self.integral_ey = 0.0
+        self.integral_ez = 0.0
+        self.integral_error_theta = 0.0
+
         # Subscribers
         self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_pub_topic, self.input_callback, 1)
 
@@ -54,21 +63,6 @@ class WireGraspingNode(Node):
 
         self.get_logger().info("Wire Grasping Node initialized")
         
-    def camera_info_callback(self, data):
-        if self.initialized:
-            return
-        
-        self.fx = data.k[0]
-        self.fy = data.k[4]
-        self.cx = data.k[2]
-        self.cy = data.k[5]
-        self.camera_vector = np.array([self.fx, self.fy, self.cx, self.cy])
-        self.camera_matrix = np.array([[self.fx, 0, self.cx],
-                                    [0, self.fy, self.cy],
-                                    [0, 0, 1]])
-        self.initialized = True
-        self.get_logger().info("Visual Servoing Node initialized with camera info.")
-        self.destroy_subscription(self.camera_info_sub)
         
     def activate_callback(self, request, response):
         if request.data:
@@ -83,10 +77,11 @@ class WireGraspingNode(Node):
             self.get_logger().info("Wire grasping deactivated.")
         return response
         
-    def publish_velocity_ibvs(self, vy, vz, v_yaw):
+    def publish_velocity_ibvs(self, vx, vy, vz, v_yaw):
         vel_msg = TwistStamped()
         vel_msg.header.frame_id = "/drone"
         vel_msg.header.stamp = rclpy.clock.Clock().now().to_msg()
+        vel_msg.twist.linear.x = vx
         vel_msg.twist.linear.y = vy
         vel_msg.twist.linear.z = vz
         vel_msg.twist.angular.z = v_yaw
@@ -115,56 +110,36 @@ class WireGraspingNode(Node):
             e = np.array([[error_theta], [error_rho]])
             L_inv = np.linalg.pinv(L)
             v = - np.dot(L_inv, e)
-            vx, vy, _ = v.flatten()
-            vz = center_point[2] - self.z_wire_offset_from_camera_m
-            
+            ex, ey, _ = v.flatten()
+            ez = center_point[2] - self.z_wire_offset_from_camera_m
 
+            if self.prev_ex is None:
+                self.prev_ex = ex
+                self.prev_ey = ey
+                self.prev_ez = ez
+                self.integral_ex = 0.0
+                self.integral_ey = 0.0
+                self.integral_ez = 0.0
 
+            vx = self.kp_xy_value * ex + self.kd_xy_value * (ex - self.prev_ex) + self.ki_y_value * self.integral_ex
+            vy = self.kp_xy_value * ey + self.kd_xy_value * (ey - self.prev_ey) + self.ki_y_value * self.integral_ey
+            vz = self.kp_z_value * ez + self.kd_z_value * (ez - self.prev_ez) + self.ki_z_value * self.integral_ez
+            v_yaw = self.kp_yaw_value * error_theta + self.kd_yaw_value * (error_theta - self.prev_error_theta) + self.ki_yaw_value * self.integral_error_theta
 
+            self.prev_ex = ex
+            self.prev_ey = ey
+            self.prev_ez = ez
+            self.prev_error_theta = error_theta
+            self.integral_ex += ex
+            self.integral_ey += ey
+            self.integral_ez += ez
+            self.integral_error_theta += error_theta
 
-
-    def ibvs_control_point(self, x, y, z, pose):
-            image_yaw = self.get_image_angle_from_kfs(pose)
-            if x > 0 and x < self.cx * 2 and y > 0 and y < self.cy * 2:
-                curr_z = pose.position.z
-
-                # Compute error vector in image plane
-                e_u = self.cy - y
-                e_v = self.cx - x
-                e = np.array([[e_u], [e_v]])
-                # Compute interaction matrix for translation only
-                L = np.array([
-                                [-self.fy/z, 0, y/z],
-                                [0, -self.fx/z, x/z]
-                            ])
-                # Compute the pseudo-inverse of the interaction matrix
-                L_inv = np.linalg.pinv(L)
-
-                # lambda_gain = 1.0
-                y_gain = 0.6
-                z_gain = 1.75
-                yaw_gain = -0.25
-
-                z_stop = 0.85
-                z_offset = 1.25
-                delta_z = z - z_offset - curr_z
-                vz = z_gain * delta_z
-                vz = min(vz, self.v_z_limit) # set the limit for the z velocity
-
-                # prevents stability issues when the wire is too close to the camera
-                if delta_z < z_stop:
-                    y_gain = 0.2
-
-                v_c = - np.dot(L_inv, e)
-                vy, vx, _ = v_c.flatten()
-                vy = y_gain * vy
-
-                delta_angle = (image_yaw + np.pi) % (2 * np.pi) - np.pi
-                v_yaw = delta_angle * yaw_gain
-
-            else:
-                vx, vy, vz, v_yaw = 0.0, 0.0, 0.0, 0.0
-        
+            # Limit the velocities
+            vx = np.clip(vx, -self.v_xy_limit, self.v_xy_limit)
+            vy = np.clip(vy, -self.v_xy_limit, self.v_xy_limit)
+            vz = np.clip(vz, -self.v_z_limit, self.v_z_limit)
+            v_yaw = np.clip(v_yaw, -self.v_yaw_limit, self.v_yaw_limit)
             self.publish_velocity_ibvs(vy, vz, v_yaw)
         
     def set_params(self):
@@ -186,10 +161,10 @@ class WireGraspingNode(Node):
             self.y_wire_offset_from_camera_m = self.visual_servo_config['y_wire_offset_from_camera_m']
             self.z_wire_offset_from_camera_m = self.visual_servo_config['z_wire_offset_from_camera_m']
 
-            self.kp_y_value = self.visual_servo_config['kp_y_value']
-            self.kd_y_value = self.visual_servo_config['kd_y_value']
-            self.ki_y_value = self.visual_servo_config['ki_y_value']
-            self.v_y_limit = self.visual_servo_config['v_y_limit']
+            self.kp_xy_value = self.visual_servo_config['kp_xy_value']
+            self.kd_xy_value = self.visual_servo_config['kd_xy_value']
+            self.ki_xy_value = self.visual_servo_config['ki_xy_value']
+            self.v_xy_limit = self.visual_servo_config['v_xy_limit']
 
             self.kp_z_value = self.visual_servo_config['kp_z_value']
             self.kd_z_value = self.visual_servo_config['kd_z_value']
