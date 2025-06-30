@@ -14,8 +14,8 @@
     velocity_pub_topic: "/mavros/setpoint_velocity/cmd_vel"
 
     # viz publishers
-    depth_viz_pub_topic: "/pincer/viz_depth"
-    pose_viz_pub_topic: "/pincer/viz_pose"
+    depth_viz_pub_topic: "/pincer/depth_viz"
+    pose_viz_pub_topic: "/pincer/pose_viz"
     depth_pc_pub_topic: "/pincer/depth_pc_viz"
 
     detections_2d_pub_topic: "/pincer/detections_2d_viz"

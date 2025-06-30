@@ -48,7 +48,7 @@ class WireGraspingNode(Node):
         self.integral_error_theta = 0.0
 
         # Subscribers
-        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_pub_topic, self.input_callback, 1)
+        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_pub_topic, self.wire_target_callback, 1)
 
         # Visual Servoing timer
         visual_servo_callback_group = MutuallyExclusiveCallbackGroup()

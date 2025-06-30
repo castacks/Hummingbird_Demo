@@ -55,14 +55,16 @@ class PositionKalmanFilters:
         Add multiple new Kalman filter points.
         
         Parameters:
-        - dists0: Initial distance coordinates
-        - z0: Initial z-coordinate.
+        - dhs0: Initial distance and height points as a numpy array of shape (N, 2) or a scalar.
         """
-        if np.isscalar(dhs0):
-            dhs0 = np.array([dhs0])
+        if dhs0.ndim == 1 and dhs0.shape[0] == 2:
+            dhs0 = dhs0[np.newaxis, :]
+        elif dhs0.ndim != 2 or dhs0.shape[1] != 2:
+            raise ValueError(f"Invalid shape for dhs0: {dhs0.shape}, expected (N, 2)")
 
-        self.max_kf_id += 1
         new_ids = np.arange(self.max_kf_id, self.max_kf_id + len(dhs0)).reshape(-1, 1)
+        self.max_kf_id += len(dhs0)
+
         self.kf_ids = np.vstack((self.kf_ids, new_ids))
         self.kf_points = np.vstack((self.kf_points, dhs0))
         self.kf_covariances = np.vstack((self.kf_covariances, np.tile(self.P_init, (len(dhs0), 1, 1))))
@@ -162,7 +164,8 @@ class PositionKalmanFilters:
         num_removed = self.remove_stale_kfs()
         if num_removed > 0:
             print(f"Removed {num_removed} stale Kalman filter points.")
-                                                
+        assert self.kf_ids.shape[0] == self.kf_points.shape[0], f"kf_ids shape: {self.kf_ids.shape}, kf_points shape: {self.kf_points.shape}, kfs removed: {num_removed}"  # Ensure Kalman filter IDs and points are consistent in size
+                                  
     def get_dh_from_xyzs(self, xyz_points, wire_yaw):
         dists = xyz_points[:, 0] * -np.sin(wire_yaw) + xyz_points[:, 1] * np.cos(wire_yaw)
         heights = xyz_points[:, 2]  # Height is the third coordinate
@@ -171,11 +174,16 @@ class PositionKalmanFilters:
     def get_kf_xyzs(self, wire_yaw, inds=None):
         if inds is None:
             inds = np.arange(self.kf_points.shape[0])
-
+        if len(inds.shape) > 1:
+            inds = inds.flatten()
+        assert self.kf_points.shape[0] > 0, "No Kalman filter points available to convert to XYZs."
+        assert self.kf_points.shape[1] == 2, f"kf_points shape: {self.kf_points.shape}, expected (N, 2) for (distance, height)"
         x = self.kf_points[inds, 0] * -np.sin(wire_yaw)
         y = self.kf_points[inds, 0] * np.cos(wire_yaw)
         z = self.kf_points[inds, 1]  # Height is the second coordinate
-        return np.column_stack((x, y, z))  # Combine x, y, z into a single array
+        xyz_points = np.column_stack((x, y, z))  # Combine x, y, z into a single array
+        assert xyz_points.shape[1] == 3, f"xyz_points shape: {xyz_points.shape}, expected (N, 3) for (x, y, z)"
+        return xyz_points  # Combine x, y, z into a single array
     
     def check_kfs_inframe(self, kf_ids, camera_yaw):
         """
@@ -236,8 +244,9 @@ class PositionKalmanFilters:
         - np.array: Kalman filter point in (distance, height) format.
         """
         if kf_id in self.kf_ids:
-            index = np.where(self.kf_ids == kf_id)[0][0]
-            return self.kf_points[index, :]
+            index = np.where(self.kf_ids == kf_id)[0]
+            assert index.size == 1, f"Expected a single index for kf_id {kf_id}, got {index} for indices."
+            return self.kf_points[index, :].flatten(), index
         else:
             raise ValueError(f"Kalman filter point with ID {kf_id} not found.")
 
@@ -274,13 +283,14 @@ class DirectionKalmanFilter:
         """
         self.Q_val = wire_tracking_config['yaw_predict_covariance'] ** 2  # Process noise covariance
         self.R_val = wire_tracking_config['yaw_measurement_covariance'] ** 2  # Measurement noise covariance
-        self.max_yaw_covariance = wire_tracking_config['max_yaw_covariance'] ** 2  # Maximum yaw covariance
+        self.max_yaw_covariance = wire_tracking_config['yaw_max_covariance'] ** 2  # Maximum yaw covariance
         self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier']
 
         self.R = np.eye(3) * self.R_val  # Measurement noise covariance matrix
         self.Q = np.eye(3) * self.Q_val  # Process noise covariance matrix
 
         self.initialized = False  # Flag to check if the Kalman filter is initialized
+        self.curr_direction = None  # Current direction vector, initialized to None
 
     def initialize(self, direction0):
         """
@@ -339,18 +349,25 @@ class DirectionKalmanFilter:
         Parameters:
         - start: np.array, start point of the line
         - end: np.array, end point of the line
+        - reference_direction: np.array or None, optional reference for direction consistency
         
         Returns:
         - direction: np.array, normalized direction vector
         """
         assert start.shape == (3,) and end.shape == (3,), "start and end must be 3D points"
+        
         direction = end - start
         direction = direction / np.linalg.norm(direction)
-        
-        reference_direction = self.curr_direction if self.curr_direction is not None else reference_direction
-        if np.dot(direction, reference_direction) < 0:
-            direction = -direction
-        
+
+        # Use current direction if available
+        if self.curr_direction is not None:
+            if np.dot(direction, self.curr_direction) < 0:
+                direction = -direction
+        elif reference_direction is not None:
+            # If no current direction but a reference is provided
+            if np.dot(direction, reference_direction) < 0:
+                direction = -direction
+
         return direction
     
     def get_direction(self):
@@ -362,7 +379,9 @@ class DirectionKalmanFilter:
         """
         if not self.initialized:
             raise ValueError("Kalman filter is not initialized. Call initialize() first.")
-        return self.curr_direction.flatten()
+        direction = self.curr_direction.flatten()
+        assert direction.shape == (3,), f"curr_direction shape: {direction.shape}, expected (3,)"
+        return direction
 
 if __name__ == "__main__":
     # Example usage

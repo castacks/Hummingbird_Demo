@@ -19,6 +19,7 @@ find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/WireDetection.msg"
   "msg/WireDetections.msg"
+  "msg/WireTarget.msg"
   DEPENDENCIES std_msgs geometry_msgs builtin_interfaces)
 
 ament_export_dependencies(rosidl_default_runtime)

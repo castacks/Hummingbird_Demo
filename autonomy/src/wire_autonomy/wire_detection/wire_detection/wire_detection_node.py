@@ -49,10 +49,11 @@ class WireDetectorNode(Node):
         self.wire_detections_pub = self.create_publisher(WireDetections, self.wire_detections_pub_topic, 1)
 
         # Publishers
-        self.detection_2d_pub = self.create_publisher(Image, self.detections_2d_pub_topic, 1)
         self.depth_viz_pub = self.create_publisher(Image, self.depth_viz_pub_topic, 1)
         self.depth_pc_viz_pub = self.create_publisher(PointCloud2, self.depth_pc_pub_topic, 1)
-        self.wire_3d_viz_pub= self.create_publisher(Marker, self.wire_3d_viz_pub_topic, 1)
+
+        self.detection_2d_pub = self.create_publisher(Image, self.detections_2d_pub_topic, 1)
+        self.detections_3d_pub= self.create_publisher(Marker, self.detections_3d_pub_topic, 1)
 
     def camera_info_callback(self, data):
         if self.initialized:
@@ -87,9 +88,9 @@ class WireDetectorNode(Node):
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         start_time = time.perf_counter()
-        fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.vizualize_wires)
+        fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.wire_viz_3d)
         end_time = time.perf_counter()
-        self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
+        # self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
 
         # Create WireDetections message
         wire_detections_msg = WireDetections()
@@ -101,7 +102,7 @@ class WireDetectorNode(Node):
             wire_detections_msg.avg_angle = float('nan')
 
         if fitted_lines is not None and len(fitted_lines) > 0:
-            for line, inlier_count, roi_pc in zip(fitted_lines, line_inlier_counts, roi_pcs):
+            for line in fitted_lines:
                 wire_estimate = WireDetection()
                 wire_estimate.start.x = float(line[0][0])
                 wire_estimate.start.y = float(line[0][1])
@@ -112,8 +113,10 @@ class WireDetectorNode(Node):
                 wire_estimate.midpoint.x = float((line[0][0] + line[1][0]) / 2)
                 wire_estimate.midpoint.y = float((line[0][1] + line[1][1]) / 2)
                 wire_estimate.midpoint.z = float((line[0][2] + line[1][2]) / 2)
-                wire_estimate.scalar_covariance = float(inlier_count) / len(roi_pc)
+                wire_estimate.scalar_covariance = 0.0
                 wire_detections_msg.wire_detections.append(wire_estimate)
+        else:
+            wire_detections_msg.wire_detections = []
 
         self.wire_detections_pub.publish(wire_detections_msg)
 
@@ -130,10 +133,10 @@ class WireDetectorNode(Node):
             if fitted_lines is not None and len(fitted_lines) > 0:
                 rgb_masked = vu.draw_lines_on_image(rgb_masked.copy(), fitted_lines, self.camera_matrix, color=(0, 255, 0), thickness=2)
                 masked_msg = self.bridge.cv2_to_imgmsg(rgb_masked, encoding='rgb8')
-                self.wire_2d_viz_pub.publish(masked_msg)
+                self.detection_2d_pub.publish(masked_msg)
             else:
                 rgb_msg = self.bridge.cv2_to_imgmsg(rgb, encoding='rgb8')
-                self.wire_2d_viz_pub.publish(rgb_msg)  # Publish original image if no wires detected
+                self.detection_2d_pub.publish(rgb_msg)  # Publish original image if no wires detected
 
             depth_viz = vu.create_depth_viz(depth, self.wire_detector.min_depth_clip, self.wire_detector.max_depth_clip)
             depth_viz_msg = self.bridge.cv2_to_imgmsg(depth_viz, encoding='bgr8')
@@ -175,7 +178,7 @@ class WireDetectorNode(Node):
             self.depth_pc_viz_pub.publish(pc_msg)
 
     def visualize_3d_wires(self, fitted_lines):
-        if self.vizualize_wires and self.initialized:
+        if self.wire_viz_3d and self.initialized:
             # Publish wire visualization
             marker = Marker()
             marker.header.frame_id = "/map"
@@ -194,7 +197,7 @@ class WireDetectorNode(Node):
 
             # Add points (each pair forms a line segment)
             if fitted_lines is None or len(fitted_lines) == 0:
-                self.wire_3d_viz_pub.publish(marker)
+                self.detections_3d_pub.publish(marker)
             else:
                 for start, end in fitted_lines:
                     start = start.astype(np.float32)
@@ -204,42 +207,38 @@ class WireDetectorNode(Node):
                     p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
                     marker.points.append(p1)
                     marker.points.append(p2)
-                    self.wire_3d_viz_pub.publish(marker)
+                    self.detections_3d_pub.publish(marker)
         
     def set_params(self):
-        try:
-            # sub topics
-            self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
-            self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
-            self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
-            self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
-            self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
-            self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
+        # sub topics
+        self.declare_parameter('camera_info_sub_topic', rclpy.Parameter.Type.STRING)
+        self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
+        self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
+        self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
+        self.declare_parameter('depth_image_sub_topic', rclpy.Parameter.Type.STRING)
+        self.depth_image_sub_topic = self.get_parameter('depth_image_sub_topic').get_parameter_value().string_value
 
-            # wire pub topics
-            self.declare_parameter('wire_detections_pub_topic', rclpy.Parameter.Type.STRING)
-            self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
+        # wire pub topics
+        self.declare_parameter('wire_detections_pub_topic', rclpy.Parameter.Type.STRING)
+        self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
 
-            # viz pub topics
-            self.declare_parameter('detections_2d_pub_topic', rclpy.Parameter.Type.STRING)
-            self.detections_2d_pub_topic = self.get_parameter('detections_2d_pub_topic').get_parameter_value().string_value
-            self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
-            self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)
-            self.depth_pc_pub_topic = self.get_parameter('depth_pc_pub_topic').get_parameter_value().string_value
-            self.declare_parameter('wire_3d_viz_pub_topic', rclpy.Parameter.Type.STRING)
-            self.wire_3d_viz_pub_topic = self.get_parameter('wire_3d_viz_pub_topic').get_parameter_value().string_value
+        # viz pub topics
+        self.declare_parameter('detections_2d_pub_topic', rclpy.Parameter.Type.STRING)
+        self.detections_2d_pub_topic = self.get_parameter('detections_2d_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('depth_viz_pub_topic', rclpy.Parameter.Type.STRING)
+        self.depth_viz_pub_topic = self.get_parameter('depth_viz_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('depth_pc_pub_topic', rclpy.Parameter.Type.STRING)
+        self.depth_pc_pub_topic = self.get_parameter('depth_pc_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('detections_3d_pub_topic', rclpy.Parameter.Type.STRING)
+        self.detections_3d_pub_topic = self.get_parameter('detections_3d_pub_topic').get_parameter_value().string_value
 
-            # general parameters 
-            self.declare_parameter('use_cpu', rclpy.Parameter.Type.BOOL)
-            self.use_cpu = self.get_parameter('use_cpu').get_parameter_value().bool_value
-            wire_viz = os.getenv('WIRE_VIZ', None).lower()
-            wire_mode = os.getenv('WIRE_MODE', None).lower().astype(int)
-            self.wire_viz_2d = wire_viz == 'true' and wire_mode == 1
-            self.wire_viz_3d = wire_viz == 'true'
-
-        except Exception as e:
-            self.get_logger().info(f"Error in declare_parameters: {e}")
+        # general parameters 
+        self.declare_parameter('use_cpu', rclpy.Parameter.Type.BOOL)
+        self.use_cpu = self.get_parameter('use_cpu').get_parameter_value().bool_value
+        wire_viz = bool(os.getenv('WIRE_VIZ', None).lower())
+        wire_mode = int(os.getenv('WIRE_MODE', None).lower())
+        self.wire_viz_2d = wire_viz and wire_mode == 1
+        self.wire_viz_3d = wire_viz 
     
 def main():
     rclpy.init()
