@@ -36,6 +36,7 @@ class WireTrackingNode(Node):
         super().__init__('wire_tracking_node')
         self.position_kalman_filters = None
         self.direction_kalman_filter = None
+        self.previous_downward_pose = None
         self.set_params()
 
         self.bridge = CvBridge()
@@ -66,7 +67,8 @@ class WireTrackingNode(Node):
 
         pose_callback_group = ReentrantCallbackGroup()
         self.pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data, callback_group=pose_callback_group)
-        self.relative_transform_queue = []  # Queue to hold relative pose transforms
+        self.relative_transform_timestamps = []  # Queue to hold relative pose transforms
+        self.relative_transforms = []  # Queue to hold relative pose transforms
         self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_pub_topic, self.wire_detection_callback, 1, callback_group=pose_callback_group)
 
         if self.wire_viz_2d:
@@ -109,16 +111,18 @@ class WireTrackingNode(Node):
         if not self.initialized:
             return
         if self.previous_downward_pose is None:
-            self.previous_downward_pose = pose_msg.pose
+            self.previous_downward_pose = pose_msg.pose.pose
             return
         
-        relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose)
-        relative_wire_transform = self.get_relative_transform_in_wire_cam(relative_pose_transform)
-        stamp = pose_msg.header.stamp.sec + pose_msg.header.stamp.nanosec * 1e-9
+        # relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose.pose)
+        # relative_wire_transform = self.get_relative_transform_in_wire_cam(relative_pose_transform)
+        # stamp = pose_msg.header.stamp.sec + pose_msg.header.stamp.nanosec * 1e-9
 
         # Add the relative pose transform to the queue
-        bisect.insort(self.relative_transform_queue, (stamp, relative_wire_transform))
-        self.previous_downward_pose = pose_msg.pose
+        # bisect.insort(self.relative_transform_timestamps, stamp)
+        # index = self.relative_transform_timestamps.index(stamp)
+        # self.relative_transforms.insert(index, relative_wire_transform)
+        self.previous_downward_pose = pose_msg.pose.pose
 
     def predict_kfs_up_to_current_pose(self, input_stamp):
         """
@@ -127,26 +131,26 @@ class WireTrackingNode(Node):
         if not self.initialized or not self.position_kalman_filters.initialized:
             self.get_logger().info("Wire Tracking Node not initialized yet. Waiting for camera info.")
             return
-        if len(self.relative_transform_queue) == 0:
+        if len(self.relative_transform_timestamps) == 0:
             self.get_logger().info("No relative pose transforms available. Waiting for pose updates.")
             return
-        idx = bisect.bisect_right(self.relative_transform_queue, (input_stamp, None))
+        idx = bisect.bisect_right(self.relative_transform_timestamps, input_stamp) - 1
 
-        poses = self.relative_transform_queue[:idx]
+        poses = self.relative_transforms[:idx]
         if len(poses) == 0:
             self.get_logger().info("No relative pose transforms available for prediction.")
             return
         
-        for stamp, relative_pose_transform in poses:
+        for relative_pose_transform in poses:
             if self.direction_kalman_filter.initialized:
                 previous_yaw = self.direction_kalman_filter.get_yaw()
-                curr_yaw = self.direction_kalman_filter.predict(relative_pose_transform)
+                curr_yaw = self.direction_kalman_filter.predict(relative_pose_transform[:3, :3])
             
             if self.position_kalman_filters.initialized:
                 self.position_kalman_filters.predict(relative_pose_transform, previous_yaw, curr_yaw)
 
         # clear the queue up to the current pose
-        self.relative_transform_queue = self.relative_transform_queue[idx:]
+        self.relative_transforms = self.relative_transforms[idx:]
 
     def get_relative_transform_in_wire_cam(self, relative_pose_transform):
         """
@@ -154,6 +158,7 @@ class WireTrackingNode(Node):
         """
         relative_pose_transform = np.array(relative_pose_transform).reshape(4, 4)
         relative_pose_transform_wire_cam = self.H_pose_to_wire @ relative_pose_transform @ self.H_wire_to_pose
+        relative_pose_transform_wire_cam = np.linalg.inv(relative_pose_transform_wire_cam)  # Invert to get the pose from wire cam to world frame
         return relative_pose_transform_wire_cam
         
     def wire_detection_callback(self, wire_detections_msg):
@@ -165,7 +170,7 @@ class WireTrackingNode(Node):
             return
         
         wire_detection_stamp = wire_detections_msg.header.stamp.sec + wire_detections_msg.header.stamp.nanosec * 1e-9
-        if len(self.relative_transform_queue) != 0:
+        if len(self.relative_transforms) != 0:
             # Update the Kalman filters with the poses up to the current wire detection timestamp
             self.predict_kfs_up_to_current_pose(wire_detection_stamp)
         

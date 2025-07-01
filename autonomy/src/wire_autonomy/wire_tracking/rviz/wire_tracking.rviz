@@ -25,7 +25,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Depth Point Cloud
 Visualization Manager:
   Class: ""
   Displays:
@@ -87,7 +87,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /pose_cam/visual_odometry_img
+        Value: /vins/image_track
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: true
@@ -127,7 +127,7 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: ""
+      Color Transformer: RGB8
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -136,7 +136,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: Depth Point Cloud
-      Position Transformer: ""
+      Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
@@ -155,7 +155,7 @@ Visualization Manager:
       Enabled: true
       Name: Detection Lines
       Namespaces:
-        {}
+        lines: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -168,7 +168,7 @@ Visualization Manager:
       Enabled: true
       Name: Tracking Lines
       Namespaces:
-        {}
+        lines: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
