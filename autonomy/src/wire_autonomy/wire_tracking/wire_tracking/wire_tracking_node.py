@@ -114,14 +114,14 @@ class WireTrackingNode(Node):
             self.previous_downward_pose = pose_msg.pose.pose
             return
         
-        # relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose.pose)
-        # relative_wire_transform = self.get_relative_transform_in_wire_cam(relative_pose_transform)
-        # stamp = pose_msg.header.stamp.sec + pose_msg.header.stamp.nanosec * 1e-9
+        relative_pose_transform = ct.get_relative_transform(self.previous_downward_pose, pose_msg.pose.pose)
+        relative_wire_transform = self.get_relative_transform_in_wire_cam(relative_pose_transform)
+        stamp = pose_msg.header.stamp.sec + pose_msg.header.stamp.nanosec * 1e-9
 
         # Add the relative pose transform to the queue
-        # bisect.insort(self.relative_transform_timestamps, stamp)
-        # index = self.relative_transform_timestamps.index(stamp)
-        # self.relative_transforms.insert(index, relative_wire_transform)
+        bisect.insort(self.relative_transform_timestamps, stamp)
+        index = self.relative_transform_timestamps.index(stamp)
+        self.relative_transforms.insert(index, relative_wire_transform)
         self.previous_downward_pose = pose_msg.pose.pose
 
     def predict_kfs_up_to_current_pose(self, input_stamp):

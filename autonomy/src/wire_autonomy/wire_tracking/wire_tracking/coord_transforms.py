@@ -2,6 +2,27 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from geometry_msgs.msg import Transform, Pose, Quaternion
 
+def get_relative_transform(pose1, pose2):
+    """
+    Get the relative transformation from pose1 to pose2.
+    
+    Parameters:
+    pose1, pose2 -- the poses in the world frame
+
+    Returns:
+    relative_transform -- the relative transformation from pose1 to pose2
+    """
+    assert isinstance(pose1, Pose) and isinstance(pose2, Pose), "Both inputs must be Pose messages"
+    
+    # Convert poses to homogeneous matrices
+    H1 = pose_to_homogeneous(pose1)
+    H2 = pose_to_homogeneous(pose2)
+    
+    # Calculate the relative transformation
+    relative_transform = np.linalg.inv(H1) @ H2
+    
+    return relative_transform
+
 def pose_to_homogeneous(pose):
     """
     Converts a Pose message into a 4x4 homogeneous transformation matrix.
@@ -171,24 +192,3 @@ def get_distance_between_3D_points(point1, point2):
     # Calculate the Euclidean distance
     distance = np.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2 + (point1[2] - point2[2])**2)
     return distance
-
-def get_relative_transform(pose1, pose2):
-    """
-    Get the relative transformation from pose1 to pose2.
-    
-    Parameters:
-    pose1, pose2 -- the poses in the world frame
-
-    Returns:
-    relative_transform -- the relative transformation from pose1 to pose2
-    """
-    assert isinstance(pose1, Pose) and isinstance(pose2, Pose), "Both inputs must be Pose messages"
-    
-    # Convert poses to homogeneous matrices
-    H1 = pose_to_homogeneous(pose1)
-    H2 = pose_to_homogeneous(pose2)
-    
-    # Calculate the relative transformation
-    relative_transform = np.linalg.inv(H1) @ H2
-    
-    return relative_transform

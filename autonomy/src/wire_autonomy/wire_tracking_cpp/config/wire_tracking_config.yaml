@@ -1,0 +1,19 @@
+min_valid_kf_count_threshold: 15
+iteration_start_threshold: 20
+target_publish_frequency_hz: 10 # Hz
+
+initial_yaw_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
+wire_matching_min_threshold_m: 0.15 # meters
+valid_count_buffer: 3
+
+yaw_predict_covariance: 0.001 # radians
+yaw_measurement_covariance: 0.10 # radians
+yaw_max_covariance: 0.10 # radians
+
+z_predict_covariance: 0.003 # meters
+z_measurement_covariance: 0.30 # meters
+z_max_covariance: 0.30 # meters
+
+y_predict_covariance: 0.002 # meters
+y_measurement_covariance: 0.20 # meters
+y_max_covariance: 0.20 # meters

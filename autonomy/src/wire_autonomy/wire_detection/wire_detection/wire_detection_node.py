@@ -99,7 +99,7 @@ class WireDetectorNode(Node):
         if avg_angle is not None:
             wire_detections_msg.avg_angle = float(avg_angle)
         else:
-            wire_detections_msg.avg_angle = float('nan')
+            wire_detections_msg.avg_angle = -1.0
 
         if fitted_lines is not None and len(fitted_lines) > 0:
             for line in fitted_lines:

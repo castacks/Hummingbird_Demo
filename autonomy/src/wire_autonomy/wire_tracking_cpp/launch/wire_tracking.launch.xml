@@ -1,0 +1,17 @@
+<launch>  
+  <node 
+    pkg="wire_tracking" 
+    exec="wire_tracking_node" 
+    name="wire_tracking_node"
+    if="$(env WIRE_NODE)">
+    <param from="$(find-pkg-share common_utils)/wire_tracking_config.yaml" />
+  </node>
+
+  <node 
+    pkg="rviz2" 
+    exec="rviz2" 
+    name="rviz2" 
+    if="$(env RVIZ)"
+    args="-d $(find-pkg-share wire_tracking)/rviz/wire_tracking.rviz --ros-args --log-level WARN" />
+
+</launch>

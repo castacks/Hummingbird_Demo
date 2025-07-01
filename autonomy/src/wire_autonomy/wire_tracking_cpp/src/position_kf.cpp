@@ -39,7 +39,7 @@ PositionKalmanFilters::PositionKalmanFilters(const YAML::Node &config,
     P_init_ = R_ * initial_cov_multiplier_;
 }
 
-void PositionKalmanFilters::add_kfs(const Eigen::Matrix2Xd &dhs0)
+void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
 {
     const int oldN = kf_points_.cols();
     const int newN = dhs0.cols();

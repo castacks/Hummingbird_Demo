@@ -54,27 +54,17 @@ private:
     Eigen::Matrix3d camera_intrinsics_;
     std::pair<int, int> image_size_;
 
-    void add_kfs(const std::vector<Eigen::Vector2d> &dhs0);
-
+    void addKFs(const Eigen::Matrix2Xd &dhs0);
     int removeStaleKFs();
-
-    std::vector<bool> checkKFsInFrame(const std::vector<int>& kf_indices, double camera_yaw) const;
-
+    std::vector<bool> checkKFsInFrame(const std::vector<int> &kf_indices, double camera_yaw) const;
     static std::vector<cv::Vec3b> generateVizColor(int num_colors = 1);
 
-    
-    public:
+public:
     void initializeKFs(const Eigen::Matrix3Xd &camera_points, double wire_yaw);
-    
     static Eigen::Matrix2Xd getDHFromXYZs(const Eigen::Matrix3Xd &xyz_points, double wire_yaw);
-    
     Eigen::Matrix3Xd getKFXYZs(double wire_yaw, const std::vector<int> &inds = {}) const;
-    
     void predict(const Eigen::Matrix4d &relative_H, double yaw_prev, double yaw_curr);
-    
     void update(const Eigen::Matrix3Xd &cam_points, double wire_yaw);
-    
-    std::pair<Eigen::Vector2d,int> getKFByID(int kf_id) const;
-
+    std::pair<Eigen::Vector2d, int> getKFByID(int kf_id) const;
     int getTargetID();
 };
