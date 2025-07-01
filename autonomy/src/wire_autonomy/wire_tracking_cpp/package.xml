@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>wire_tracking_cpp/</name>
+  <name>wire_tracking_cpp</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="tharp@andrew.cmu.edu">airlab</maintainer>
@@ -14,7 +14,6 @@
   <depend>wire_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>common_utils</depend>
   <depend>cv_bridge</depend>
 
   <test_depend>ament_lint_auto</test_depend>

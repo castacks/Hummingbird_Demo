@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(wire_tracking_cpp/)
+project(wire_tracking_cpp)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,7 +12,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(wire_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(common_utils REQUIRED)
 find_package(cv_bridge REQUIRED)
 
 if(BUILD_TESTING)
