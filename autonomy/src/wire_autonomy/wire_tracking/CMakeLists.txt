@@ -11,9 +11,11 @@ find_package(sensor_msgs REQUIRED)
 find_package(wire_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(SOURCES
     src/wire_tracking_node.cpp
@@ -31,10 +33,7 @@ target_include_directories(wire_tracking_node
     ${OpenCV_INCLUDE_DIRS}
 )
 
-target_link_libraries(wire_tracking_node
-    PRIVATE
-    ${OpenCV_LIBS}
-)
+target_link_libraries(wire_tracking_node ${OpenCV_LIBS} ${YAML_CPP_LIBRARIES})
 
 ament_target_dependencies(wire_tracking_node
     rclcpp
@@ -42,6 +41,8 @@ ament_target_dependencies(wire_tracking_node
     wire_interfaces
     geometry_msgs
     nav_msgs
+    visualization_msgs
+    yaml-cpp
     cv_bridge
 )
 
@@ -49,19 +50,19 @@ install(TARGETS wire_tracking_node
     DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY include/
-    DESTINATION include/
+install(DIRECTORY include/${PROJECT_NAME}/
+    DESTINATION include/${PROJECT_NAME}/
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch/
     DESTINATION share/${PROJECT_NAME}/launch
 )
 
-install(DIRECTORY config
+install(DIRECTORY config/
     DESTINATION share/${PROJECT_NAME}/config
 )
 
-install(DIRECTORY rviz
+install(DIRECTORY rviz/
     DESTINATION share/${PROJECT_NAME}/rviz
 )
 ament_package()

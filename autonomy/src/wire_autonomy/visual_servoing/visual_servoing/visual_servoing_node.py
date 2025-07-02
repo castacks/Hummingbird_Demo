@@ -48,7 +48,7 @@ class WireGraspingNode(Node):
         self.integral_error_theta = 0.0
 
         # Subscribers
-        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_pub_topic, self.wire_target_callback, 1)
+        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_detections_topic, self.wire_target_callback, 1)
 
         # Visual Servoing timer
         visual_servo_callback_group = MutuallyExclusiveCallbackGroup()
@@ -59,7 +59,7 @@ class WireGraspingNode(Node):
         self.activate_srv = self.create_service(Trigger, self.activate_srv_topic, self.activate_callback, callback_group=activate_srv_cb_group)
 
         # Publishers
-        self.velocity_pub = self.create_publisher(TwistStamped, self.velocity_pub_topic, 1)
+        self.velocity_pub = self.create_publisher(TwistStamped, self.velocity_cmd_topic, 1)
 
         self.get_logger().info("Wire Grasping Node initialized")
         
@@ -148,12 +148,12 @@ class WireGraspingNode(Node):
             self.activate_srv_topic = self.get_parameter('activate_srv_topic').get_parameter_value().string_value
 
             # Subscribers
-            self.declare_parameter('wire_target_pub_topic', rclpy.Parameter.Type.STRING)
-            self.wire_target_pub_topic = self.get_parameter('wire_target_pub_topic').get_parameter_value().string_value            
+            self.declare_parameter('wire_detections_topic', rclpy.Parameter.Type.STRING)
+            self.wire_detections_topic = self.get_parameter('wire_detections_topic').get_parameter_value().string_value            
 
             # Publishers
-            self.declare_parameter('velocity_pub_topic', rclpy.Parameter.Type.STRING)
-            self.velocity_pub_topic = self.get_parameter('velocity_pub_topic').get_parameter_value().string_value
+            self.declare_parameter('velocity_cmd_topic', rclpy.Parameter.Type.STRING)
+            self.velocity_cmd_topic = self.get_parameter('velocity_cmd_topic').get_parameter_value().string_value
 
             with open(get_package_share_directory('visual_servoing') + '/config/visual_servo_config.yaml', 'r') as file:
                 self.visual_servo_config = yaml.safe_load(file)

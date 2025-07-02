@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 14)
 add_compile_options(-Wextra -Wpedantic)
 
 set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -22,7 +23,6 @@ find_package(camera_models REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-
 find_package(OpenCV REQUIRED)
 
 find_package(Ceres REQUIRED)
@@ -36,7 +36,6 @@ find_package(Eigen3)
 include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
-
 
 add_library(vins_lib
     src/estimator/parameters.cpp

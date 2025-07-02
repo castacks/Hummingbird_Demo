@@ -1,42 +1,50 @@
 #include <yaml-cpp/yaml.h>
 #include <Eigen/Dense>
 #include <vector>
+#include <unsupported/Eigen/KroneckerProduct>
 
-#include "kalman_filters.h"
-#include "position_kf.h"
+#include "wire_tracking/position_kf.h"
 
 PositionKalmanFilters::PositionKalmanFilters(const YAML::Node &config,
                                              const Eigen::Matrix3d &camera_intrinsics,
                                              const std::pair<int, int> &image_size)
     : camera_intrinsics_(camera_intrinsics), image_size_(image_size)
 {
+    try
+    {
+        z_predict_cov_ = config["z_predict_covariance"].as<double>();
+        z_measurement_cov_ = config["z_measurement_covariance"].as<double>();
+        double z_max_cov = config["z_max_covariance"].as<double>();
+        z_max_covariance_ = z_max_cov * z_max_cov; // Store squared value for internal use
 
-    z_predict_cov_ = config["z_predict_covariance"].as<double>();
-    z_measurement_cov_ = config["z_measurement_covariance"].as<double>();
-    z_max_covariance_ = config["z_max_covariance"].as<double>();
+        y_predict_cov_ = config["y_predict_covariance"].as<double>();
+        y_measurement_cov_ = config["y_measurement_covariance"].as<double>();
+        double y_max_cov = config["y_max_covariance"].as<double>();
+        y_max_covariance_ = y_max_cov * y_max_cov; // Store squared value for internal use
 
-    y_predict_cov_ = config["y_predict_covariance"].as<double>();
-    y_measurement_cov_ = config["y_measurement_covariance"].as<double>();
-    y_max_covariance_ = config["y_max_covariance"].as<double>();
+        initial_cov_multiplier_ = config["initial_covariance_multiplier"].as<double>();
+        wire_matching_min_threshold_m_ = config["wire_matching_min_threshold_m"].as<double>();
+        valid_count_buffer_ = config["valid_count_buffer"].as<int>();
+        min_valid_kf_count_threshold_ = config["min_valid_kf_count_threshold"].as<int>();
 
-    initial_cov_multiplier_ = config["initial_yaw_covariance_multiplier"].as<double>();
-    wire_matching_min_threshold_m_ = config["wire_matching_min_threshold_m"].as<double>();
-    valid_count_buffer_ = config["valid_count_buffer"].as<int>();
-    min_valid_kf_count_threshold_ = config["min_valid_kf_count_threshold"].as<int>();
+        initialized_ = false;
+        max_kf_id_ = 0;
+        target_kf_id_ = -1;
 
-    initialized_ = false;
-    max_kf_id_ = 0;
-    target_kf_id_ = -1;
+        Q_ = Eigen::Matrix2d::Zero();
+        R_ = Eigen::Matrix2d::Zero();
+        Q_(0, 0) = z_predict_cov_ * z_predict_cov_;
+        Q_(1, 1) = y_predict_cov_ * y_predict_cov_;
+        R_(0, 0) = z_measurement_cov_ * z_measurement_cov_;
+        R_(1, 1) = y_measurement_cov_ * y_measurement_cov_;
 
-    Q_ = Eigen::Matrix2d::Zero();
-    R_ = Eigen::Matrix2d::Zero();
-    Q_(0, 0) = z_predict_cov_ * z_predict_cov_;
-    Q_(1, 1) = y_predict_cov_ * y_predict_cov_;
-    R_(0, 0) = z_measurement_cov_ * z_measurement_cov_;
-    R_(1, 1) = y_measurement_cov_ * y_measurement_cov_;
-    yaw_max_covariance_ = yaw_max_covariance_ * yaw_max_covariance_;
-
-    P_init_ = R_ * initial_cov_multiplier_;
+        Eigen::Matrix2d P_init_matrix = R_ * initial_cov_multiplier_;
+        P_init_ << P_init_matrix(0, 0), P_init_matrix(1, 0), P_init_matrix(0, 1), P_init_matrix(1, 1);
+    }
+    catch (const YAML::Exception &e)
+    {
+        throw std::runtime_error("Error parsing PositionKalmanFilters configuration: " + std::string(e.what()));
+    }
 }
 
 void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
@@ -47,33 +55,249 @@ void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
         return;
 
     // 1) Resize all the matrices in one go:
-    kf_ids_.conservativeResize(Eigen::NoChange, oldN + newN);
+    kf_ids_.conservativeResize(oldN + newN);
     kf_points_.conservativeResize(Eigen::NoChange, oldN + newN);
-    kf_Ps_flat_.conservativeResize(Eigen::NoChange, oldN + newN);
     kf_colors_.conservativeResize(Eigen::NoChange, oldN + newN);
-    valid_counts_.conservativeResize(Eigen::NoChange, oldN + newN);
+    valid_counts_.conservativeResize(oldN + newN);
 
     // 2) Fill the new-id block with a linspace:
-    kf_ids_.segment(oldN, newN) = Eigen::ArrayXi::LinSpaced(newN, max_kf_id_, max_kf_id_ + newN - 1).transpose();
+    kf_ids_.segment(oldN, newN) = Eigen::VectorXi::LinSpaced(newN, max_kf_id_, max_kf_id_ + newN - 1);
 
     // 3) Copy in the new points:
     kf_points_.block(0, oldN, 2, newN) = dhs0;
 
     // 4) Tile P_init_ into each new column:
-    //    First flatten P_init_ column‑wise to size (4×1):
-    Eigen::Vector4d Pcol;
-    Eigen::Map<Eigen::Matrix2d>(Pcol.data(), 2, 2) = P_init_;
-    //    Then replicate across newN columns:
-    kf_Ps_flat_.block(0, oldN, 4, newN) = Pcol.replicate(1, newN);
+    kf_covariances_.conservativeResize(4, oldN + newN);
+    kf_covariances_.block(0, oldN, 4, newN) = P_init_.replicate(1, newN);
 
     // 5) Generate and copy colors in one call:
-    auto cols = generateVizColor(newN); // returns 3×newN Eigen::Matrix3Xd
+    Eigen::Matrix3Xd cols = generateVizColor(newN); // returns 3×newN Eigen::Matrix3Xd
     kf_colors_.block(0, oldN, 3, newN) = cols;
 
     // 6) Fill valid_counts_ with a constant:
     valid_counts_.segment(oldN, newN).setConstant(valid_count_buffer_);
 
     max_kf_id_ += newN;
+
+    assert(kf_ids_.size() == kf_points_.cols());
+    assert(valid_counts_.size() == kf_points_.cols());
+}
+
+void PositionKalmanFilters::initializeKFs(const Eigen::Matrix3Xd &camera_points, double wire_yaw)
+{
+    // 1) Validate input shape: must be 3×N
+    if (camera_points.rows() != 3)
+    {
+        throw std::invalid_argument(
+            "initializeKFs: camera_points must have 3 rows (got " + std::to_string(camera_points.rows()) + ")");
+    }
+
+    Eigen::Matrix2Xd dhs = getDHFromXYZs(camera_points, wire_yaw);
+
+    // 3) Batch‑add these new filters
+    addKFs(dhs);
+
+    // 4) Mark initialized
+    initialized_ = true;
+}
+
+void PositionKalmanFilters::predict(
+    const Eigen::Matrix4d &relative_H,
+    double yaw_prev,
+    double yaw_curr)
+{
+    // 1) Validate
+    if (relative_H.rows() != 4 || relative_H.cols() != 4)
+    {
+        throw std::invalid_argument("predict: relative_H must be 4×4");
+    }
+    // 2) Get current KF points in XYZ (3×N)
+    Eigen::Matrix3Xd xyz = getKFXYZs(yaw_prev);
+
+    // 3) Apply transform: R * xyz + t
+    Eigen::Matrix3d R = relative_H.block<3, 3>(0, 0);
+    Eigen::Vector3d t = relative_H.block<3, 1>(0, 3);
+    Eigen::Matrix3Xd xyz_t = (R * xyz).colwise() + t;
+
+    // 4) Reproject into (distance, height)
+    kf_points_ = getDHFromXYZs(xyz_t, yaw_curr);
+
+    // 5) Build the 2×2 Jacobian J
+    double c1 = std::cos(yaw_prev), s1 = std::sin(yaw_prev);
+    double c2 = std::cos(yaw_curr), s2 = std::sin(yaw_curr);
+
+    Eigen::Matrix2d J;
+    J(0, 0) = s2 * (R(0, 0) * s1 - R(0, 1) * c1) + c2 * (-R(1, 0) * s1 + R(1, 1) * c1);
+    J(0, 1) = c2 * R(1, 2) - s2 * R(0, 2);
+    J(1, 0) = -s1 * R(2, 0) + c1 * R(2, 1);
+    J(1, 1) = R(2, 2);
+
+    // 6) Update each covariance: P_new = J * P_old * Jᵀ + Q_
+    //    We store covariances as a 4×N flat matrix kf_covariances
+    Eigen::Matrix<double, 4, 4> KJJ =
+        Eigen::kroneckerProduct(J, J);
+
+    // Flatten Q_ (2×2) column‑wise into a 4×1 vector
+    Eigen::Vector4d q_flat;
+    q_flat << Q_(0, 0), Q_(1, 0),
+        Q_(0, 1), Q_(1, 1);
+
+    // Now kf_covariances is a (4 × N) matrix, each column is vec(P_old).
+    // We can do all at once:
+    kf_covariances_ = (KJJ * kf_covariances_).colwise() + q_flat;
+}
+
+void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wire_yaw)
+{
+    if (cam_points.rows() != 3)
+    {
+        throw std::invalid_argument(
+            "update: cam_points must be 3×M");
+    }
+    int N = cam_points.cols();
+    int M = kf_points_.cols();
+
+    if (N == 0)
+    {
+        std::cout << "No camera points to update Kalman filters.\n";
+        return;
+    }
+
+    if (!initialized_)
+    {
+        throw std::runtime_error("PositionKalmanFilters not initialized. Call initializeKFs first.");
+    }
+
+    if (valid_counts_.size() != kf_points_.cols() || kf_ids_.size() != kf_points_.cols())
+    {
+        throw std::runtime_error("valid_counts size mismatch with KF points");
+    }
+
+    // Convert cam_points (N x 3) to dhs_measured (N x 2)
+    Eigen::Matrix2Xd dhs_measured = getDHFromXYZs(cam_points, wire_yaw);
+
+    // Compute comp_diffs and comp_dists:
+    // comp_diffs shape (N, M, 2) -> distance and height differences between each measured point and each KF point
+    // We'll store the distances in an N x M matrix
+    Eigen::VectorXd a_norms = dhs_measured.rowwise().squaredNorm(); // N x 1 vector
+    Eigen::VectorXd b_norms = kf_points_.rowwise().squaredNorm();   // M x 1 vector
+
+    // Compute squared distance matrix using broadcasting
+    Eigen::MatrixXd dists_sq = a_norms.replicate(1, M)                          // N x M
+                               + b_norms.transpose().replicate(N, 1)            // N x M
+                               - 2.0 * (dhs_measured * kf_points_.transpose()); // N x M
+
+    // Clamp any negative values to zero (due to floating-point errors)
+    dists_sq = dists_sq.array().max(0.0);
+
+    // Final Euclidean distances
+    Eigen::MatrixXd comp_dists = dists_sq.array().sqrt();
+
+    // matched_points: boolean N x M, true if distance < threshold
+    Eigen::ArrayXX<bool> matched_points = (comp_dists.array() < wire_matching_min_threshold_m_);
+
+    // Find unmatched kfs (no measured point matched to them)
+    Eigen::Array<bool, 1, Eigen::Dynamic> any_matches = matched_points.colwise().any(); // 1 x M
+
+    // Step 2: Find indices where any_matches is false (no matches)
+    std::vector<int> unmatched_kfs;
+    for (int j = 0; j < any_matches.size(); ++j)
+    {
+        if (!any_matches(j))
+        {
+            unmatched_kfs.push_back(j);
+        }
+    }
+
+    if (!unmatched_kfs.empty())
+    {
+        std::vector<bool> kfs_in_frame = checkKFsInFrame(unmatched_kfs, wire_yaw);
+        for (size_t idx = 0; idx < unmatched_kfs.size(); ++idx)
+        {
+            if (kfs_in_frame[idx])
+            {
+                int kf_idx = unmatched_kfs[idx];
+                valid_counts_[kf_idx]--;
+            }
+        }
+    }
+
+    // For each measured point:
+    for (int i = 0; i < N; ++i)
+    {
+        // Find matched KF indices for this measured point
+        std::vector<int> matched_indices;
+        for (int j = 0; j < M; ++j)
+        {
+            if (matched_points(i, j))
+            {
+                matched_indices.push_back(j);
+            }
+        }
+
+        if (matched_indices.size() >= 1)
+        {
+            if (matched_indices.size() != 1) // More than one match found for the measured point
+            {
+                // Pick the closest KF point
+                double min_dist = std::numeric_limits<double>::max();
+                int closest_index = -1;
+                for (int j : matched_indices)
+                {
+                    double dist = comp_dists(i, j);
+                    if (dist < min_dist)
+                    {
+                        min_dist = dist;
+                        closest_index = j;
+                    }
+                }
+                // Update the closest KF point
+                matched_indices.clear();
+                matched_indices.push_back(closest_index);
+            }
+            int matched_index = matched_indices[0];
+
+            // Eigen::Map<const Eigen::Matrix2d> P(kf_covariances_.col(matched_index).data());
+
+            Eigen::Matrix2d P;
+            P(0, 0) = kf_covariances_(0, matched_index);
+            P(1, 0) = kf_covariances_(1, matched_index);
+            P(0, 1) = kf_covariances_(2, matched_index);
+            P(1, 1) = kf_covariances_(3, matched_index);
+            Eigen::Matrix2d S = P + R_;
+            Eigen::Matrix2d K = P * S.inverse();
+
+            // Update kf_points
+            Eigen::Vector2d y = dhs_measured.row(i).transpose() - kf_points_.row(matched_index).transpose();
+            Eigen::Vector2d correction = K * y;
+            kf_points_.row(matched_index) += correction.transpose();
+
+            // Update covariance
+            Eigen::Matrix2d I = Eigen::Matrix2d::Identity();
+            Eigen::Matrix2d P_new = (I - K) * P;
+            kf_covariances_.col(matched_index) << P_new(0, 0), P_new(1, 0), P_new(0, 1), P_new(1, 1);
+
+            // Increment valid count
+            valid_counts_[matched_index]++;
+        }
+        else
+        {
+            // No matches, add new KF point
+            addKFs(dhs_measured.row(i).transpose());
+        }
+    }
+
+    int num_removed = removeStaleKFs();
+    if (num_removed > 0)
+    {
+        std::cout << "Removed " << num_removed << " stale Kalman filter points.\n";
+    }
+
+    // Check sizes consistent
+    if (kf_ids_.size() != (size_t)kf_points_.cols())
+    {
+        throw std::runtime_error("kf_ids and kf_points size mismatch after removal");
+    }
 }
 
 int PositionKalmanFilters::removeStaleKFs()
@@ -120,7 +344,7 @@ int PositionKalmanFilters::removeStaleKFs()
         {
             new_ids(0, dstCol) = kf_ids_(0, srcCol);
             new_points.col(dstCol) = kf_points_.col(srcCol);
-            new_Ps_flat.col(dstCol) = kf_Ps_flat_.col(srcCol);
+            new_Ps_flat.col(dstCol) = kf_covariances_.col(srcCol);
             new_colors.col(dstCol) = kf_colors_.col(srcCol);
             new_valid(0, dstCol) = valid_counts_(0, srcCol);
             ++dstCol;
@@ -130,157 +354,55 @@ int PositionKalmanFilters::removeStaleKFs()
     // 6) Swap in the compacted matrices
     kf_ids_ = std::move(new_ids);
     kf_points_ = std::move(new_points);
-    kf_Ps_flat_ = std::move(new_Ps_flat);
+    kf_covariances_ = std::move(new_Ps_flat);
     kf_colors_ = std::move(new_colors);
     valid_counts_ = std::move(new_valid);
 
     return removed;
 }
 
-void PositionKalmanFilters::initializeKFs(const Eigen::Matrix3Xd &camera_points, double wire_yaw)
+int PositionKalmanFilters::getTargetID()
 {
-    // 1) Validate input shape: must be 3×N
-    if (camera_points.rows() != 3)
-    {
-        throw std::invalid_argument(
-            "initializeKFs: camera_points must have 3 rows (got " + std::to_string(camera_points.rows()) + ")");
-    }
-
-    // 2) Compute (distance, height) pairs from 3D points
-    //    Assumes you already have a method with this signature:
-    //      Eigen::Matrix2Xd getDHFromXYZs(const Eigen::Matrix3Xd&, double);
-    Eigen::Matrix2Xd dhs = getDHFromXYZs(camera_points, wire_yaw);
-
-    // 3) Batch‑add these new filters
-    add_kfs(dhs);
-
-    // 4) Mark initialized
-    initialized_ = true;
-}
-
-void PositionKalmanFilters::predict(
-    const Eigen::Matrix4d &relative_H,
-    double yaw_prev,
-    double yaw_curr)
-{
-    // 1) Validate
-    if (relative_H.rows() != 4 || relative_H.cols() != 4)
-    {
-        throw std::invalid_argument("predict: relative_H must be 4×4");
-    }
-    // 2) Get current KF points in XYZ (3×N)
-    Eigen::Matrix3Xd xyz = getKFXYZs(yaw_prev);
-    int N = xyz.cols();
-
-    // 3) Apply transform: R * xyz + t
-    Eigen::Matrix3d R = relative_H.block<3, 3>(0, 0);
-    Eigen::Vector3d t = relative_H.block<3, 1>(0, 3);
-    Eigen::Matrix3Xd xyz_t = (R * xyz).colwise() + t;
-
-    // 4) Reproject into (distance, height)
-    kf_points_ = getDHFromXYZs(xyz_t, yaw_curr);
-
-    // 5) Build the 2×2 Jacobian J
-    double c1 = std::cos(yaw_prev), s1 = std::sin(yaw_prev);
-    double c2 = std::cos(yaw_curr), s2 = std::sin(yaw_curr);
-
-    Eigen::Matrix2d J;
-    J(0, 0) = s2 * (R(0, 0) * s1 - R(0, 1) * c1) + c2 * (-R(1, 0) * s1 + R(1, 1) * c1);
-    J(0, 1) = c2 * R(1, 2) - s2 * R(0, 2);
-    J(1, 0) = -s1 * R(2, 0) + c1 * R(2, 1);
-    J(1, 1) = R(2, 2);
-
-    // 6) Update each covariance: P_new = J * P_old * Jᵀ + Q_
-    //    We store covariances as a 4×N flat matrix kf_Ps_flat_
-    Eigen::Matrix<double, 4, 4> KJJ =
-        Eigen::kroneckerProduct(J, J);
-
-    // Flatten Q_ (2×2) column‑wise into a 4×1 vector
-    Eigen::Vector4d q_flat;
-    q_flat << Q_(0, 0), Q_(1, 0),
-        Q_(0, 1), Q_(1, 1);
-
-    // Now kf_Ps_flat_ is a (4 × N) matrix, each column is vec(P_old).
-    // We can do all at once:
-    kf_Ps_flat_ = (KJJ * kf_Ps_flat_).colwise() + q_flat;
-}
-void PositionKalmanFilters::update(
-    const Eigen::Matrix3Xd &cam_points,
-    double wire_yaw)
-{
-    // 1) Validate input
-    if (cam_points.rows() != 3)
-    {
-        throw std::invalid_argument(
-            "update: cam_points must be 3×M");
-    }
-    int M = int(dhs_meas.cols());
-    int N = int(kf_points_.cols());
-
-    // 1) compute squared norms of columns
-    Eigen::RowVectorXd meas_sqnorm = dhs_meas.colwise().squaredNorm();   // 1×M
-    Eigen::RowVectorXd filt_sqnorm = kf_points_.colwise().squaredNorm(); // 1×N
-
-    // 2) compute cross-term: (dhs_meas^T * kf_points_) is M×N
-    Eigen::MatrixXd cross = dhs_meas.transpose() * kf_points_; // M×N
-
-    // 3) build M×N matrix of squared distances
-    Eigen::MatrixXd d2 =
-        meas_sqnorm.transpose().replicate(1, N) // each row i = meas_sqnorm(i)
-        + filt_sqnorm.replicate(M, 1)           // each col j = filt_sqnorm(j)
-        - 2.0 * cross;
-
-    // 4) sqrt → actual distances
-    Eigen::MatrixXd comp_dists = d2.array().max(0.0).sqrt();
-
-    // 5) boolean match matrix
-    Eigen::ArrayXX<bool> matched = (comp_dists.array() < wire_matching_min_threshold_m_);
-
-    // 6) vectorized “unmatched filter” mask: true for filters j with no matches
-    //    (~matched) flips each element, then .colwise().all() checks rows over M
-    Eigen::Array<bool, 1, Eigen::Dynamic> unmatched_filter_mask =
-        (~matched).colwise().all(); // length N
-
-    // 7) decrement valid_counts_ for those filters in‑frame
-    //    assume checkKFsInFrame returns a Array<bool,1,N> in_frame_mask
-    Eigen::Array<bool, 1, Eigen::Dynamic> in_frame_mask = checkKFsInFrameMask(wire_yaw);
-    valid_counts_.array() -= (unmatched_filter_mask && in_frame_mask).cast<int>();
-}
-
-int PositionKalmanFilters::getTargetID() {
     // If target_kf_id_ is still valid, return it
-    if (target_kf_id_ != -1) {
+    if (target_kf_id_ != -1)
+    {
         // Check if it's in the current list
-        if ((kf_ids_.array() == target_kf_id_).any()) {
+        if ((kf_ids_.array() == target_kf_id_).any())
+        {
             return target_kf_id_;
         }
     }
 
     // No Kalman filter points
-    if (kf_ids_.size() == 0) {
+    if (kf_ids_.size() == 0)
+    {
         return -1;
     }
 
     // Create mask for valid counts
-    Eigen::Array<bool, 1, Eigen::Dynamic> valid_mask = (valid_counts_.array() > valid_count_buffer_);
+    Eigen::Array<bool, 1, Eigen::Dynamic> valid_mask = (valid_counts_.array() > min_valid_kf_count_threshold_);
 
-    if (!valid_mask.any()) {
+    if (!valid_mask.any())
+    {
         return -1;
     }
 
     // Filter heights and find index of min height among valid
-    Eigen::ArrayXd heights = kf_points_.row(1).array();  // heights
+    Eigen::ArrayXd heights = kf_points_.row(1).array(); // heights
     double min_height = std::numeric_limits<double>::max();
     int closest_index = -1;
 
-    for (int i = 0; i < heights.size(); ++i) {
-        if (valid_mask(i) && heights(i) < min_height) {
+    for (int i = 0; i < heights.size(); ++i)
+    {
+        if (valid_mask(i) && heights(i) < min_height)
+        {
             min_height = heights(i);
             closest_index = i;
         }
     }
 
-    if (closest_index != -1) {
+    if (closest_index != -1)
+    {
         target_kf_id_ = kf_ids_(0, closest_index);
         return target_kf_id_;
     }
@@ -288,22 +410,46 @@ int PositionKalmanFilters::getTargetID() {
     return -1;
 }
 
-
+std::vector<int> PositionKalmanFilters::getValidKFIndices() const
+{
+    std::vector<int> valid_indices;
+    for (int i = 0; i < valid_counts_.cols(); ++i)
+    {
+        if (valid_counts_(0, i) >= min_valid_kf_count_threshold_)
+        {
+            valid_indices.push_back(i);
+        }
+    }
+    return valid_indices;
+}
+Eigen::VectorXd PositionKalmanFilters::getKFColor(int kf_index) const
+{
+    if (kf_index < 0 || kf_index >= kf_colors_.cols())
+    {
+        throw std::out_of_range("getKFColor: index out of range");
+    }
+    // Return the color for the specified KF index
+    return kf_colors_.col(kf_index);
+}
 std::pair<Eigen::Vector2d, int> PositionKalmanFilters::getKFByID(int kf_id) const
 {
     // Find all matching indices
     std::vector<int> matches;
     matches.reserve(kf_ids_.cols());
-    for (int j = 0; j < kf_ids_.cols(); ++j) {
-        if (kf_ids_(0, j) == kf_id) {
+    for (int j = 0; j < kf_ids_.cols(); ++j)
+    {
+        if (kf_ids_(0, j) == kf_id)
+        {
             matches.push_back(j);
         }
     }
 
-    if (matches.empty()) {
+    if (matches.empty())
+    {
         throw std::out_of_range("getKFByID: ID " + std::to_string(kf_id) + " not found");
     }
-    if (matches.size() > 1) {
+    if (matches.size() > 1)
+    {
         throw std::out_of_range("getKFByID: multiple entries for ID " + std::to_string(kf_id));
     }
 
@@ -319,30 +465,29 @@ std::vector<bool> PositionKalmanFilters::checkKFsInFrame(
     // 1) Get 3×M XYZs for the requested indices
     Eigen::Matrix3Xd xyz = getKFXYZs(camera_yaw, kf_indices);
     int M = xyz.cols();
-    if (M == 0) {
+    if (M == 0)
+    {
         return {};
     }
 
     // 2) Project into homogeneous image coordinates: 3×M
     Eigen::Matrix3Xd img_h = camera_intrinsics_ * xyz;
 
-    // 3) Vectorized normalize: 
+    // 3) Vectorized normalize:
     //    Divide row 0 and row 1 by row 2, element-wise
-    Eigen::ArrayXd inv_z = img_h.row(2).array().inverse();   // 1×M
-    Eigen::ArrayXd px   = img_h.row(0).array() * inv_z;      // 1×M
-    Eigen::ArrayXd py   = img_h.row(1).array() * inv_z;      // 1×M
+    Eigen::ArrayXd inv_z = img_h.row(2).array().inverse(); // 1×M
+    Eigen::ArrayXd px = img_h.row(0).array() * inv_z;      // 1×M
+    Eigen::ArrayXd py = img_h.row(1).array() * inv_z;      // 1×M
 
     // 4) Bounds check in one shot:
     //    0 <= px < width, 0 <= py < height
-    Eigen::Array<bool,1,Eigen::Dynamic> in_frame_mask = 
-        (px >= 0.0) 
-      && (px <  image_size_.first)
-      && (py >= 0.0) 
-      && (py <  image_size_.second);
+    Eigen::Array<bool, 1, Eigen::Dynamic> in_frame_mask =
+        (px >= 0.0) && (px < image_size_.first) && (py >= 0.0) && (py < image_size_.second);
 
     // 5) Convert mask to std::vector<bool>
     std::vector<bool> in_frame(M);
-    for (int i = 0; i < M; ++i) {
+    for (int i = 0; i < M; ++i)
+    {
         in_frame[i] = in_frame_mask(i);
     }
     return in_frame;
@@ -413,37 +558,33 @@ Eigen::Matrix3Xd PositionKalmanFilters::getKFXYZs(
     }
 }
 
-std::vector<cv::Vec3b> PositionKalmanFilters::generateVizColor(int num_colors)
+Eigen::Matrix3Xd PositionKalmanFilters::generateVizColor(int num_colors)
 {
     // 1) Create an Nx1 HSV Mat
     cv::Mat hsv(num_colors, 1, CV_8UC3);
 
     // 2) Fill H channel ∈ [0,180), S channel ∈ [128,256), V channel = 255
-    //    We can use randu with per‑channel bounds:
-    cv::Scalar lowerb(  0, 128, 255);
+    cv::Scalar lowerb(0, 128, 255);
     cv::Scalar upperb(180, 256, 256);
     cv::randu(hsv, lowerb, upperb);
 
-    // 3) Convert HSV → BGR (still Nx1)
     cv::Mat bgr;
     cv::cvtColor(hsv, bgr, cv::COLOR_HSV2BGR);
-
-    // 4) Convert BGR → RGB in one shot
     cv::Mat rgb;
     cv::cvtColor(bgr, rgb, cv::COLOR_BGR2RGB);
 
-    // 5) Now rgb is Nx1 CV_8UC3 and continuous.  
-    //    We can bulk‑copy into std::vector without a manual loop:
-    std::vector<cv::Vec3b> colors;
-    colors.assign(
-        (cv::Vec3b*)rgb.ptr<cv::Vec3b>(0),
-        (cv::Vec3b*)rgb.ptr<cv::Vec3b>(0) + num_colors
-    );
+    // Allocate output Eigen matrix (3 rows, num_colors cols), double for example
+    Eigen::Matrix3Xd colors(3, num_colors);
+
+    // rgb.ptr<cv::Vec3b>(i) points to the i-th pixel (Vec3b = uchar[3])
+    // Loop through each pixel and fill columns of Eigen matrix
+    for (int i = 0; i < num_colors; ++i)
+    {
+        cv::Vec3b pixel = rgb.at<cv::Vec3b>(i, 0);
+        colors(0, i) = static_cast<double>(pixel[0]); // R
+        colors(1, i) = static_cast<double>(pixel[1]); // G
+        colors(2, i) = static_cast<double>(pixel[2]); // B
+    }
 
     return colors;
-}
-
-bool PositionKalmanFilters::isInitialized() const
-{
-    return initialized_;
 }

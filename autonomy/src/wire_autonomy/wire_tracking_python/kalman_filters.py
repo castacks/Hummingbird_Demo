@@ -22,7 +22,7 @@ class PositionKalmanFilters:
         self.y_measurement_cov = wire_tracking_config['y_measurement_covariance'] ** 2  # Measurement noise covariance for y, multiplied by 2 for better tracking
         self.y_max_covariance = wire_tracking_config['y_max_covariance'] ** 2  # Maximum covariance for y, multiplied by 2 for better tracking
 
-        self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier'] 
+        self.inital_cov_multiplier = wire_tracking_config['initial_covariance_multiplier'] 
         self.wire_matching_min_threshold_m = wire_tracking_config['wire_matching_min_threshold_m']
         self.valid_count_buffer = wire_tracking_config['valid_count_buffer']  # Buffer for valid counts
         self.min_valid_kf_count_threshold = wire_tracking_config['min_valid_kf_count_threshold']  # Minimum valid count threshold for Kalman filter points
@@ -284,7 +284,7 @@ class DirectionKalmanFilter:
         self.Q_val = wire_tracking_config['yaw_predict_covariance'] ** 2  # Process noise covariance
         self.R_val = wire_tracking_config['yaw_measurement_covariance'] ** 2  # Measurement noise covariance
         self.max_yaw_covariance = wire_tracking_config['yaw_max_covariance'] ** 2  # Maximum yaw covariance
-        self.inital_cov_multiplier = wire_tracking_config['initial_yaw_covariance_multiplier']
+        self.inital_cov_multiplier = wire_tracking_config['initial_covariance_multiplier']
 
         self.R = np.eye(3) * self.R_val  # Measurement noise covariance matrix
         self.Q = np.eye(3) * self.Q_val  # Process noise covariance matrix
@@ -392,13 +392,13 @@ if __name__ == "__main__":
         'y_predict_covariance': 0.1,
         'y_measurement_covariance': 0.05,
         'y_max_covariance': 0.5,
-        'initial_yaw_covariance_multiplier': 2.0,
+        'initial_covariance_multiplier': 2.0,
         'wire_matching_min_threshold_m': 0.2,
         'valid_count_buffer': 3,  # Buffer for valid counts
         'yaw_predict_covariance': 0.1,
         'yaw_measurement_covariance': 0.05,
         'max_yaw_covariance': 0.5,
-        'initial_yaw_covariance_multiplier': 2.0,
+        'initial_covariance_multiplier': 2.0,
         'min_valid_kf_count_threshold': 2  # Minimum valid count threshold for Kal
     }
     camera_intrinsics = np.array([[1000, 0, 320], [0, 1000, 240], [0, 0, 1]])  # Example camera intrinsics

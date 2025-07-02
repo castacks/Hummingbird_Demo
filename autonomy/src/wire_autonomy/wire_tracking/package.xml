@@ -5,19 +5,21 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="tharp@andrew.cmu.edu">airlab</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rclpy</depend>
+  <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>wire_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>OpenCV</depend>
+  <depend>Eigen3</depend>
+  <depend>yaml-cpp</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>visualization_msgs</depend>
   <depend>cv_bridge</depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

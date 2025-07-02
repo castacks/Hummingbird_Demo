@@ -69,7 +69,7 @@ class WireTrackingNode(Node):
         self.pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data, callback_group=pose_callback_group)
         self.relative_transform_timestamps = []  # Queue to hold relative pose transforms
         self.relative_transforms = []  # Queue to hold relative pose transforms
-        self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_pub_topic, self.wire_detection_callback, 1, callback_group=pose_callback_group)
+        self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_topic, self.wire_detection_callback, 1, callback_group=pose_callback_group)
 
         if self.wire_viz_2d:
             self.rgb_sub = self.create_subscription(Image, self.rgb_image_sub_topic, self.rgb_callback, rclpy.qos.qos_profile_sensor_data)
@@ -77,12 +77,12 @@ class WireTrackingNode(Node):
             self.rgb_imgs = []
 
         # Wire Publishers
-        self.wire_target_pub = self.create_publisher(WireTarget, self.wire_target_pub_topic, 10)
+        self.wire_target_pub = self.create_publisher(WireTarget, self.wire_detections_topic, 10)
         self.wire_target_pub_timer = self.create_timer(1.0 / self.target_publish_frequency_hz, self.target_timer_callback)
 
         # Visualization Publishers
-        self.tracking_2d_pub = self.create_publisher(Image, self.tracking_2d_pub_topic, 1)
-        self.tracking_3d_pub = self.create_publisher(Marker, self.tracking_3d_pub_topic, 1) 
+        self.tracking_2d_pub = self.create_publisher(Image, self.tracking_2d_viz_topic, 1)
+        self.tracking_3d_pub = self.create_publisher(Marker, self.tracking_3d_viz_topic, 1) 
 
         self.get_logger().info("Wire Tracking Node initialized")
 
@@ -394,21 +394,21 @@ class WireTrackingNode(Node):
         self.camera_info_sub_topic = self.get_parameter('camera_info_sub_topic').get_parameter_value().string_value
         self.declare_parameter('pose_sub_topic', rclpy.Parameter.Type.STRING)
         self.pose_sub_topic = self.get_parameter('pose_sub_topic').get_parameter_value().string_value
-        self.declare_parameter('wire_detections_pub_topic', rclpy.Parameter.Type.STRING)
-        self.wire_detections_pub_topic = self.get_parameter('wire_detections_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('wire_detections_topic', rclpy.Parameter.Type.STRING)
+        self.wire_detections_topic = self.get_parameter('wire_detections_topic').get_parameter_value().string_value
     
         # wire pub topics
-        self.declare_parameter('wire_target_pub_topic', rclpy.Parameter.Type.STRING)
-        self.wire_target_pub_topic = self.get_parameter('wire_target_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('wire_target_topic', rclpy.Parameter.Type.STRING)
+        self.wire_target_topic = self.get_parameter('wire_target_topic').get_parameter_value().string_value
 
         # visulaization pub topics
         self.declare_parameter('rgb_image_sub_topic', rclpy.Parameter.Type.STRING)
         self.rgb_image_sub_topic = self.get_parameter('rgb_image_sub_topic').get_parameter_value().string_value
 
-        self.declare_parameter('tracking_2d_pub_topic', rclpy.Parameter.Type.STRING)
-        self.tracking_2d_pub_topic = self.get_parameter('tracking_2d_pub_topic').get_parameter_value().string_value
-        self.declare_parameter('tracking_3d_pub_topic', rclpy.Parameter.Type.STRING)
-        self.tracking_3d_pub_topic = self.get_parameter('tracking_3d_pub_topic').get_parameter_value().string_value
+        self.declare_parameter('tracking_2d_viz_topic', rclpy.Parameter.Type.STRING)
+        self.tracking_2d_viz_topic = self.get_parameter('tracking_2d_viz_topic').get_parameter_value().string_value
+        self.declare_parameter('tracking_3d_viz_topic', rclpy.Parameter.Type.STRING)
+        self.tracking_3d_viz_topic = self.get_parameter('tracking_3d_viz_topic').get_parameter_value().string_value
 
         wire_viz = bool(os.getenv('WIRE_VIZ', None).lower())
         wire_mode = int(os.getenv('WIRE_MODE', None).lower())

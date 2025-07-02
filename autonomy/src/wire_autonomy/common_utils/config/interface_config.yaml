@@ -7,22 +7,21 @@
     depth_image_sub_topic: "/wire_cam/zed_node/depth/depth_registered"
     pose_sub_topic: "/vins/camera_pose"
 
-
     # internode publishers
-    wire_detections_pub_topic: "/pincer/wire_detections"
-    wire_target_pub_topic: "/pincer/wire_target"
-    velocity_pub_topic: "/mavros/setpoint_velocity/cmd_vel"
+    wire_detections_topic: "/pincer/wire_detections"
+    wire_target_topic: "/pincer/wire_target"
+    velocity_cmd_topic: "/mavros/setpoint_velocity/cmd_vel"
 
     # viz publishers
-    depth_viz_pub_topic: "/pincer/depth_viz"
-    pose_viz_pub_topic: "/pincer/pose_viz"
-    depth_pc_pub_topic: "/pincer/depth_pc_viz"
+    depth_viz_topic: "/pincer/depth_viz"
+    pose_viz_topic: "/pincer/pose_viz"
+    depth_pc_topic: "/pincer/depth_pc_viz"
 
-    detections_2d_pub_topic: "/pincer/detections_2d_viz"
-    detections_3d_pub_topic: "/pincer/detections_3d_viz"
+    detections_2d_viz_topic: "/pincer/detections_2d_viz"
+    detections_3d_viz_topic: "/pincer/detections_3d_viz"
 
-    tracking_2d_pub_topic: "/pincer/tracking_2d_viz"
-    tracking_3d_pub_topic: "/pincer/tracking_3d_viz"
+    tracking_2d_viz_topic: "/pincer/tracking_2d_viz"
+    tracking_3d_viz_topic: "/pincer/tracking_3d_viz"
 
     # general settings
     use_cpu: true

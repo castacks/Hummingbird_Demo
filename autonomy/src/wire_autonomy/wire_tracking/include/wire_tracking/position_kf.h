@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <utility>
+#include <opencv2/opencv.hpp>
 
 class PositionKalmanFilters
 {
@@ -39,11 +40,11 @@ private:
     int max_kf_id_;
     int target_kf_id_;
 
-    Eigen::Matrix<int, 1, Eigen::Dynamic> kf_ids_;       // 1×N
+    Eigen::VectorXi kf_ids_;       // 1×N
     Eigen::Matrix2Xd kf_points_;                         // 2×N
-    Eigen::Matrix2Xd kf_Ps_flat_;                        // (2*2)×N  each column is P_init_.reshaped()
+    Eigen::MatrixXd kf_covariances_;                     // 4 × M, vec(P) in each col
     Eigen::Matrix3Xd kf_colors_;                         // 3×N
-    Eigen::Matrix<int, 1, Eigen::Dynamic> valid_counts_; // 1×N
+    Eigen::VectorXi valid_counts_; // 
 
     // Kalman filter matrices
     Eigen::Matrix2d Q_;      // Process noise covariance
@@ -57,7 +58,7 @@ private:
     void addKFs(const Eigen::Matrix2Xd &dhs0);
     int removeStaleKFs();
     std::vector<bool> checkKFsInFrame(const std::vector<int> &kf_indices, double camera_yaw) const;
-    static std::vector<cv::Vec3b> generateVizColor(int num_colors = 1);
+    static Eigen::Matrix3Xd generateVizColor(int num_colors = 1);
 
 public:
     void initializeKFs(const Eigen::Matrix3Xd &camera_points, double wire_yaw);
@@ -67,4 +68,8 @@ public:
     void update(const Eigen::Matrix3Xd &cam_points, double wire_yaw);
     std::pair<Eigen::Vector2d, int> getKFByID(int kf_id) const;
     int getTargetID();
+    std::vector<int> getValidKFIndices() const;
+    Eigen::VectorXd getKFColor(int kf_index) const;
+    bool isInitialized() const { return initialized_; }
+    int getNumKFs() const { return kf_points_.cols(); }
 };

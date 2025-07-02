@@ -11,11 +11,10 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <yaml-cpp/yaml.h>
 
-#include "wire_tracking_node.h"
-#include "coord_transforms.h"
-#include "direction_kf.h"
-#include "position_kf.h"
-#include "wire_tracking_node..h"
+#include "wire_tracking/wire_tracking_node.h"
+#include "wire_tracking/coord_transforms.h"
+#include "wire_tracking/direction_kf.h"
+#include "wire_tracking/position_kf.h"
 
 using Eigen::Matrix3d;
 using Eigen::Matrix4d;
@@ -23,26 +22,52 @@ using Eigen::Vector3d;
 using Eigen::VectorXd;
 using std::placeholders::_1;
 
-WireTrackingNode::WireTrackingNode() : Node("wire_tracking_node")
+WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 {
     // Load parameters and config
-    this->declare_parameter<std::string>("camera_info_topic", "/camera/info");
-    this->get_parameter("camera_info_topic", camera_info_topic_);
     loadConfig();
 
     // Initialize subscriptions
+    this->declare_parameter<std::string>("camera_info_sub_topic", "/default/topic");
+    this->get_parameter("camera_info_sub_topic", camera_info_sub_topic_);
     camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        camera_info_topic_, 1,
+        camera_info_sub_topic_, 1,
         std::bind(&WireTrackingNode::cameraInfoCallback, this, _1));
 
+    this->declare_parameter<std::string>("pose_sub_topic", "/default/pose_topic");
+    this->get_parameter("pose_sub_topic", pose_sub_topic_);
+    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        pose_sub_topic_, rclcpp::SensorDataQoS(),
+        std::bind(&WireTrackingNode::poseCallback, this, _1));
+
+    this->declare_parameter<std::string>("wire_detections_topic", "/default/wire_detections");
+    this->get_parameter("wire_detections_topic", wire_detections_topic_);
     detection_sub_ = this->create_subscription<wire_interfaces::msg::WireDetections>(
-        detections_topic_, 1,
+        wire_detections_topic_, 1,
         std::bind(&WireTrackingNode::wireDetectionCallback, this, _1));
 
-    target_pub_ = this->create_publisher<wire_interfaces::msg::WireTarget>(target_topic_, 10);
+    this->declare_parameter<std::string>("rgb_image_sub_topic", "/default/rgb_image");
+    this->get_parameter("rgb_image_sub_topic", rgb_image_sub_topic_);
+    rgb_image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+        rgb_image_sub_topic_, 1,
+        std::bind(&WireTrackingNode::rgbCallback, this, _1));
+
+    this->declare_parameter<std::string>("wire_target_topic", "/default/wire_target");
+    this->get_parameter("wire_target_topic", wire_target_topic_);
+    target_pub_ = this->create_publisher<wire_interfaces::msg::WireTarget>(wire_target_topic_, 10);
     target_timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / config_["target_publish_frequency_hz"].as<double>()),
         std::bind(&WireTrackingNode::targetTimerCallback, this));
+
+    this->declare_parameter<std::string>("tracking_2d_viz_topic", "/default/tracking_2d_viz_topic_");
+    this->get_parameter("tracking_2d_viz_topic", tracking_2d_viz_topic_);
+    tracking_2d_pub_ = this->create_publisher<sensor_msgs::msg::Image>(tracking_2d_viz_topic_, 10);
+
+    this->declare_parameter<std::string>("tracking_3d_viz_topic", "/default/tracking_3d_viz_topic_");
+    this->get_parameter("tracking_3d_viz_topic", tracking_3d_viz_topic_);
+    tracking_3d_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(tracking_3d_viz_topic_, 10);
+
+    iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>() / 2.0;
@@ -56,7 +81,7 @@ WireTrackingNode::WireTrackingNode() : Node("wire_tracking_node")
     H_wire_to_pose_ = H_pose_to_wire_.inverse();
 
     // Populate Kalman filters
-    direction_kf_ = DirectionKalmanFilter(config_);
+    direction_kalman_filter_ = DirectionKalmanFilter(config_);
 
     RCLCPP_INFO(this->get_logger(), "Wire Tracking Node initialized");
 }
@@ -66,9 +91,6 @@ void WireTrackingNode::loadConfig()
     std::string pkg_share = ament_index_cpp::get_package_share_directory("wire_tracking");
     YAML::Node cfg = YAML::LoadFile(pkg_share + "/config/wire_tracking_config.yaml");
     config_ = cfg;
-    pose_topic_ = cfg["pose_sub_topic"].as<std::string>();
-    detections_topic_ = cfg["wire_detections_pub_topic"].as<std::string>();
-    target_topic_ = cfg["wire_target_pub_topic"].as<std::string>();
 
     const char *wire_viz_raw = std::getenv("WIRE_VIZ");
     const char *wire_mode_raw = std::getenv("WIRE_MODE");
@@ -83,6 +105,14 @@ void WireTrackingNode::loadConfig()
             wire_viz_ = true;
         }
         wire_mode_ = std::stoi(wire_mode_str);
+        if (wire_viz_)
+        {
+            wire_viz_3d_ = true;
+            if (wire_mode_ == 2)
+            {
+                wire_viz_2d_ = true;
+            }
+        }
     }
 }
 
@@ -101,13 +131,9 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
     image_height_ = msg->height;
     image_width_ = msg->width;
     // Init the position Kalman filter
-    position_kf_ = PositionKalmanFilter(config_, camera_matrix_, {image_width_, image_height_});
+    position_kalman_filters_ = PositionKalmanFilters(config_, camera_matrix_, {image_width_, image_height_});
     initialized_ = true;
     camera_info_sub_.reset();
-    // creating the pose subscription after camera info is received
-    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        pose_topic_, rclcpp::SensorDataQoS(),
-        std::bind(&WireTrackingNode::poseCallback, this, _1));
     RCLCPP_INFO(this->get_logger(), "Wire Tracking Node initialized, Camera info received.");
 }
 
@@ -118,13 +144,13 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     // if last relative transform is not set, initialize it
     if (previous_relative_transform_.isZero())
     {
-        previous_relative_transform_ = poseToHomogeneous(msg->pose.pose.pose);
+        previous_relative_transform_ = poseToHomogeneous(msg->pose.pose);
     }
     else
     {
         // Compute the relative transform from the previous pose to the current pose
         auto [H_relative_in_wire_cam, H_to_pose] = getRelativeTransformInAnotherFrame(
-            H_pose_to_wire_, previous_relative_transform_, msg->pose.pose.pose);
+            H_pose_to_wire_, previous_relative_transform_, msg->pose.pose);
         // Update the previous relative transform
         double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         relative_transform_timestamps_.push_back(stamp);
@@ -135,9 +161,15 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
 
 void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
 {
-    if (!initialized_ || !position_kalman_filters_.initialized())
+    if (!initialized_)
     {
         RCLCPP_INFO(this->get_logger(), "Wire Tracking Node not initialized yet. Waiting for camera info.");
+        return;
+    }
+
+    if (!direction_kalman_filter_ || !position_kalman_filters_)
+    {
+        RCLCPP_INFO(this->get_logger(), "Kalman filters not initialized yet. Waiting for measurment initialization.");
         return;
     }
 
@@ -164,14 +196,14 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
     {
         const Eigen::Matrix4d &relative_pose_transform = relative_transforms_[i];
 
-        if (direction_kalman_filter_.initialized())
+        if (direction_kalman_filter_->isInitialized())
         {
-            double previous_yaw = direction_kalman_filter_.getYaw();
-            double curr_yaw = direction_kalman_filter_.predict(relative_pose_transform.block<3, 3>(0, 0));
+            double previous_yaw = direction_kalman_filter_->getYaw();
+            double curr_yaw = direction_kalman_filter_->predict(relative_pose_transform.block<3, 3>(0, 0));
 
-            if (position_kalman_filters_.initialized())
+            if (position_kalman_filters_->isInitialized())
             {
-                position_kalman_filters_.predict(relative_pose_transform, previous_yaw, curr_yaw);
+                position_kalman_filters_->predict(relative_pose_transform, previous_yaw, curr_yaw);
             }
         }
     }
@@ -185,6 +217,7 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
 {
     if (!initialized_)
         return;
+
     double wire_detection_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
     if (!relative_transforms_.empty())
     {
@@ -196,36 +229,36 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
     {
         return;
     }
-
-    Eigen::Matrix<double, Eigen::Dynamic, 3> wire_points_xyz(N, 3);
-    Eigen::Matrix<double, Eigen::Dynamic, 3> wire_directions(N, 3);
+    int N = static_cast<int>(msg->wire_detections.size());
+    Eigen::Matrix3Xd wire_points_xyz(3, N);
+    Eigen::Matrix3Xd wire_directions(3, N);
 
     Eigen::Vector3d reference_dir;
 
     for (std::size_t i = 0; i < N; ++i)
     {
-        const auto &detection = detections[i];
+        const auto &detection = msg->wire_detections[i];
 
         // start and end as Eigen vectors
         Eigen::Vector3d start(detection.start.x, detection.start.y, detection.start.z);
         Eigen::Vector3d end(detection.end.x, detection.end.y, detection.end.z);
 
         // midpoint
-        wire_points_xyz.row(i) = 0.5 * (start + end);
+        wire_points_xyz.col(i) = 0.5 * (start + end);
 
         // direction from line endpoints (your C++ API)
-        if (direction_kalman_filter.initialized())
+        if (direction_kalman_filter_->isInitialized())
         {
-            wire_directions.row(i) = direction_kalman_filter.get_direction_from_line_end_points(start, end);
+            wire_directions.col(i) = direction_kalman_filter_->getDirectionFromLineEndPoints(start, end);
         }
         else if (i == 0)
         {
-            reference_dir = direction_kalman_filter.get_direction_from_line_end_points(start, end);
-            wire_directions.row(i) = reference_dir;
+            reference_dir = direction_kalman_filter_->getDirectionFromLineEndPoints(start, end);
+            wire_directions.col(i) = reference_dir;
         }
         else
         {
-            wire_directions.row(i) = direction_kalman_filter.get_direction_from_line_end_points(start, end, reference_dir);
+            wire_directions.col(i) = direction_kalman_filter_->getDirectionFromLineEndPoints(start, end, &reference_dir);
         }
     }
 
@@ -234,30 +267,39 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
     avg_dir.normalize();
 
     // update or initialize your direction filter
-    if (direction_kalman_filter.initialized())
+    if (direction_kalman_filter_->isInitialized())
     {
-        direction_kalman_filter.update(avg_dir);
+        RCLCPP_INFO(this->get_logger(), "Updating Direction Kalman Filter with new average direction.");
+        direction_kalman_filter_->update(avg_dir);
         double measured_yaw = std::atan2(avg_dir.y(), avg_dir.x()) * 180.0 / M_PI;
-        double current_yaw = direction_kalman_filter.get_yaw() * 180.0 / M_PI;
-        RCLCPP_INFO(this->get_logger(), "Average measured yaw: %.2f degrees", measured_yaw);
-        RCLCPP_INFO(this->get_logger(), "Current wire yaw: %.2f degrees", current_yaw);
+        double current_yaw = direction_kalman_filter_->getYaw() * 180.0 / M_PI;
+        RCLCPP_INFO(this->get_logger(), "Direction filter updated with yaw: %.2f degrees (measured: %.2f degrees)",
+                    current_yaw, measured_yaw);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "Initializing Direction filter with new wire direction.");
-        direction_kalman_filter.initialize(avg_dir);
+        RCLCPP_INFO(this->get_logger(), "Initializing Direction Kalman Filter with new average direction.");
+        direction_kalman_filter_->initialize(avg_dir);
+        RCLCPP_INFO(this->get_logger(), "Direction filter initialized with yaw: %.2f degrees",
+                    direction_kalman_filter_->getYaw() * 180.0 / M_PI);
     }
 
     // update or initialize your position filters
-    double yaw = direction_kalman_filter.get_yaw();
-    if (position_kalman_filters.initialized())
+    double yaw = direction_kalman_filter_->getYaw();
+    if (position_kalman_filters_->isInitialized())
     {
-        position_kalman_filters.update(wire_points_xyz, yaw);
+        RCLCPP_INFO(this->get_logger(), "Updating Position Kalman Filters with new wire locations.");
+        position_kalman_filters_->update(wire_points_xyz, yaw);
+        RCLCPP_INFO(this->get_logger(), "Position filters updated with %d Kalman filters.", position_kalman_filters_->getNumKFs());
     }
     else
     {
         RCLCPP_INFO(this->get_logger(), "Initializing Position Filters with new wire locations.");
-        position_kalman_filters.initialize_kfs(wire_points_xyz, yaw);
+        position_kalman_filters_->initializeKFs(wire_points_xyz, yaw);
+        relative_transforms_.clear();
+        relative_transform_timestamps_.clear();
+        RCLCPP_INFO(this->get_logger(), "Position filters initialized with %d Kalman filters.",
+                    position_kalman_filters_->getNumKFs());
     }
     total_iterations_++;
 
@@ -270,10 +312,10 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
         {
             size_t rgb_index = std::distance(rgb_timestamps_.begin(), it);
             double rgb_stamp = rgb_timestamps_[rgb_index];
-            cv::Mat rgb_image = rgb_imgs_[rgb_index];
+            cv::Mat rgb_image = rgb_images_[rgb_index];
 
             // Draw Kalman filter visualization on the image
-            publishKFsViz(rgb_image, rgb_stamp, wire_detections_msg.wire_detections);
+            publishKFsViz(rgb_image, rgb_stamp, &msg->wire_detections);
         }
     }
 
@@ -293,22 +335,22 @@ void WireTrackingNode::targetTimerCallback()
     }
     if (tracked_wire_id_ == -1)
     {
-        tracked_wire_id_ = position_kalman_filters.get_target_id();
+        tracked_wire_id_ = position_kalman_filters_->getTargetID();
         if (tracked_wire_id_ == -1)
         {
             RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
             return;
         }
     }
-    auto [wire_dh, kf_index] = position_kalman_filters.get_kf_by_id(tracked_wire_id_);
+    auto [wire_dh, kf_index] = position_kalman_filters_->getKFByID(tracked_wire_id_);
     if (kf_index == -1)
     {
         RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filter found.");
         return;
     }
 
-    Eigen::Vector3d wire_direction = direction_kalman_filter_.getDirection();
-    Eigen::Vector3d kf_xyz = position_kalman_filters_.getKfXYZs(direction_kalman_filter_.getYaw(), {kf_index});
+    Eigen::Vector3d wire_direction = direction_kalman_filter_->getDirection();
+    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw(), {kf_index});
     Eigen::Vector3d start_point = kf_xyz + 20.0 * wire_direction;
     Eigen::Vector3d end_point = kf_xyz - 20.0 * wire_direction;
 
@@ -321,12 +363,12 @@ void WireTrackingNode::targetTimerCallback()
     std::tuple<int, int, double> kf_point_2d(
         static_cast<int>(kf_proj(0) / kf_proj(2)),
         static_cast<int>(kf_proj(1) / kf_proj(2)),
-        kf_dh[1] // Assuming kf_dh is something like Eigen::Vector2d
+        kf_xyz[2] // Assuming kf_xyz is in the form [x, y, z], and the z is the height away from camera
     );
 
     // Calculate pitch
     double dz = start_point(2) - end_point(2);
-    double dxdy = (start_point_2d - end_point_2d).norm();
+    double dxdy = cv::norm(start_point_2d - end_point_2d);
     double pitch = std::atan2(dz, dxdy);
 
     // Image plane angle theta (from end to start)
@@ -341,14 +383,14 @@ void WireTrackingNode::targetTimerCallback()
     wire_interfaces::msg::WireTarget target_msg;
     target_msg.header.stamp = this->now();
     target_msg.header.frame_id = "wire_cam";
-    target_msg.position.x = kf_point_2d.first;
-    target_msg.position.y = kf_point_2d.second;
-    target_msg.position.z = kf_point_2d.third; // Assuming kf_dh[1] is the height
+    target_msg.target_image_x = std::get<0>(kf_point_2d);
+    target_msg.target_image_y = std::get<1>(kf_point_2d);
+    target_msg.target_height = std::get<2>(kf_point_2d); // Assuming kf_dh[1] is the height
     target_msg.target_angle = theta;
     target_msg.target_distance = rho;
     target_msg.target_pitch = pitch;
 
-    wire_target_pub_->publish(target_msg);
+    target_pub_->publish(target_msg);
 }
 
 void WireTrackingNode::visualize3DWires()
@@ -371,20 +413,21 @@ void WireTrackingNode::visualize3DWires()
     marker.scale.y = line_scale;
     marker.scale.z = line_scale;
 
-    std::vector<int> kf_ids = position_kalman_filters_->getKFIDs();
     Eigen::MatrixXd kf_xyzs = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw());
-
-    if (kf_xyzs.rows() != static_cast<int>(kf_ids.size()))
-    {
-        RCLCPP_ERROR(this->get_logger(), "Kalman filter IDs and XYZs do not match in length.");
-        return;
-    }
 
     Eigen::Vector3d wire_direction = direction_kalman_filter_->getDirection();
     Eigen::MatrixXd start_points = kf_xyzs.rowwise() + wire_direction.transpose();
     Eigen::MatrixXd end_points = kf_xyzs.rowwise() - wire_direction.transpose();
+    
+    bool mark_target = false;
+    int kf_index = -1;
+    if (tracked_wire_id_ != -1)
+    {
+        auto [wire_dh, kf_index] = position_kalman_filters_->getKFByID(tracked_wire_id_);
+        mark_target = true;
+    }
 
-    for (size_t i = 0; i < kf_ids.size(); ++i)
+    for (size_t i = 0; i < kf_xyzs.rows(); ++i)
     {
         Eigen::Vector3d start = start_points.row(i);
         Eigen::Vector3d end = end_points.row(i);
@@ -401,7 +444,7 @@ void WireTrackingNode::visualize3DWires()
         marker.points.push_back(p2);
 
         std_msgs::msg::ColorRGBA color;
-        if (kf_ids[i] == tracked_wire_id_)
+        if (mark_target && i == kf_index)
         {
             color.r = 0.0f;
             color.g = 1.0f;
@@ -422,65 +465,42 @@ void WireTrackingNode::visualize3DWires()
     tracking_3d_pub_->publish(marker);
 }
 
-void WireTrackingNode::publishKFsViz(cv::Mat img, double stamp, const std::vector<WireDetection> *wire_detections = nullptr)
+void WireTrackingNode::publishKFsViz(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections = nullptr)
 {
     // Filter valid KF indices
-    Eigen::VectorXi valid_counts = position_kalman_filters_->valid_counts();
-    std::vector<int> valid_kf_ids;
-    for (int i = 0; i < valid_counts.size(); ++i)
-    {
-        if (valid_counts(i) > min_valid_kf_count_threshold_)
-        {
-            valid_kf_ids.push_back(i);
-        }
-    }
+    std::vector<int> valid_kf_indices = position_kalman_filters_->getValidKFIndices();
 
-    if (!valid_kf_ids.empty())
+    if (!valid_kf_indices.empty())
     {
-        // Gather valid KF colors and positions
-        Eigen::MatrixXf valid_colors(valid_kf_ids.size(), 3);
-        for (size_t i = 0; i < valid_kf_ids.size(); ++i)
-        {
-            valid_colors.row(i) = position_kalman_filters_->kf_colors().row(valid_kf_ids[i]);
-        }
-
-        Eigen::Vector3f wire_direction_estimate = direction_kalman_filter_->getDirection().cast<float>();
+        Eigen::Vector3d wire_direction_estimate = direction_kalman_filter_->getDirection();
         float wire_yaw = direction_kalman_filter_->getYaw();
 
-        Eigen::MatrixXf valid_xyz_points = position_kalman_filters_->getKFXYZs(wire_yaw, valid_kf_ids);
+        Eigen::MatrixXd valid_xyz_points = position_kalman_filters_->getKFXYZs(wire_yaw, valid_kf_indices);
 
-        Eigen::MatrixXf start_points = valid_xyz_points.rowwise() + 20 * wire_direction_estimate.transpose();
-        Eigen::MatrixXf end_points = valid_xyz_points.rowwise() - 20 * wire_direction_estimate.transpose();
+        Eigen::MatrixXd start_points = valid_xyz_points.rowwise() + 20 * wire_direction_estimate.transpose();
+        Eigen::MatrixXd end_points = valid_xyz_points.rowwise() - 20 * wire_direction_estimate.transpose();
 
-        Eigen::MatrixXf image_start_points = camera_matrix_ * start_points.transpose();
-        Eigen::MatrixXf image_end_points = camera_matrix_ * end_points.transpose();
+        Eigen::MatrixXd image_start_points = camera_matrix_ * start_points.transpose();
+        Eigen::MatrixXd image_end_points = camera_matrix_ * end_points.transpose();
 
-        int target_kf_idx = -1;
-        const auto &kf_ids = position_kalman_filters_->kf_ids();
-        for (size_t i = 0; i < kf_ids.size(); ++i)
+        int tracked_wire_id_ = position_kalman_filters_->getTargetID();
+        auto [wire_dh, target_kf_idx] = position_kalman_filters_->getKFByID(tracked_wire_id_);
+        for (size_t i = 0; i < valid_kf_indices.size(); ++i)
         {
-            if (kf_ids[i] == tracked_wire_id_)
-            {
-                target_kf_idx = static_cast<int>(i);
-                break;
-            }
-        }
-
-        for (size_t i = 0; i < valid_kf_ids.size(); ++i)
-        {
-            Eigen::Vector3f start_img = image_start_points.col(i);
-            Eigen::Vector3f end_img = image_end_points.col(i);
+            Eigen::Vector3d start_img = image_start_points.col(i);
+            Eigen::Vector3d end_img = image_end_points.col(i);
 
             cv::Point start_pt(start_img(0) / start_img(2), start_img(1) / start_img(2));
             cv::Point end_pt(end_img(0) / end_img(2), end_img(1) / end_img(2));
 
-            cv::Scalar color(valid_colors(i, 0), valid_colors(i, 1), valid_colors(i, 2));
+            Eigen::Vector3d color_vec = position_kalman_filters_->getKFColor(valid_kf_indices[i]);
+            cv::Scalar color(color_vec(0), color_vec(1), color_vec(2));
             cv::line(img, start_pt, end_pt, color, 2);
 
             cv::Point center((start_pt.x + end_pt.x) / 2, (start_pt.y + end_pt.y) / 2);
             cv::circle(img, center, 5, color, -1);
 
-            if (valid_kf_ids[i] == target_kf_idx)
+            if (valid_kf_indices[i] == target_kf_idx)
             {
                 cv::circle(img, center, 10, cv::Scalar(0, 255, 0), 2);
             }
@@ -491,11 +511,11 @@ void WireTrackingNode::publishKFsViz(cv::Mat img, double stamp, const std::vecto
     {
         for (const auto &wire_detection : *wire_detections)
         {
-            Eigen::Vector3f start_vec(wire_detection.start.x, wire_detection.start.y, wire_detection.start.z);
-            Eigen::Vector3f end_vec(wire_detection.end.x, wire_detection.end.y, wire_detection.end.z);
+            Eigen::Vector3d start_vec(wire_detection.start.x, wire_detection.start.y, wire_detection.start.z);
+            Eigen::Vector3d end_vec(wire_detection.end.x, wire_detection.end.y, wire_detection.end.z);
 
-            Eigen::Vector3f img_start = camera_matrix_ * start_vec;
-            Eigen::Vector3f img_end = camera_matrix_ * end_vec;
+            Eigen::Vector3d img_start = camera_matrix_ * start_vec;
+            Eigen::Vector3d img_end = camera_matrix_ * end_vec;
 
             cv::Point pt_start(img_start(0) / img_start(2), img_start(1) / img_start(2));
             cv::Point pt_end(img_end(0) / img_end(2), img_end(1) / img_end(2));
@@ -503,12 +523,12 @@ void WireTrackingNode::publishKFsViz(cv::Mat img, double stamp, const std::vecto
         }
     }
 
-    sensor_msgs::msg::Image img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img).toImageMsg();
+    sensor_msgs::msg::Image::SharedPtr img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img).toImageMsg();
 
-    img_msg.header.stamp.sec = static_cast<int32_t>(stamp);
-    img_msg.header.stamp.nanosec = static_cast<uint32_t>((stamp - static_cast<int32_t>(stamp)) * 1e9);
+    img_msg->header.stamp.sec = static_cast<int32_t>(stamp);
+    img_msg->header.stamp.nanosec = static_cast<uint32_t>((stamp - static_cast<int32_t>(stamp)) * 1e9);
 
-    tracking_2d_pub_->publish(img_msg);
+    tracking_2d_pub_->publish(*img_msg);
 }
 
 void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg)
@@ -537,12 +557,12 @@ void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_
     if (rgb_timestamps_.size() >= 10)
     {
         rgb_timestamps_.erase(rgb_timestamps_.begin());
-        rgb_imgs_.erase(rgb_imgs_.begin());
+        rgb_images_.erase(rgb_images_.begin());
     }
 
     // Insert while keeping the timestamps sorted
     rgb_timestamps_.push_back(stamp);
-    rgb_imgs_.push_back(rgb);
+    rgb_images_.push_back(rgb);
 }
 
 int main(int argc, char **argv)

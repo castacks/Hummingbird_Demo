@@ -27,21 +27,35 @@ private:
 
   // helper loaders
   void loadConfig();
-  void publishKFsViz(cv::Mat img, double stamp, const std::vector<WireDetection> *wire_detections);
+  void publishKFsViz(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections);
   void visualize3DWires();
   void predict_kfs_up_to_timestamp(double input_stamp);
 
+  // topics
+  std::string camera_info_sub_topic_;
+  std::string pose_sub_topic_;
+  std::string wire_detections_topic_;
+  std::string wire_target_topic_;
+  std::string rgb_image_sub_topic_;
+  std::string tracking_2d_viz_topic_;
+  std::string tracking_3d_viz_topic_;
+
   // members
-  std::string camera_info_topic_, pose_topic_, detections_topic_, target_topic_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_;
   rclcpp::Subscription<wire_interfaces::msg::WireDetections>::SharedPtr detection_sub_;
+
   rclcpp::Publisher<wire_interfaces::msg::WireTarget>::SharedPtr target_pub_;
   rclcpp::TimerBase::SharedPtr target_timer_;
 
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgb_image_sub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr tracking_2d_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr tracking_3d_pub_;
+  
+
   // Kalman filters
-  DirectionKalmanFilter direction_kf_;
-  PositionKalmanFilter position_kf_;
+  std::optional<DirectionKalmanFilter> direction_kalman_filter_;
+  std::optional<PositionKalmanFilters> position_kalman_filters_;
   int tracked_wire_id_{-1};
   int total_iterations_{0};
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
@@ -63,6 +77,8 @@ private:
   YAML::Node config_;
   bool wire_viz_{false};
   int wire_mode_{0}; // 0: off, 1: wire_detection, 2: wire_tracking
+  bool wire_viz_2d_{false}; // 2D visualization flag
+  bool wire_viz_3d_{false}; // 3D visualization flag
 };
 
 #endif // WIRE_TRACKING__WIRE_TRACKING_NODE_HPP_

@@ -1,8 +1,10 @@
 min_valid_kf_count_threshold: 15
 iteration_start_threshold: 20
-target_publish_frequency_hz: 10 # Hz
+target_publish_frequency_hz: 10.0 # Hz
 
-initial_yaw_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
+zed_baseline: 0.12 # meters
+
+initial_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
 wire_matching_min_threshold_m: 0.15 # meters
 valid_count_buffer: 3
 
