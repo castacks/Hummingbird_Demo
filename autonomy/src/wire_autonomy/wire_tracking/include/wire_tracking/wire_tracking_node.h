@@ -30,6 +30,7 @@ private:
   void publishKFsViz(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections);
   void visualize3DWires();
   void predict_kfs_up_to_timestamp(double input_stamp);
+  void debugPrintKFs();
 
   // topics
   std::string camera_info_sub_topic_;
@@ -67,7 +68,6 @@ private:
   Eigen::Matrix4d previous_relative_transform_;
   std::vector<double> rgb_timestamps_;
   std::vector<cv::Mat> rgb_images_;
-  
 
   Eigen::Matrix3d camera_matrix_;
   Eigen::Matrix4d H_pose_to_wire_, H_wire_to_pose_;

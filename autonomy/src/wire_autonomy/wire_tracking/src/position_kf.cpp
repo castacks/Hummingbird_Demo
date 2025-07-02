@@ -69,6 +69,8 @@ void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
     // 4) Tile P_init_ into each new column:
     kf_covariances_.conservativeResize(4, oldN + newN);
     kf_covariances_.block(0, oldN, 4, newN) = P_init_.replicate(1, newN);
+    assert(kf_covariances_.rows() == 4);
+    assert(kf_covariances_.cols() >= oldN + newN);
 
     // 5) Generate and copy colors in one call:
     Eigen::Matrix3Xd cols = generateVizColor(newN); // returns 3×newN Eigen::Matrix3Xd
@@ -173,19 +175,19 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
         throw std::runtime_error("valid_counts size mismatch with KF points");
     }
 
-    // Convert cam_points (N x 3) to dhs_measured (N x 2)
+    // Convert cam_points (3 x N) to dhs_measured (2 x N)
     Eigen::Matrix2Xd dhs_measured = getDHFromXYZs(cam_points, wire_yaw);
 
-    // Compute comp_diffs and comp_dists:
-    // comp_diffs shape (N, M, 2) -> distance and height differences between each measured point and each KF point
-    // We'll store the distances in an N x M matrix
-    Eigen::VectorXd a_norms = dhs_measured.rowwise().squaredNorm(); // N x 1 vector
-    Eigen::VectorXd b_norms = kf_points_.rowwise().squaredNorm();   // M x 1 vector
+    // using Euclidean distance formula:
+    // dists_sq = ||a||² + ||b||² - 2 * aᵀ * b
+    // where a = dhs_measured, b = kf_points_
+    Eigen::VectorXd dh_norms = dhs_measured.colwise().squaredNorm(); // 1 x N vector
+    Eigen::VectorXd kf_norms = kf_points_.colwise().squaredNorm();   // 1 x M vector
 
     // Compute squared distance matrix using broadcasting
-    Eigen::MatrixXd dists_sq = a_norms.replicate(1, M)                          // N x M
-                               + b_norms.transpose().replicate(N, 1)            // N x M
-                               - 2.0 * (dhs_measured * kf_points_.transpose()); // N x M
+    Eigen::MatrixXd dists_sq = dh_norms.replicate(1, M)                         // N x M
+                               + kf_norms.transpose().replicate(N, 1)           // N x M
+                               - 2.0 * (dhs_measured.transpose() * kf_points_); // N x M
 
     // Clamp any negative values to zero (due to floating-point errors)
     dists_sq = dists_sq.array().max(0.0);
@@ -194,10 +196,10 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
     Eigen::MatrixXd comp_dists = dists_sq.array().sqrt();
 
     // matched_points: boolean N x M, true if distance < threshold
-    Eigen::ArrayXX<bool> matched_points = (comp_dists.array() < wire_matching_min_threshold_m_);
+    Eigen::ArrayXX<bool> dists_masked = (comp_dists.array() < wire_matching_min_threshold_m_);
 
     // Find unmatched kfs (no measured point matched to them)
-    Eigen::Array<bool, 1, Eigen::Dynamic> any_matches = matched_points.colwise().any(); // 1 x M
+    Eigen::Array<bool, 1, Eigen::Dynamic> any_matches = dists_masked.colwise().any(); // 1 x M
 
     // Step 2: Find indices where any_matches is false (no matches)
     std::vector<int> unmatched_kfs;
@@ -222,7 +224,7 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
         }
     }
 
-    // For each measured point:
+    Eigen::Matrix2Xd dhs_to_add(2, 0);
     for (int i = 0; i < N; ++i)
     {
         // Find matched KF indices for this measured point
@@ -257,7 +259,8 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
             }
             int matched_index = matched_indices[0];
 
-            // Eigen::Map<const Eigen::Matrix2d> P(kf_covariances_.col(matched_index).data());
+            assert(kf_covariances_.rows() == 4);
+            assert(matched_index >= 0 && matched_index < kf_covariances_.cols());
 
             Eigen::Matrix2d P;
             P(0, 0) = kf_covariances_(0, matched_index);
@@ -268,9 +271,9 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
             Eigen::Matrix2d K = P * S.inverse();
 
             // Update kf_points
-            Eigen::Vector2d y = dhs_measured.row(i).transpose() - kf_points_.row(matched_index).transpose();
+            Eigen::Vector2d y = dhs_measured.col(i).transpose() - kf_points_.col(matched_index).transpose();
             Eigen::Vector2d correction = K * y;
-            kf_points_.row(matched_index) += correction.transpose();
+            kf_points_.col(matched_index) += correction.transpose();
 
             // Update covariance
             Eigen::Matrix2d I = Eigen::Matrix2d::Identity();
@@ -282,9 +285,15 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
         }
         else
         {
-            // No matches, add new KF point
-            addKFs(dhs_measured.row(i).transpose());
+            // No matches, add measured point as a new Kalman filter
+            dhs_to_add.conservativeResize(2, dhs_to_add.cols() + 1);
+            dhs_to_add.col(dhs_to_add.cols() - 1) = dhs_measured.col(i);
         }
+    }
+
+    if (dhs_to_add.cols() > 0)
+    {
+        addKFs(dhs_to_add);
     }
 
     int num_removed = removeStaleKFs();
@@ -329,24 +338,27 @@ int PositionKalmanFilters::removeStaleKFs()
         return 0;
     }
 
-    // 4) Allocate new, smaller matrices
-    Eigen::Matrix<int, 1, Eigen::Dynamic> new_ids(1, newN);
+    // Allocate new, smaller matrices
+    Eigen::VectorXi new_ids(newN);
     Eigen::Matrix2Xd new_points(2, newN);
     Eigen::Matrix<double, 4, Eigen::Dynamic> new_Ps_flat(4, newN);
     Eigen::Matrix3Xd new_colors(3, newN);
-    Eigen::Matrix<int, 1, Eigen::Dynamic> new_valid(1, newN);
+    Eigen::VectorXi new_valid(newN);
 
-    // 5) Copy columns *in one shot* by iterating only over the kept indices
-    //    (the only small loop we need)
+    // Copy columns *in one shot* by iterating only over the kept indices
+    assert(kf_ids_.size() == oldN);
+    assert(valid_counts_.size() == oldN);
+    assert(kf_points_.cols() == oldN);
+    assert(kf_covariances_.cols() == oldN);
     for (int srcCol = 0, dstCol = 0; srcCol < oldN; ++srcCol)
     {
         if (keepMask(srcCol))
         {
-            new_ids(0, dstCol) = kf_ids_(0, srcCol);
+            new_ids(dstCol) = kf_ids_(srcCol);
             new_points.col(dstCol) = kf_points_.col(srcCol);
             new_Ps_flat.col(dstCol) = kf_covariances_.col(srcCol);
             new_colors.col(dstCol) = kf_colors_.col(srcCol);
-            new_valid(0, dstCol) = valid_counts_(0, srcCol);
+            new_valid(dstCol) = valid_counts_(srcCol);
             ++dstCol;
         }
     }

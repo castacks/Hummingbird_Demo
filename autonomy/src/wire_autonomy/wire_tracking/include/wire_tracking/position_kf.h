@@ -37,7 +37,7 @@ private:
 
     // State tracking
     bool initialized_;
-    int max_kf_id_;
+    int max_kf_id_ = 0; // Maximum Kalman filter ID assigned so far
     int target_kf_id_;
 
     Eigen::VectorXi kf_ids_;       // 1×N
@@ -72,4 +72,8 @@ public:
     Eigen::VectorXd getKFColor(int kf_index) const;
     bool isInitialized() const { return initialized_; }
     int getNumKFs() const { return kf_points_.cols(); }
+    Eigen::Matrix2Xd getKFPoints() const { return kf_points_; }
+    Eigen::MatrixXd getKFCovariances() const { return kf_covariances_; }
+    Eigen::VectorXi getKFIDs() const { return kf_ids_; }
+    Eigen::VectorXi getValidCounts() const { return valid_counts_; }
 };

@@ -190,6 +190,9 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
         RCLCPP_INFO(this->get_logger(), "No relative pose transforms available for prediction.");
         return;
     }
+    else {
+        RCLCPP_INFO(this->get_logger(), "Predicting Kalman filters up to timestamp: %.2f, using %d transforms.", input_stamp, idx + 1);
+    }
 
     // Iterate over poses up to idx
     for (int i = 0; i < idx; ++i)
@@ -269,16 +272,14 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
     // update or initialize your direction filter
     if (direction_kalman_filter_->isInitialized())
     {
-        RCLCPP_INFO(this->get_logger(), "Updating Direction Kalman Filter with new average direction.");
         direction_kalman_filter_->update(avg_dir);
         double measured_yaw = std::atan2(avg_dir.y(), avg_dir.x()) * 180.0 / M_PI;
         double current_yaw = direction_kalman_filter_->getYaw() * 180.0 / M_PI;
-        RCLCPP_INFO(this->get_logger(), "Direction filter updated with yaw: %.2f degrees (measured: %.2f degrees)",
+        RCLCPP_INFO(this->get_logger(), "Direction filter updated to yaw: %.2f degrees (measured: %.2f degrees)",
                     current_yaw, measured_yaw);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "Initializing Direction Kalman Filter with new average direction.");
         direction_kalman_filter_->initialize(avg_dir);
         RCLCPP_INFO(this->get_logger(), "Direction filter initialized with yaw: %.2f degrees",
                     direction_kalman_filter_->getYaw() * 180.0 / M_PI);
@@ -288,13 +289,11 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
     double yaw = direction_kalman_filter_->getYaw();
     if (position_kalman_filters_->isInitialized())
     {
-        RCLCPP_INFO(this->get_logger(), "Updating Position Kalman Filters with new wire locations.");
         position_kalman_filters_->update(wire_points_xyz, yaw);
         RCLCPP_INFO(this->get_logger(), "Position filters updated with %d Kalman filters.", position_kalman_filters_->getNumKFs());
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "Initializing Position Filters with new wire locations.");
         position_kalman_filters_->initializeKFs(wire_points_xyz, yaw);
         relative_transforms_.clear();
         relative_transform_timestamps_.clear();
@@ -302,6 +301,8 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
                     position_kalman_filters_->getNumKFs());
     }
     total_iterations_++;
+
+    debugPrintKFs();
 
     if (wire_viz_2d_)
     {
@@ -529,6 +530,38 @@ void WireTrackingNode::publishKFsViz(cv::Mat img, double stamp, const std::vecto
     img_msg->header.stamp.nanosec = static_cast<uint32_t>((stamp - static_cast<int32_t>(stamp)) * 1e9);
 
     tracking_2d_pub_->publish(*img_msg);
+}
+
+void WireTrackingNode::debugPrintKFs()
+{
+    if (!position_kalman_filters_ || !initialized_)
+    {
+        RCLCPP_INFO(this->get_logger(), "Position Kalman Filters not initialized.");
+        return;
+    }
+
+    auto kf_ids = position_kalman_filters_->getKFIDs();
+    auto kf_points = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw());
+    auto kf_covariances = position_kalman_filters_->getKFCovariances();
+    auto valid_counts = position_kalman_filters_->getValidCounts();
+
+    assert(kf_ids.size() == kf_points.cols());
+    assert(kf_points.rows() == 3);
+    assert(kf_covariances.rows() == 4);
+    assert(kf_covariances.cols() == kf_ids.size());
+    assert(valid_counts.size() == kf_ids.size());
+
+    RCLCPP_INFO(this->get_logger(), "Kalman Filters:");
+    for (size_t i = 0; i < kf_ids.size(); ++i)
+    {
+        RCLCPP_INFO(this->get_logger(), "KF ID: %d, Point: (%.2f, %.2f, %.2f), Valid Count: %d",
+                    kf_ids[i],
+                    kf_points(0, i), kf_points(1, i), kf_points(2, i),
+                    valid_counts[i]);
+        // RCLCPP_INFO(this->get_logger(), "Covariance: [%.4f, %.4f, %.4f, %.4f]",
+        //             kf_covariances(0, i), kf_covariances(1, i),
+        //             kf_covariances(2, i), kf_covariances(3, i));
+    }
 }
 
 void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg)
