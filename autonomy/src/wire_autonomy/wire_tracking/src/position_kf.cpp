@@ -2,6 +2,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <unsupported/Eigen/KroneckerProduct>
+#include "rclcpp/rclcpp.hpp"
 
 #include "wire_tracking/position_kf.h"
 
@@ -69,8 +70,6 @@ void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
     // 4) Tile P_init_ into each new column:
     kf_covariances_.conservativeResize(4, oldN + newN);
     kf_covariances_.block(0, oldN, 4, newN) = P_init_.replicate(1, newN);
-    assert(kf_covariances_.rows() == 4);
-    assert(kf_covariances_.cols() >= oldN + newN);
 
     // 5) Generate and copy colors in one call:
     Eigen::Matrix3Xd cols = generateVizColor(newN); // returns 3×newN Eigen::Matrix3Xd
@@ -80,9 +79,6 @@ void PositionKalmanFilters::addKFs(const Eigen::Matrix2Xd &dhs0)
     valid_counts_.segment(oldN, newN).setConstant(valid_count_buffer_);
 
     max_kf_id_ += newN;
-
-    assert(kf_ids_.size() == kf_points_.cols());
-    assert(valid_counts_.size() == kf_points_.cols());
 }
 
 void PositionKalmanFilters::initializeKFs(const Eigen::Matrix3Xd &camera_points, double wire_yaw)
@@ -195,7 +191,7 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
     // Final Euclidean distances
     Eigen::MatrixXd comp_dists = dists_sq.array().sqrt();
 
-    // matched_points: boolean N x M, true if distance < threshold
+    // dists_masked: boolean N x M, true if distance < threshold
     Eigen::ArrayXX<bool> dists_masked = (comp_dists.array() < wire_matching_min_threshold_m_);
 
     // Find unmatched kfs (no measured point matched to them)
@@ -231,7 +227,7 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
         std::vector<int> matched_indices;
         for (int j = 0; j < M; ++j)
         {
-            if (matched_points(i, j))
+            if (dists_masked(i, j))
             {
                 matched_indices.push_back(j);
             }
@@ -258,9 +254,6 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
                 matched_indices.push_back(closest_index);
             }
             int matched_index = matched_indices[0];
-
-            assert(kf_covariances_.rows() == 4);
-            assert(matched_index >= 0 && matched_index < kf_covariances_.cols());
 
             Eigen::Matrix2d P;
             P(0, 0) = kf_covariances_(0, matched_index);
@@ -295,27 +288,53 @@ void PositionKalmanFilters::update(const Eigen::Matrix3Xd &cam_points, double wi
     {
         addKFs(dhs_to_add);
     }
+    if (kf_ids_.maxCoeff() > max_kf_id_)
+    {
+        throw std::runtime_error("4 max kf_id max exceeds max_kf_id_: " + std::to_string(valid_counts_.maxCoeff()));
+    }
+    if (kf_points_.maxCoeff() > 100.0 || kf_points_.minCoeff() < -100.0)
+    {
+        throw std::runtime_error("4 kf_points out of bounds: " + std::to_string(kf_points_.maxCoeff()) + ", " + std::to_string(kf_points_.minCoeff()));
+    }
 
     int num_removed = removeStaleKFs();
     if (num_removed > 0)
     {
-        std::cout << "Removed " << num_removed << " stale Kalman filter points.\n";
+        RCLCPP_INFO(rclcpp::get_logger("PositionKalmanFilters"), "Removed %d stale Kalman filters", num_removed);
     }
 
-    // Check sizes consistent
-    if (kf_ids_.size() != (size_t)kf_points_.cols())
+    // Final validation checks
+    if (valid_counts_.size() != (size_t)kf_points_.cols()
+        || kf_ids_.size() != (size_t)kf_points_.cols()
+        || kf_covariances_.cols() != (size_t)kf_points_.cols()
+        || kf_colors_.cols() != (size_t)kf_points_.cols())
     {
-        throw std::runtime_error("kf_ids and kf_points size mismatch after removal");
+        throw std::runtime_error("Size mismatch after removal");
+    }
+    if (kf_ids_.maxCoeff() > max_kf_id_)
+    {
+        throw std::runtime_error("5 max kf_id max exceeds max_kf_id_: " + std::to_string(valid_counts_.maxCoeff()));
+    }
+    if (kf_points_.maxCoeff() > 100.0 || kf_points_.minCoeff() < -100.0)
+    {
+        throw std::runtime_error("5 kf_points out of bounds: " + std::to_string(kf_points_.maxCoeff()) + ", " + std::to_string(kf_points_.minCoeff()));
     }
 }
 
 int PositionKalmanFilters::removeStaleKFs()
 {
+    if (valid_counts_.size() != kf_points_.cols()
+        || kf_ids_.size() != kf_points_.cols()
+        || kf_covariances_.cols() != kf_points_.cols()
+        || kf_colors_.cols() != kf_points_.cols())
+    {
+        throw std::runtime_error("Size mismatch before removal");
+    }
     // 1) Build a 1×N Boolean mask: keepMask[j] = (valid_counts_[j] >= 0)
     Eigen::Array<bool, 1, Eigen::Dynamic> keepMask =
         (valid_counts_.array() >= 0);
 
-    int oldN = valid_counts_.cols();
+    int oldN = valid_counts_.size();
     int newN = static_cast<int>(keepMask.count());
     int removed = oldN - newN;
 
@@ -341,15 +360,10 @@ int PositionKalmanFilters::removeStaleKFs()
     // Allocate new, smaller matrices
     Eigen::VectorXi new_ids(newN);
     Eigen::Matrix2Xd new_points(2, newN);
-    Eigen::Matrix<double, 4, Eigen::Dynamic> new_Ps_flat(4, newN);
+    Eigen::MatrixXd new_Ps_flat(4, newN);
     Eigen::Matrix3Xd new_colors(3, newN);
     Eigen::VectorXi new_valid(newN);
 
-    // Copy columns *in one shot* by iterating only over the kept indices
-    assert(kf_ids_.size() == oldN);
-    assert(valid_counts_.size() == oldN);
-    assert(kf_points_.cols() == oldN);
-    assert(kf_covariances_.cols() == oldN);
     for (int srcCol = 0, dstCol = 0; srcCol < oldN; ++srcCol)
     {
         if (keepMask(srcCol))
@@ -425,9 +439,9 @@ int PositionKalmanFilters::getTargetID()
 std::vector<int> PositionKalmanFilters::getValidKFIndices() const
 {
     std::vector<int> valid_indices;
-    for (int i = 0; i < valid_counts_.cols(); ++i)
+    for (int i = 0; i < valid_counts_.size(); ++i)
     {
-        if (valid_counts_(0, i) >= min_valid_kf_count_threshold_)
+        if (valid_counts_(i) >= min_valid_kf_count_threshold_)
         {
             valid_indices.push_back(i);
         }

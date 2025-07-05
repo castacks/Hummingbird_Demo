@@ -2,7 +2,6 @@
 
 #include <yaml-cpp/yaml.h>
 #include <Eigen/Dense>
-#include <cassert>
 #include <cmath>
 #include <vector>
 #include <utility>

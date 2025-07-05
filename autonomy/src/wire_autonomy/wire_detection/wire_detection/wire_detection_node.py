@@ -188,6 +188,7 @@ class WireDetectorNode(Node):
             marker.type = Marker.LINE_LIST
             marker.action = Marker.ADD
             line_scale = 0.05
+            line_length = 2
             marker.scale.x = line_scale
             marker.scale.y = line_scale
             marker.scale.z = line_scale
@@ -202,9 +203,15 @@ class WireDetectorNode(Node):
                 for start, end in fitted_lines:
                     start = start.astype(np.float32)
                     end = end.astype(np.float32)
+                    midpoint = (start + end) / 2
+                    line_direction = (end - start) / np.linalg.norm(end - start)
+                    start_scaled = midpoint + line_direction * line_length / 2
+                    end_scaled = midpoint - line_direction * line_length / 2
+
                     # Create Point objects for the start and end points
-                    p1 = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
-                    p2 = Point(x=float(end[0]), y=float(end[1]), z=float(end[2]))
+                    p1 = Point(x=float(start_scaled[0]), y=float(start_scaled[1]), z=float(start_scaled[2]))
+                    p2 = Point(x=float(end_scaled[0]), y=float(end_scaled[1]), z=float(end_scaled[2]))
+
                     marker.points.append(p1)
                     marker.points.append(p2)
                     self.detections_3d_pub.publish(marker)

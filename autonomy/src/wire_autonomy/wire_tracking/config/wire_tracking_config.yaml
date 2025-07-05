@@ -1,5 +1,5 @@
 min_valid_kf_count_threshold: 15
-iteration_start_threshold: 20
+iteration_start_threshold: 50
 target_publish_frequency_hz: 10.0 # Hz
 
 zed_baseline: 0.12 # meters

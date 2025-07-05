@@ -31,9 +31,6 @@ DirectionKalmanFilter::DirectionKalmanFilter(const YAML::Node &config)
 
 void DirectionKalmanFilter::initialize(const Eigen::Vector3d &direction0)
 {
-    // Sanity check
-    assert(direction0.size() == 3 && "direction0 must have 3 elements (vx, vy, vz)");
-
     // Set the initial direction estimate
     curr_direction_ = direction0;
 
@@ -46,8 +43,6 @@ void DirectionKalmanFilter::initialize(const Eigen::Vector3d &direction0)
 
 double DirectionKalmanFilter::predict(const Eigen::Matrix3d &relative_rotation)
 {
-    assert(relative_rotation.rows() == 3 && relative_rotation.cols() == 3 && "relative_rotation must be 3x3");
-
     // Predict new direction
     curr_direction_ = relative_rotation * curr_direction_;
     curr_direction_.normalize(); // Normalize the vector
@@ -79,11 +74,13 @@ Eigen::Vector3d DirectionKalmanFilter::getDirectionFromLineEndPoints(
     const Eigen::Vector3d &end,
     const Eigen::Vector3d *reference_direction) const
 {
-    // Check input shapes (Eigen vectors already have fixed size)
-    assert(start.size() == 3 && end.size() == 3 && "start and end must be 3D points");
-
     Eigen::Vector3d direction = end - start;
-    direction.normalize();
+    double norm = direction.norm();
+    if (norm < 1e-12)  // tolerance for zero-length vector
+    {
+        // Handle gracefully: maybe return zero vector or a fallback direction
+        return Eigen::Vector3d::Zero();  // or however you want to handle this case
+    }
 
     // Use current direction if initialized
     if (initialized_)
@@ -102,7 +99,7 @@ Eigen::Vector3d DirectionKalmanFilter::getDirectionFromLineEndPoints(
         }
     }
 
-    return direction;
+    return direction / norm; // Return normalized direction vector 
 }
 
 double DirectionKalmanFilter::getYaw() const
