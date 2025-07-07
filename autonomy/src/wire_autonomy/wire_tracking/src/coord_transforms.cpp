@@ -43,10 +43,12 @@ std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransform(
   return {from_transform.inverse() * to_transform, to_transform};
 }
 
-std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(const Eigen::Matrix4d &frame_transform, const Eigen::Matrix4d &from_transform, const geometry_msgs::msg::Pose &to_pose)
+std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(const Eigen::Matrix4d &to_frame_transform, const Eigen::Matrix4d &from_frame_transform, const Eigen::Matrix4d &from_transform, const geometry_msgs::msg::Pose &to_pose)
 {
-    auto relative_transforms = getRelativeTransform(from_transform, to_pose);
+    Eigen::Matrix4d relative_transform;
+    Eigen::Matrix4d to_pose_transform;
+    std::tie(relative_transform, to_pose_transform) = getRelativeTransform(from_transform, to_pose);
 
     // Transform the relative frame transform to the new frame
-    return {frame_transform * relative_transforms.first * frame_transform.inverse(), relative_transforms.second};
+    return {to_frame_transform * relative_transform * from_frame_transform, to_pose_transform};
 }

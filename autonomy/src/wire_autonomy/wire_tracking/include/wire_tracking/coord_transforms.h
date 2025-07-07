@@ -11,7 +11,8 @@ std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransform(
   const geometry_msgs::msg::Pose & to_pose);
 
 std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(
-  const Eigen::Matrix4d & frame_transform,
+  const Eigen::Matrix4d & to_frame_transform,
+  const Eigen::Matrix4d & from_frame_transform,
   const Eigen::Matrix4d & from_transform,
   const geometry_msgs::msg::Pose & to_pose);
 

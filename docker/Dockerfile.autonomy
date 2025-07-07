@@ -72,6 +72,6 @@ RUN pip3 install \
   pyyaml \
   pybind11
 
-RUN echo "alias sws='source /root/ros2_ws/install/setup.bash'" >> ~/.bashrc && \
-    echo "alias bwt='colcon build --symlink-install --packages-select wire_tracking'" >> ~/.bashrc && \
-    echo "alias bws='colcon build --symlink-install'" >> ~/.bashrc
+RUN echo "alias sws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash'" >> ~/.bashrc && \
+    echo "alias bwt='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install --packages-select wire_tracking'" >> ~/.bashrc && \
+    echo "alias bws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install'" >> ~/.bashrc

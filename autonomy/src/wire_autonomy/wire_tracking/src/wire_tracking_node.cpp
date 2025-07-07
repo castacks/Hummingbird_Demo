@@ -70,14 +70,15 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
 
     // Precompute transforms
-    double baseline = config_["zed_baseline"].as<double>() / 2.0;
-    Matrix3d Rz;
-    Rz = Eigen::AngleAxisd(-M_PI / 2, Vector3d::UnitZ());
+    double baseline = config_["zed_baseline"].as<double>();
+    // Matrix3d Rz;
+    // Rz = Eigen::AngleAxisd(-M_PI / 2, Vector3d::UnitZ());
     Matrix3d Ry;
     Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
     H_pose_to_wire_.setIdentity();
-    H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Ry;
-    H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(baseline, 0.0, -0.216);
+    // H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Ry;
+    H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
+    H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.216);
     H_wire_to_pose_ = H_pose_to_wire_.inverse();
 
     // Populate Kalman filters
@@ -140,22 +141,26 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
 void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
     if (!initialized_)
-        return;
-    // if last relative transform is not set, initialize it
-    if (previous_relative_transform_.isZero())
     {
-        previous_relative_transform_ = poseToHomogeneous(msg->pose.pose);
+        return;
+    }
+
+    // if last relative transform is not set, initialize it
+    if (previous_transform_.isZero())
+    {
+        previous_transform_ = poseToHomogeneous(msg->pose.pose);
     }
     else
     {
+        Eigen::Matrix4d H_relative_in_wire_cam;
+        Eigen::Matrix4d H_to_pose;
         // Compute the relative transform from the previous pose to the current pose
-        auto [H_relative_in_wire_cam, H_to_pose] = getRelativeTransformInAnotherFrame(
-            H_pose_to_wire_, previous_relative_transform_, msg->pose.pose);
+        std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
         // Update the previous relative transform
         double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         relative_transform_timestamps_.push_back(stamp);
         relative_transforms_.push_back(H_relative_in_wire_cam);
-        previous_relative_transform_ = H_to_pose;
+        previous_transform_ = H_to_pose;
     }
 }
 

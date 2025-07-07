@@ -65,7 +65,7 @@ private:
   // Queues
   std::vector<double> relative_transform_timestamps_;
   std::vector<Eigen::Matrix4d> relative_transforms_;
-  Eigen::Matrix4d previous_relative_transform_;
+  Eigen::Matrix4d previous_transform_ = Eigen::Matrix4d::Zero();
   std::vector<double> rgb_timestamps_;
   std::vector<cv::Mat> rgb_images_;
 
