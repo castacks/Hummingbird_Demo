@@ -23,6 +23,8 @@
 #include "utility/visualization.h"
 #include "sensor_msgs/msg/camera_info.hpp"
 
+const size_t MAX_IMAGE_QUEUE_SIZE = 5;
+
 Estimator estimator;
 
 queue<sensor_msgs::msg::Imu::ConstPtr> imu_buf;
@@ -32,21 +34,27 @@ queue<sensor_msgs::msg::Image::ConstPtr> img1_buf;
 bool CAMERA_INFO_STATUS[2] = {false, false};
 std::mutex m_buf;
 
-// header: 1403715278
 void img0_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
 {
-    m_buf.lock();
-    // std::cout << "Left : " << img_msg->header.stamp.sec << "." << img_msg->header.stamp.nanosec << endl;
+    std::lock_guard<std::mutex> lock(m_buf);
+    if (img0_buf.size() > MAX_IMAGE_QUEUE_SIZE)
+    {
+        // Drop the oldest frame
+        img0_buf.pop();
+        RCLCPP_WARN(rclcpp::get_logger("vins"), "Dropped img0 to keep up with processing.");
+    }
     img0_buf.push(img_msg);
-    m_buf.unlock();
 }
 
 void img1_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
 {
-    m_buf.lock();
-    // std::cout << "Right: " << img_msg->header.stamp.sec << "." << img_msg->header.stamp.nanosec << endl;
+    std::lock_guard<std::mutex> lock(m_buf);
+    if (img1_buf.size() > MAX_IMAGE_QUEUE_SIZE)
+    {
+        img1_buf.pop();
+        RCLCPP_WARN(rclcpp::get_logger("vins"), "Dropped img1 to keep up with processing.");
+    }
     img1_buf.push(img_msg);
-    m_buf.unlock();
 }
 
 void updateYamlWithCameraInfo(const std::string &yaml_file_path, const sensor_msgs::msg::CameraInfo &camera_info)
@@ -340,22 +348,25 @@ int main(int argc, char **argv)
     registerPub(n);
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu = NULL;
+    auto sensor_qos = rclcpp::QoS(5)
+                    .best_effort()
+                    .durability_volatile();
     if(USE_IMU)
     {
-        sub_imu = n->create_subscription<sensor_msgs::msg::Imu>(IMU_TOPIC, rclcpp::QoS(rclcpp::KeepLast(2000)), imu_callback);
+        sub_imu = n->create_subscription<sensor_msgs::msg::Imu>(IMU_TOPIC, sensor_qos, imu_callback);
     }
-    auto sub_feature = n->create_subscription<sensor_msgs::msg::PointCloud>("/feature_tracker/feature", rclcpp::QoS(rclcpp::KeepLast(2000)), feature_callback);
-    auto sub_img0 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE0_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), img0_callback);
-    
+    auto sub_feature = n->create_subscription<sensor_msgs::msg::PointCloud>("/feature_tracker/feature", sensor_qos, feature_callback);
+    auto sub_img0 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE0_TOPIC, sensor_qos, img0_callback);
+
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_img1 = NULL;
     if(STEREO)
     {
-        sub_img1 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE1_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), img1_callback);
+        sub_img1 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE1_TOPIC, sensor_qos, img1_callback);
     }
-    
-    auto sub_restart = n->create_subscription<std_msgs::msg::Bool>("/vins_restart", rclcpp::QoS(rclcpp::KeepLast(100)), restart_callback);
-    auto sub_imu_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_imu_switch", rclcpp::QoS(rclcpp::KeepLast(100)), imu_switch_callback);
-    auto sub_cam_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_cam_switch", rclcpp::QoS(rclcpp::KeepLast(100)), cam_switch_callback);
+
+    auto sub_restart = n->create_subscription<std_msgs::msg::Bool>("/vins_restart", sensor_qos, restart_callback);
+    auto sub_imu_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_imu_switch", sensor_qos, imu_switch_callback);
+    auto sub_cam_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_cam_switch", sensor_qos, cam_switch_callback);
 
     std::thread sync_thread{sync_process};
     rclcpp::spin(n);
