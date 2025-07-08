@@ -24,13 +24,12 @@ private:
   void wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg);
   void targetTimerCallback();
   void rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg);
-
-  // helper loaders
+  
+  // helper functions
   void loadConfig();
-  void publishKFsViz(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections);
-  void visualize3DWires();
   void predict_kfs_up_to_timestamp(double input_stamp);
   void debugPrintKFs();
+  void visualizeWireTracking(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections);
 
   // topics
   std::string camera_info_sub_topic_;

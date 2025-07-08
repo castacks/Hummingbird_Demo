@@ -40,7 +40,8 @@ std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransform(
   Matrix4d to_transform = poseToHomogeneous(to_pose);
 
   // Relative: H_rel = H1⁻¹ * H2
-  return {from_transform.inverse() * to_transform, to_transform};
+  // return {from_transform.inverse() * to_transform, to_transform};
+  return {to_transform.inverse() * from_transform, to_transform};
 }
 
 std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(const Eigen::Matrix4d &to_frame_transform, const Eigen::Matrix4d &from_frame_transform, const Eigen::Matrix4d &from_transform, const geometry_msgs::msg::Pose &to_pose)
