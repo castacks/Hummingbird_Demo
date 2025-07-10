@@ -69,6 +69,7 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
     vtol_payload_ = config_["vtol_payload"].as<bool>();
+    pose_translation_dropout_ = config_["pose_translation_dropout"].as<double>();
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
@@ -165,10 +166,24 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
         Eigen::Matrix4d H_to_pose;
         // Compute the relative transform from the previous pose to the current pose
         std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
-        // Update the previous relative transform
         double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-        relative_transform_timestamps_.push_back(stamp);
-        relative_transforms_.push_back(H_relative_in_wire_cam);
+        
+        // Store the relative transform and its timestamp in queue
+        RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]",
+                    stamp,
+                    H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
+        double relative_translation = H_relative_in_wire_cam.block<3, 1>(0, 3).norm();
+        if (relative_translation < pose_translation_dropout_)
+        {
+            relative_transform_timestamps_.push_back(stamp);
+            relative_transforms_.push_back(H_relative_in_wire_cam);
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "!!!!!!!!!!!Pose translation %.2f exceeds dropout threshold %.2f, skipping update.", relative_translation, pose_translation_dropout_);
+        }
+
+        // Update the previous relative transform
         previous_transform_ = H_to_pose;
     }
 }
@@ -207,6 +222,11 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
     else
     {
         RCLCPP_INFO(this->get_logger(), "Predicting Kalman filters up to timestamp: %.2f, using %d transforms.", input_stamp, idx + 1);
+        RCLCPP_INFO(this->get_logger(), "Current Transform Timestamps:");
+        for (int i = 0; i <= idx; ++i)
+        {
+            RCLCPP_INFO(this->get_logger(), "Transform %d: %.2f", i, relative_transform_timestamps_[i]);
+        }
     }
 
     // Iterate over poses up to idx

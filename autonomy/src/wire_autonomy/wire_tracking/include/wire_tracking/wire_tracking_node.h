@@ -61,6 +61,7 @@ private:
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
   bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
+  double pose_translation_dropout_{1.0}; // Dropout threshold for pose translation in meters
 
   // Queues
   std::vector<double> relative_transform_timestamps_;
