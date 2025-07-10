@@ -60,6 +60,7 @@ private:
   int total_iterations_{0};
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
+  bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
 
   // Queues
   std::vector<double> relative_transform_timestamps_;

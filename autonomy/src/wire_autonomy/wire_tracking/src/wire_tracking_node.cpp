@@ -68,17 +68,26 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
     tracking_3d_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(tracking_3d_viz_topic_, 10);
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
+    vtol_payload_ = config_["vtol_payload"].as<bool>();
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
-    // Matrix3d Rz;
-    // Rz = Eigen::AngleAxisd(-M_PI / 2, Vector3d::UnitZ());
-    Matrix3d Ry;
-    Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
     H_pose_to_wire_.setIdentity();
-    // H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Ry;
-    H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
-    H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
+    if (!vtol_payload_) // zeds are in same orientation
+    {
+        Matrix3d Ry;
+        Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
+        H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
+        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
+    }
+    else {
+        Matrix3d Rz;
+        Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
+        Matrix3d Rx;
+        Rx = Eigen::AngleAxisd(M_PI, Vector3d::UnitX());
+        H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Rx;
+        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-0.035, baseline / 2.0, 0.18415);
+    }
     H_wire_to_pose_ = H_pose_to_wire_.inverse();
 
     // Populate Kalman filters

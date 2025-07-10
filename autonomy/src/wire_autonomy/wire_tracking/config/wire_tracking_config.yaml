@@ -1,3 +1,4 @@
+vtol_payload: True
 min_valid_kf_count_threshold: 25
 iteration_start_threshold: 50
 target_publish_frequency_hz: 10.0 # Hz

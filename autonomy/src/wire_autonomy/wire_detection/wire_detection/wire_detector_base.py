@@ -1,13 +1,12 @@
 import numpy as np
 import cv2
 from scipy.stats import circmean
-from scipy.signal import find_peaks
 import yaml
+from rclpy.logging import get_logger
 
 from . import wire_detection_utils as wdu
 
 from ransac_pybind import ransac_bindings as rb
-# from . import ransac_bindings as rb
 
 class WireDetector:
     def __init__(self, wire_detection_config_path, camera_intrinsics):
@@ -151,7 +150,7 @@ class WireDetector:
             avg_angle = None
         return wire_lines, wire_midpoints, avg_angle, midpoint_dists_wrt_center
     
-    def find_regions_of_interest(self, depth, avg_angle, midpoint_dists_wrt_center, viz_img=None):
+    def find_regions_of_interest(self, depth, avg_angle, midpoint_dists_wrt_center):
         depth_gradient_x, depth_gradient_y = self.get_xy_depth_gradients(depth)
         perp_angle = wdu.perpendicular_angle_rad(avg_angle)
         depth_gradient = depth_gradient_x * np.cos(perp_angle) + depth_gradient_y * np.sin(perp_angle)
@@ -159,7 +158,6 @@ class WireDetector:
         distance, depth_gradient_1d = wdu.project_image_to_axis(depth_gradient, perp_angle)
         depth_gradient_1d = np.abs(depth_gradient_1d)
         depth_gradient_1d = depth_gradient_1d / np.max(depth_gradient_1d)
-
         dist_hist, bin_edges = np.histogram(distance, bins=np.arange(np.min(distance), np.max(distance), 1), weights=depth_gradient_1d)
         bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
         dist_hist = dist_hist / np.max(dist_hist)
@@ -171,7 +169,6 @@ class WireDetector:
 
         start_indices = np.where(mask_diff == 1)[0]
         end_indices = np.where(mask_diff == -1)[0]
-
         if len(start_indices) == 0 or len(end_indices) == 0:
             return [], []
 
@@ -305,48 +302,13 @@ class WireDetector:
                     pc_colors[i] = pc_colors[i].astype(np.uint8)
         return  result.fitted_lines, result.inlier_counts, result.roi_point_clouds, pc_colors if viz_img is not None else None, result.masked_viz_img if viz_img is not None else None
 
-    def ransac_on_rois(self, rois, roi_line_counts, avg_angle, depth_image, viz_img=None):
-        """
-        Find wires in 3D from the regions of interest.
-
-        Parameters:
-            roi_depths (list): List of depth images for each ROI.
-            roi_rgbs (list): List of RGB images for each ROI.
-            avg_angle (float): Average angle of the wires in radians.
-            roi_line_count (list): List of line counts for each ROI.
-
-        Returns:
-            fitted_lines (list): List of fitted lines in 3D.
-        """
-        fitted_lines = []
-        line_inlier_counts = []
-        roi_pcs = []
-        roi_point_colors = []
-        roi_depths, depth_img_masked, roi_rgbs, masked_viz_img = self.roi_to_point_clouds(rois, avg_angle, depth_image, viz_img=viz_img)
-        if roi_rgbs is None:
-            roi_rgbs = [None] * len(roi_depths)
-        for roi_depth, roi_rgb, line_count in zip(roi_depths, roi_rgbs, roi_line_counts):
-            # convert depth image to point cloud
-            points, colors = self.depth_to_pointcloud(roi_depth, rgb=roi_rgb)
-            roi_pcs.append(points)
-            if colors is not None:
-                colors = (np.array(colors) / 255.0)[:,::-1]
-                roi_point_colors.append(colors)
-            lines, line_inlier_count = rb.ransac_line_fitting(points.astype(np.float32), float(avg_angle), int(line_count), int(self.ransac_max_iters),
-                                                float(self.inlier_threshold_m), float(self.vert_angle_maximum_rad), float(self.horz_angle_diff_maximum_rad))
-
-            fitted_lines += lines
-            line_inlier_counts += line_inlier_count
-
-        return fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors if roi_point_colors else None, masked_viz_img if viz_img is not None else None
-
     def detect_3d_wires(self, rgb_image, depth_image, generate_viz = False):
         """
         Find wires in 3D from the RGB and depth images.
         """
         wire_lines, wire_midpoints, avg_angle, midpoint_dists_wrt_center = self.detect_wires_2d(rgb_image)
         if len(wire_lines) == 0 or len(wire_midpoints) == 0 or avg_angle is None:
-            return [], [], None, [], [], None
+            return [], [], None, [], [], [], []
 
         regions_of_interest, roi_line_counts = self.find_regions_of_interest(depth_image, avg_angle, midpoint_dists_wrt_center)
 
@@ -355,7 +317,7 @@ class WireDetector:
         else:
             fitted_lines, line_inlier_counts, roi_pcs, roi_point_colors, rgb_masked = self.ransac_on_rois_cpp(regions_of_interest, roi_line_counts, avg_angle, depth_image, viz_img=None)
 
-        return fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked
+        return fitted_lines, line_inlier_counts, avg_angle, rgb_masked, wire_midpoints, regions_of_interest, roi_line_counts
     
     def depth_to_pointcloud(self, depth_image, rgb=None):
         """

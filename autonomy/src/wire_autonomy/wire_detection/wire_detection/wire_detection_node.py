@@ -84,13 +84,16 @@ class WireDetectorNode(Node):
             bgr = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+            # if any element in depth is nan, inf, or -inf, replace it with 0
+            depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+            assert np.all(np.isfinite(depth)), "Depth image contains non-finite values."
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
         start_time = time.perf_counter()
-        fitted_lines, line_inlier_counts, avg_angle, roi_pcs, roi_point_colors, rgb_masked = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz = self.wire_viz_3d)
+        fitted_lines, line_inlier_counts, avg_angle, rgb_masked, wire_midpoints, regions_of_interest, roi_line_counts = self.wire_detector.detect_3d_wires(rgb, depth, generate_viz=self.wire_viz_3d)
         end_time = time.perf_counter()
-        # self.get_logger().info(f"Time taken for wire detection: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
+        self.get_logger().info(f"{len(fitted_lines)} wires detected in: {end_time - start_time:.6f} seconds, {1 / (end_time - start_time):.6f} Hz")
 
         # Create WireDetections message
         wire_detections_msg = WireDetections()
@@ -119,9 +122,6 @@ class WireDetectorNode(Node):
             wire_detections_msg.wire_detections = []
 
         self.wire_detections_pub.publish(wire_detections_msg)
-
-        # publish a point cloud for the wires
-        self.get_logger().info(f"Number of wires detected: {len(fitted_lines)}")
 
         # Publish the 3D visualizations if the wire visualization is enabled
         if self.wire_viz_3d:
