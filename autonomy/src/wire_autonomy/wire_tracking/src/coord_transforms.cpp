@@ -3,6 +3,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 
 #include "wire_tracking/coord_transforms.h"
+#include "coord_transforms.h"
 
 using Eigen::Matrix4d;
 using Eigen::Vector3d;
@@ -52,4 +53,61 @@ std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(c
 
     // Transform the relative frame transform to the new frame
     return {to_frame_transform * relative_transform * from_frame_transform, to_pose_transform};
+}
+
+std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInAnotherFrame(const Eigen::Matrix4d &to_frame_transform, const Eigen::Matrix4d &from_frame_transform, const Eigen::Matrix4d &relative_transform, const Eigen::Matrix4d &from_transform)
+{
+    // Transform the relative frame transform to the new frame
+    // TODO: check the H_to_pose math
+    return {to_frame_transform * relative_transform * from_frame_transform, from_transform * relative_transform};
+}
+
+Eigen::Matrix4d getVelocityRelativeTransform(
+    const Eigen::Vector3d &lin_vel,
+    const Eigen::Vector3d &ang_vel,
+    double dt)
+{
+  // 1) Compute rotation ΔR from ω * dt
+  double omega_norm = ang_vel.norm();
+  Eigen::Matrix3d R_delta = Eigen::Matrix3d::Identity();
+  if (omega_norm > 1e-8) {
+    double theta = omega_norm * dt;                 // total rotation angle
+    Eigen::Vector3d axis = ang_vel / omega_norm;    // unit rotation axis
+    R_delta = Eigen::AngleAxisd(theta, axis).toRotationMatrix();
+  }
+
+  // 2) Compute translation Δp = v * dt
+  Eigen::Vector3d delta_p = lin_vel * dt;
+
+  // 3) Assemble into homogeneous matrix
+  Eigen::Matrix4d H = Eigen::Matrix4d::Identity();
+  H.block<3,3>(0,0) = R_delta;
+  H.block<3,1>(0,3) = delta_p;
+  return H;
+}
+
+std::pair<Eigen::Vector3d, Eigen::Vector3d> getVelocityFromTransforms(
+    const Eigen::Matrix4d &from_transform,
+    const Eigen::Matrix4d &to_transform,
+    double dt)
+{
+    // Compute the relative translation and rotation
+    Eigen::Vector3d translation = to_transform.block<3, 1>(0, 3) - from_transform.block<3, 1>(0, 3);
+    Eigen::Vector3d linear_velocity = translation / dt;
+
+
+    Eigen::Quaterniond rotation_from(from_transform.block<3, 3>(0, 0));
+    Eigen::Quaterniond rotation_to(to_transform.block<3, 3>(0, 0));
+    Eigen::Quaterniond relative_rotation = rotation_to * rotation_from.inverse();
+
+    Eigen::AngleAxisd aa(relative_rotation);
+    double angle = aa.angle();               // θ in radians
+    Eigen::Vector3d axis  = aa.axis().normalized(); // unit axis u
+
+    // 4) Angular velocity ω = u * (θ / dt)
+    Eigen::Vector3d angular_velocity = axis * (angle / dt);
+
+    // Compute linear velocity
+
+    return {linear_velocity, angular_velocity};
 }

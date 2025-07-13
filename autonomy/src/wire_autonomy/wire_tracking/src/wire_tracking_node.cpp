@@ -81,7 +81,8 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
         H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
         H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
     }
-    else {
+    else
+    {
         Matrix3d Rz;
         Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
         Matrix3d Rx;
@@ -159,32 +160,50 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     if (previous_transform_.isZero())
     {
         previous_transform_ = poseToHomogeneous(msg->pose.pose);
+        previous_transform_stamp_ = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
     }
     else
     {
         Eigen::Matrix4d H_relative_in_wire_cam;
         Eigen::Matrix4d H_to_pose;
         // Compute the relative transform from the previous pose to the current pose
-        std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
-        double stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-        
+        Eigen::Vector3d curr_translation(
+            msg->pose.pose.position.x,
+            msg->pose.pose.position.y,
+            msg->pose.pose.position.z);
+        double relative_translation = (previous_transform_.block<3, 1>(0, 3) - curr_translation).norm();
+        double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
+        double delta_time = curr_stamp - previous_transform_stamp_;
+
         // Store the relative transform and its timestamp in queue
-        RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]",
-                    stamp,
-                    H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
-        double relative_translation = H_relative_in_wire_cam.block<3, 1>(0, 3).norm();
         if (relative_translation < pose_translation_dropout_)
         {
-            relative_transform_timestamps_.push_back(stamp);
+            std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
+            RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, curr_translation.x(), curr_translation.y(), curr_translation.z());
+            relative_transform_timestamps_.push_back(curr_stamp);
             relative_transforms_.push_back(H_relative_in_wire_cam);
+            std::tie(last_linear_velocity_, last_angular_velocity_) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "!!!!!!!!!!!Pose translation %.2f exceeds dropout threshold %.2f, skipping update.", relative_translation, pose_translation_dropout_);
-        }
+            RCLCPP_INFO(this->get_logger(), "!!!!!!!!!!!Pose translation %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!",
+                        relative_translation, pose_translation_dropout_);
+            // If the translation exceeds the dropout threshold, fabricate a transform based on the last velocity
+            if (last_linear_velocity_.norm() < 1e-6 && last_angular_velocity_.norm() < 1e-6)
+            {
+                RCLCPP_WARN(this->get_logger(), "Last velocities are zero, skipping pose update.");
+                return;
+            }
+            Eigen::Matrix4d delta_pose_transform = getVelocityRelativeTransform(last_linear_velocity_, last_angular_velocity_, delta_time);
 
-        // Update the previous relative transform
+            std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_,
+                                                                                             H_wire_to_pose_,
+                                                                                             delta_pose_transform,
+                                                                                             previous_transform_);
+        }
+        
         previous_transform_ = H_to_pose;
+        previous_transform_stamp_ = curr_stamp;
     }
 }
 

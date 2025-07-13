@@ -67,6 +67,10 @@ private:
   std::vector<double> relative_transform_timestamps_;
   std::vector<Eigen::Matrix4d> relative_transforms_;
   Eigen::Matrix4d previous_transform_ = Eigen::Matrix4d::Zero();
+  double previous_transform_stamp_{0.0};
+  Eigen::Vector3d last_linear_velocity_{0,0,0};
+  Eigen::Vector3d last_angular_velocity_{0,0,0};
+
   std::vector<double> rgb_timestamps_;
   std::vector<cv::Mat> rgb_images_;
 
