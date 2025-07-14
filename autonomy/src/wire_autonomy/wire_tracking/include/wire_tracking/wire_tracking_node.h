@@ -61,7 +61,9 @@ private:
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
   bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
-  double pose_translation_dropout_{1.0}; // Dropout threshold for pose translation in meters
+  double linear_velocity_dropout_{3.0}; // Dropout threshold for linear velocity in meters/second
+  double angular_velocity_dropout_{0.5}; // Dropout threshold for angular velocity in radians/second
+  bool using_velocity_transform_{false}; // Flag to indicate if velocity transform is being used
 
   // Queues
   std::vector<double> relative_transform_timestamps_;
@@ -78,6 +80,7 @@ private:
   Eigen::Matrix4d H_pose_to_wire_, H_wire_to_pose_;
   bool initialized_{false};
   int image_height_, image_width_;
+  double line_length_{0.0}; // Length of the line to be drawn in pixels
   double fx_, fy_, cx_, cy_;
   YAML::Node config_;
   bool wire_viz_{false};

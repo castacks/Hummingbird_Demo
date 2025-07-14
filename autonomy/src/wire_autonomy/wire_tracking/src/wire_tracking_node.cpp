@@ -69,7 +69,8 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
     vtol_payload_ = config_["vtol_payload"].as<bool>();
-    pose_translation_dropout_ = config_["pose_translation_dropout"].as<double>();
+    linear_velocity_dropout_ = config_["linear_velocity_dropout"].as<double>();
+    angular_velocity_dropout_ = config_["angular_velocity_dropout"].as<double>();
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
@@ -142,6 +143,7 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
         0, 0, 1;
     image_height_ = msg->height;
     image_width_ = msg->width;
+    line_length_ = std::max(image_height_, image_width_) * 1.5;
     // Init the position Kalman filter
     position_kalman_filters_ = PositionKalmanFilters(config_, camera_matrix_, {image_width_, image_height_});
     initialized_ = true;
@@ -165,43 +167,57 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     else
     {
         Eigen::Matrix4d H_relative_in_wire_cam;
-        Eigen::Matrix4d H_to_pose;
+        Eigen::Matrix4d H_to_pose = poseToHomogeneous(msg->pose.pose);
+
         // Compute the relative transform from the previous pose to the current pose
-        Eigen::Vector3d curr_translation(
-            msg->pose.pose.position.x,
-            msg->pose.pose.position.y,
-            msg->pose.pose.position.z);
-        double relative_translation = (previous_transform_.block<3, 1>(0, 3) - curr_translation).norm();
         double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         double delta_time = curr_stamp - previous_transform_stamp_;
 
+        Eigen::Vector3d curr_linear_velocity; Eigen::Vector3d curr_angular_velocity;
+        std::tie(curr_linear_velocity, curr_angular_velocity) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
+        double relative_linear_velocity = curr_linear_velocity.norm();
+        double relative_angular_velocity = curr_angular_velocity.norm();
+        RCLCPP_INFO(this->get_logger(), "Curr Linear velocity: [%.2f, %.2f, %.2f] m/s, Previous Linear Velocity: [%.2f, %.2f, %.2f], Delta Time: %.2f",
+                    curr_linear_velocity(0), curr_linear_velocity(1), curr_linear_velocity(2), last_linear_velocity_(0), last_linear_velocity_(1), last_linear_velocity_(2), delta_time);
+        RCLCPP_INFO(this->get_logger(), "Curr Angular velocity: [%.2f, %.2f, %.2f] rad/s, Previous Angular Velocity: [%.2f, %.2f, %.2f]",
+                    curr_angular_velocity(0), curr_angular_velocity(1), curr_angular_velocity(2), last_angular_velocity_(0), last_angular_velocity_(1), last_angular_velocity_(2));
+
         // Store the relative transform and its timestamp in queue
-        if (relative_translation < pose_translation_dropout_)
+        if (relative_linear_velocity < linear_velocity_dropout_ && relative_angular_velocity < angular_velocity_dropout_)
         {
             std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
-            RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, curr_translation.x(), curr_translation.y(), curr_translation.z());
+            RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
             relative_transform_timestamps_.push_back(curr_stamp);
             relative_transforms_.push_back(H_relative_in_wire_cam);
-            std::tie(last_linear_velocity_, last_angular_velocity_) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
+            last_linear_velocity_ = curr_linear_velocity;
+            last_angular_velocity_ = curr_angular_velocity;
+            using_velocity_transform_ = false;
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "!!!!!!!!!!!Pose translation %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!",
-                        relative_translation, pose_translation_dropout_);
+            if (relative_linear_velocity >= linear_velocity_dropout_)
+            {
+                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Linear velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", relative_linear_velocity, linear_velocity_dropout_);
+            }
+            if (relative_angular_velocity >= angular_velocity_dropout_)
+            {
+                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Angular velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", relative_angular_velocity, angular_velocity_dropout_);
+            }
             // If the translation exceeds the dropout threshold, fabricate a transform based on the last velocity
             if (last_linear_velocity_.norm() < 1e-6 && last_angular_velocity_.norm() < 1e-6)
             {
                 RCLCPP_WARN(this->get_logger(), "Last velocities are zero, skipping pose update.");
                 return;
             }
-            Eigen::Matrix4d delta_pose_transform = getVelocityRelativeTransform(last_linear_velocity_, last_angular_velocity_, delta_time);
+            Eigen::Matrix4d delta_pose_transform = getRelativeTransformFromVelocity(last_linear_velocity_, last_angular_velocity_, delta_time);
+            RCLCPP_INFO(this->get_logger(), "linear translation of fabricated relative transform: [%.2f, %.2f, %.2f], in time: %.2f",
+                        delta_pose_transform(0, 3), delta_pose_transform(1, 3), delta_pose_transform(2, 3), delta_time);
 
-            std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_,
-                                                                                             H_wire_to_pose_,
-                                                                                             delta_pose_transform,
-                                                                                             previous_transform_);
+            H_relative_in_wire_cam = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, delta_pose_transform);
+            H_to_pose = poseToHomogeneous(msg->pose.pose);
+            using_velocity_transform_ = true;
         }
-        
+
         previous_transform_ = H_to_pose;
         previous_transform_stamp_ = curr_stamp;
     }
@@ -249,7 +265,7 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
     }
 
     // Iterate over poses up to idx
-    for (int i = 0; i < idx; ++i)
+    for (int i = 0; i <= idx; ++i)
     {
         const Eigen::Matrix4d &relative_pose_transform = relative_transforms_[i];
 
@@ -266,8 +282,8 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
     }
 
     // Remove old transforms
-    relative_transforms_.erase(relative_transforms_.begin(), relative_transforms_.begin() + idx);
-    relative_transform_timestamps_.erase(relative_transform_timestamps_.begin(), relative_transform_timestamps_.begin() + idx);
+    relative_transforms_.erase(relative_transforms_.begin(), relative_transforms_.begin() + idx + 1);
+    relative_transform_timestamps_.erase(relative_transform_timestamps_.begin(), relative_transform_timestamps_.begin() + idx + 1);
 }
 
 void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg)
@@ -336,8 +352,6 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
             direction_kalman_filter_->update(avg_dir);
             double measured_yaw = std::atan2(avg_dir.y(), avg_dir.x()) * 180.0 / M_PI;
             double current_yaw = direction_kalman_filter_->getYaw() * 180.0 / M_PI;
-            RCLCPP_INFO(this->get_logger(), "Updated direction Kalman filter with average direction: [%.2f, %.2f, %.2f]",
-                        avg_dir.x(), avg_dir.y(), avg_dir.z());
         }
         else
         {
@@ -351,7 +365,6 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
         if (position_kalman_filters_->isInitialized())
         {
             position_kalman_filters_->update(wire_points_xyz, yaw);
-            RCLCPP_INFO(this->get_logger(), "Position filters updated to %d Kalman filters.", position_kalman_filters_->getNumKFs());
         }
         else
         {
@@ -532,15 +545,16 @@ void WireTrackingNode::visualizeWireTracking(cv::Mat img = cv::Mat(), double sta
             }
             // 2D Image projection
             Eigen::Vector3d center_img_h = camera_matrix_ * valid_xyzs.col(i);
-            Eigen::Vector3d dir_img_h = camera_matrix_ * (valid_xyzs.col(i) + wire_direction) - center_img_h;
+            Eigen::Vector3d dir_img_h = camera_matrix_ * (valid_xyzs.col(i) + wire_direction);
 
             // Convert to 2D pixel coordinates
             Eigen::Vector2d p0(center_img_h(0) / center_img_h(2), center_img_h(1) / center_img_h(2));
-            Eigen::Vector2d dir(dir_img_h(0), dir_img_h(1)); // Already a direction in image plane
+            Eigen::Vector2d dir(dir_img_h(0) / dir_img_h(2), dir_img_h(1) / dir_img_h(2));
+            dir = (dir - p0).normalized();
 
             // Extend the line far in both directions
-            Eigen::Vector2d p1_px = p0 + 10000 * dir.normalized();
-            Eigen::Vector2d p2_px = p0 - 10000 * dir.normalized();
+            Eigen::Vector2d p1_px = p0 + line_length_ * dir;
+            Eigen::Vector2d p2_px = p0 - line_length_ * dir;
 
             cv::Point start_px(static_cast<int>(p1_px.x()), static_cast<int>(p1_px.y()));
             cv::Point end_px(static_cast<int>(p2_px.x()), static_cast<int>(p2_px.y()));
@@ -603,24 +617,30 @@ void WireTrackingNode::debugPrintKFs()
         return;
     }
 
+    RCLCPP_INFO(this->get_logger(), "DEBUG ----------------------------------------------------");
+    if (using_velocity_transform_)
+    {
+        // throw std::runtime_error("Using velocity transform, stopping to see afftect");
+        RCLCPP_INFO(this->get_logger(), "Using velocity transform for pose update !!!");
+    }
+
     auto kf_direction = direction_kalman_filter_->getDirection();
-    RCLCPP_INFO(this->get_logger(), "Direction Kalman Filter:");
-    RCLCPP_INFO(this->get_logger(), "Direction: [%.2f, %.2f, %.2f], Yaw: %.2f degrees",
+    RCLCPP_INFO(this->get_logger(), "Direction: [%.6f, %.6f, %.6f], Yaw: %.6f degrees",
                 kf_direction.x(), kf_direction.y(), kf_direction.z(),
                 direction_kalman_filter_->getYaw() * 180.0 / M_PI);
-    auto kf_ids = position_kalman_filters_->getKFIDs();
-    auto kf_points = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw());
-    auto kf_covariances = position_kalman_filters_->getKFCovariances();
-    auto valid_counts = position_kalman_filters_->getValidCounts();
-
-    RCLCPP_INFO(this->get_logger(), "Kalman Filters:");
+    Eigen::VectorXi kf_ids = position_kalman_filters_->getKFIDs();
+    Eigen::Matrix3Xd kf_points = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw());
+    Eigen::Matrix2Xd kf_dhs = position_kalman_filters_->getKFDHs();
+    Eigen::VectorXi valid_counts = position_kalman_filters_->getValidCounts();
     for (size_t i = 0; i < kf_ids.size(); ++i)
     {
-        RCLCPP_INFO(this->get_logger(), "KF ID: %d, Point: (%.2f, %.2f, %.2f), Valid Count: %d",
+        RCLCPP_INFO(this->get_logger(), "KF ID: %d, DH: (%.2f, %.2f), Point: (%.2f, %.2f, %.2f), Valid Count: %d",
                     kf_ids[i],
+                    kf_dhs(0, i), kf_dhs(1, i),
                     kf_points(0, i), kf_points(1, i), kf_points(2, i),
                     valid_counts[i]);
     }
+    RCLCPP_INFO(this->get_logger(), "----------------------------------------------------");
 }
 
 void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg)

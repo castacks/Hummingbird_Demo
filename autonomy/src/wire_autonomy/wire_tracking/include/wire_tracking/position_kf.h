@@ -72,8 +72,8 @@ public:
     Eigen::VectorXd getKFColor(int kf_index) const;
     bool isInitialized() const { return initialized_; }
     int getNumKFs() const { return kf_points_.cols(); }
-    Eigen::Matrix2Xd getKFPoints() const { return kf_points_; }
     Eigen::MatrixXd getKFCovariances() const { return kf_covariances_; }
     Eigen::VectorXi getKFIDs() const { return kf_ids_; }
+    Eigen::Matrix2Xd getKFDHs() const { return kf_points_; }
     Eigen::VectorXi getValidCounts() const { return valid_counts_; }
 };

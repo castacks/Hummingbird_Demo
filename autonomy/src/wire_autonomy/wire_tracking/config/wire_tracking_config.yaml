@@ -5,7 +5,8 @@ target_publish_frequency_hz: 10.0 # Hz
 vtol_payload: True
 zed_baseline: 0.12 # meters
 
-pose_translation_dropout: 0.15 # meters
+linear_velocity_dropout: 5.0 # meters / second
+angular_velocity_dropout: 1.5 # radians / second
 initial_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
 wire_matching_min_threshold_m: 0.15 # meters
 valid_count_buffer: 3
