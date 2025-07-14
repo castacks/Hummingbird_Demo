@@ -175,15 +175,16 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
 
         Eigen::Vector3d curr_linear_velocity; Eigen::Vector3d curr_angular_velocity;
         std::tie(curr_linear_velocity, curr_angular_velocity) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
-        double relative_linear_velocity = curr_linear_velocity.norm();
-        double relative_angular_velocity = curr_angular_velocity.norm();
+        double max_linear_velocity = curr_linear_velocity.cwiseAbs().maxCoeff();
+        double max_angular_velocity = curr_angular_velocity.cwiseAbs().maxCoeff();
+
         RCLCPP_INFO(this->get_logger(), "Curr Linear velocity: [%.2f, %.2f, %.2f] m/s, Previous Linear Velocity: [%.2f, %.2f, %.2f], Delta Time: %.2f",
                     curr_linear_velocity(0), curr_linear_velocity(1), curr_linear_velocity(2), last_linear_velocity_(0), last_linear_velocity_(1), last_linear_velocity_(2), delta_time);
         RCLCPP_INFO(this->get_logger(), "Curr Angular velocity: [%.2f, %.2f, %.2f] rad/s, Previous Angular Velocity: [%.2f, %.2f, %.2f]",
                     curr_angular_velocity(0), curr_angular_velocity(1), curr_angular_velocity(2), last_angular_velocity_(0), last_angular_velocity_(1), last_angular_velocity_(2));
 
-        // Store the relative transform and its timestamp in queue
-        if (relative_linear_velocity < linear_velocity_dropout_ && relative_angular_velocity < angular_velocity_dropout_)
+
+        if (max_linear_velocity < linear_velocity_dropout_ && max_angular_velocity < angular_velocity_dropout_)
         {
             std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
             RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
@@ -195,13 +196,13 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
         }
         else
         {
-            if (relative_linear_velocity >= linear_velocity_dropout_)
+            if (max_linear_velocity >= linear_velocity_dropout_)
             {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Linear velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", relative_linear_velocity, linear_velocity_dropout_);
+                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max linear velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_linear_velocity, linear_velocity_dropout_);
             }
-            if (relative_angular_velocity >= angular_velocity_dropout_)
+            if (max_angular_velocity >= angular_velocity_dropout_)
             {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Angular velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", relative_angular_velocity, angular_velocity_dropout_);
+                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max angular velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_angular_velocity, angular_velocity_dropout_);
             }
             // If the translation exceeds the dropout threshold, fabricate a transform based on the last velocity
             if (last_linear_velocity_.norm() < 1e-6 && last_angular_velocity_.norm() < 1e-6)
@@ -214,7 +215,8 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
                         delta_pose_transform(0, 3), delta_pose_transform(1, 3), delta_pose_transform(2, 3), delta_time);
 
             H_relative_in_wire_cam = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, delta_pose_transform);
-            H_to_pose = poseToHomogeneous(msg->pose.pose);
+            relative_transform_timestamps_.push_back(curr_stamp);
+            relative_transforms_.push_back(H_relative_in_wire_cam);
             using_velocity_transform_ = true;
         }
 
@@ -634,7 +636,7 @@ void WireTrackingNode::debugPrintKFs()
     Eigen::VectorXi valid_counts = position_kalman_filters_->getValidCounts();
     for (size_t i = 0; i < kf_ids.size(); ++i)
     {
-        RCLCPP_INFO(this->get_logger(), "KF ID: %d, DH: (%.2f, %.2f), Point: (%.2f, %.2f, %.2f), Valid Count: %d",
+        RCLCPP_INFO(this->get_logger(), "KF ID: %d, DH: (%.4f, %.4f), Point: (%.4f, %.4f, %.4f), Valid Count: %d",
                     kf_ids[i],
                     kf_dhs(0, i), kf_dhs(1, i),
                     kf_points(0, i), kf_points(1, i), kf_points(2, i),
