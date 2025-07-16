@@ -23,8 +23,6 @@
 #include "utility/visualization.h"
 #include "sensor_msgs/msg/camera_info.hpp"
 
-const size_t MAX_IMAGE_QUEUE_SIZE = 5;
-
 Estimator estimator;
 
 queue<sensor_msgs::msg::Imu::ConstPtr> imu_buf;
@@ -37,7 +35,7 @@ std::mutex m_buf;
 void img0_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
 {
     std::lock_guard<std::mutex> lock(m_buf);
-    if (img0_buf.size() > MAX_IMAGE_QUEUE_SIZE)
+    if (img0_buf.size() > IMAGE_BUFFER_SIZE)
     {
         // Drop the oldest frame
         img0_buf.pop();
@@ -49,7 +47,7 @@ void img0_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
 void img1_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
 {
     std::lock_guard<std::mutex> lock(m_buf);
-    if (img1_buf.size() > MAX_IMAGE_QUEUE_SIZE)
+    if (img1_buf.size() > IMAGE_BUFFER_SIZE)
     {
         img1_buf.pop();
         RCLCPP_WARN(rclcpp::get_logger("vins"), "Dropped img1 to keep up with processing.");
@@ -348,7 +346,7 @@ int main(int argc, char **argv)
     registerPub(n);
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu = NULL;
-    auto sensor_qos = rclcpp::QoS(5)
+    auto sensor_qos = rclcpp::QoS(IMAGE_QOS_SIZE)
                     .best_effort()
                     .durability_volatile();
     if(USE_IMU)

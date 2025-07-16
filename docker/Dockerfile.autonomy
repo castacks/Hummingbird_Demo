@@ -31,7 +31,6 @@ rm -rf vins_fusion/
 
 # MAVROS
 WORKDIR /root/dependencies_ws/
-
 RUN rosinstall_generator --format repos mavlink | tee /tmp/mavlink.repos && \
 rosinstall_generator --format repos --upstream mavros | tee -a /tmp/mavros.repos && \
 vcs import src < /tmp/mavlink.repos && vcs import src < /tmp/mavros.repos

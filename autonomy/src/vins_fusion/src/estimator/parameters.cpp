@@ -40,6 +40,8 @@ int NUM_OF_CAM;
 int STEREO;
 int USE_IMU;
 int MULTIPLE_THREAD;
+int IMAGE_BUFFER_SIZE;
+int IMAGE_QOS_SIZE;
 map<int, Eigen::Vector3d> pts_gt;
 std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
 std::string CAM0_INFO_TOPIC, CAM1_INFO_TOPIC;
@@ -116,6 +118,9 @@ void readParameters(std::string config_file)
         GYR_W = fsSettings["gyr_w"];
         G.z() = fsSettings["g_norm"];
     }
+
+    IMAGE_BUFFER_SIZE = fsSettings["image_buffer_size"];
+    IMAGE_QOS_SIZE = fsSettings["image_qos_size"];
 
     SOLVER_TIME = fsSettings["max_solver_time"];
     NUM_ITERATIONS = fsSettings["max_num_iterations"];

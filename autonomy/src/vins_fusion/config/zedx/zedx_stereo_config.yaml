@@ -21,7 +21,7 @@ use_gpu         : 0
 use_gpu_acc_flow: 0
 use_gpu_ceres   : 0
 #Multiple thread support
-multiple_thread: 1
+multiple_thread: 0
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -40,27 +40,24 @@ body_T_cam1: !!opencv-matrix
    rows: 4
    cols: 4
    dt: d
-   data: [1.0, 0.0, 0.0, 0.12,
+   data: [1.0, 0.0, 0.0, 0.120215,
            0.0, 1.0, 0.0, 0.0,
            0.0, 0.0, 1.0, 0.0,
            0.0, 0.0, 0.0, 1.0]
 
-#imu parameters       The more accurate parameters you provide, the better performance
-acc_n: 0.1          # accelerometer measurement noise standard deviation. 
-gyr_n: 0.01         # gyroscope measurement noise standard deviation.     
-acc_w: 0.001        # accelerometer bias random work noise standard deviation.  
-gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     
-g_norm: 9.81007     # gravity magnitude
+# queue parameters
+image_buffer_size: 5 # buffer size for camera images, default is 10
+image_qos_size: 5 # buffer size for image queue, default is 5
 
 #feature traker paprameters
 max_cnt: 100            # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
-freq: 50                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+freq: 0                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
 
 #optimization parameters
-max_solver_time: 0.03  # max solver itration time (ms), to guarantee real time
-max_num_iterations: 5   # max solver itrations, to guarantee real time
+max_solver_time: 0.05  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)

@@ -63,6 +63,9 @@ extern int MULTIPLE_THREAD;
 // pts_gt for debug purpose;
 extern map<int, Eigen::Vector3d> pts_gt;
 
+extern int IMAGE_BUFFER_SIZE;
+extern int IMAGE_QOS_SIZE;
+
 extern std::string IMAGE0_TOPIC, IMAGE1_TOPIC;
 extern std::string CAM0_INFO_TOPIC, CAM1_INFO_TOPIC;
 extern std::string FISHEYE_MASK;

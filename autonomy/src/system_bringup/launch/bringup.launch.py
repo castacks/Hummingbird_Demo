@@ -1,9 +1,10 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import LaunchConfiguration, PythonExpression, EnvironmentVariable
+from launch.substitutions import PythonExpression, EnvironmentVariable
+from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.conditions import IfCondition
 
 
@@ -50,17 +51,11 @@ def generate_launch_description():
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
             condition=IfCondition(EnvironmentVariable('SERVO'))
         ),
+        
         # MAVROS Node (launch if MAVROS is set)
-        Node(
-            package='mavros',
-            executable='mavros_node',
-            name='mavros_node',
-            output='screen',
-            parameters=[{
-                'fcu_url': '/dev/ttyACM0:57600',  # Update if using a different port or baudrate
-            }],
-            condition=IfCondition(EnvironmentVariable('MAVROS'))
-        ),
+        IncludeLaunchDescription(XMLLaunchDescriptionSource([FindPackageShare('mavros'),'/launch/apm.launch']),
+        condition=IfCondition(EnvironmentVariable('MAVROS'))),
+
         # VINS Node (launch if VO is true)
         Node(
             package='vins',
