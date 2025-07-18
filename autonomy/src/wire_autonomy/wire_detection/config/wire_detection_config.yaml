@@ -2,7 +2,7 @@
 hough_vote_threshold: 100
 min_line_threshold: 30
 pixel_binning_size: 3
-low_canny_threshold: 25
+low_canny_threshold: 100
 high_canny_threshold: 200
 line_bin_avg_threshold_multiplier: 0.35
 
