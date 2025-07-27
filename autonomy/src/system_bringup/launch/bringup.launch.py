@@ -66,18 +66,36 @@ def generate_launch_description():
             condition=IfCondition(EnvironmentVariable('VO'))
         ),
         # Rosbag recording process
-        ExecuteProcess(
-            cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-                '-o', f'/root/data_collection/wire_tracking_{date}',
-                '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color', 
-                '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
-                '/wire_cam/zed_node/depth/depth_registered', 
-                '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
-                '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info',
-                 '--regex', '/mavros/.*'],
-            output='log',
-            condition=IfCondition(EnvironmentVariable('RECORD'))
+        Node(
+            package='bag_recorder',
+            executable='bag_record_node',
+            name='bag_recorder',
+            parameters=[
+                {'cfg_path': FindPackageShare('bag_recorder').find('bag_recorder') + '/config/record_topics.yaml'},
+                {'output_dir': '/root/data_collection/'},
+                {'mcap_qos_dir': FindPackageShare('bag_recorder').find('bag_recorder') + '/config'}
+            ],
+            output='screen'
         ),
+
+        # ExecuteProcess(
+        #     cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
+        #         '-o', f'/root/data_collection/zed_{date}',
+        #         '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color', 
+        #         '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
+        #         '/wire_cam/zed_node/depth/depth_registered', 
+        #         '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
+        #         '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
+        #     output='log',
+        #     condition=IfCondition(EnvironmentVariable('RECORD'))
+        # ),
+        # ExecuteProcess(
+        #     cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
+        #         '-o', f'/root/data_collection/mavros_{date}',
+        #          '--regex', '/mavros/.*'],
+        #     output='log',
+        #     condition=IfCondition(EnvironmentVariable('RECORD'))
+        # ),
     ])
 
     return system_launch

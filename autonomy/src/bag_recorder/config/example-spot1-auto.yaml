@@ -1,0 +1,30 @@
+# Any line that does not start with a / will be automatically prefixed using the 
+# namespace of the bag_recorder node.
+# mcap_qos is the filename of the MCAP QoS profile. The actual directory will be prefixed by the
+# bag_recorder node via a user specified argument. All MCAP QoS files must be in the same directory.
+
+sections:
+  mavros:
+    mcap_qos: mcap_qos.yaml
+    args: 
+      - -b
+      - 4000000000 # ~4GB
+      - --max-cache-size 
+      - 1073741824 # 1GB
+    topics:
+      - /parameter_events
+      - /rosout
+      - /tf
+      - /tf_static
+  cameras:
+    mcap_qos: mcap_qos.yaml
+    args: 
+      - -b
+      - 4000000000 # ~4GB
+      - --max-cache-size 
+      - 1073741824 # 1GB
+    topics:
+      - spot/camera/back/camera_info
+      - spot/camera/back/image
+      - spot/camera/frontleft/camera_info
+      - spot/camera/frontleft/image
