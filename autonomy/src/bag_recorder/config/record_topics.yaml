@@ -5,7 +5,7 @@
 # bag_recorder node via a user specified argument. All MCAP QoS files must be in the same directory.
 
 sections:
-  pincer:
+  wire_tracking:
     mcap_qos: mcap_qos.yaml
     args: 
       - -d

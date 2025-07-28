@@ -39,6 +39,7 @@ class BagRecorderNode(Node):
 
         # TODO: check if the output directory exists.
         # Exit if it does not exist.
+        self.get_logger().info(f"Switching to output directory: {self.output_dir}")
         os.chdir(self.output_dir)
 
         self.command_prefix = ["ros2", "bag", "record", "-s", "mcap"]
@@ -46,29 +47,9 @@ class BagRecorderNode(Node):
         self.add_topics()
 
         self.process = dict()
-        
-        # Create QoS profile for reliable communication
-        reliable_qos = QoSProfile(
-            reliability=QoSReliabilityPolicy.RELIABLE,
-            depth=10
-        )
-        
-        # Use reliable QoS for the status publisher
-        self.status_pub = self.create_publisher(
-            Bool, 
-            f"{self.node_name}/bag_recording_status", 
-            reliable_qos
-        )
-        
-        self.toggle_status = self.create_subscription(
-            Bool, 
-            f"{self.node_name}/set_recording_status", 
-            self.set_status_callback, 
-            10
-        )
 
-        self.timer = self.create_timer(0.5, self.pub_status_callback)
-
+        self.run()
+        
     def add_topics(self):
         '''The configuration file looks like
         
@@ -114,12 +95,12 @@ class BagRecorderNode(Node):
                 self.commands[section_name]['prefix'].append('--storage-config-file')
                 self.commands[section_name]['prefix'].append(mcap_qos_path)
             
-            self.get_logger().warn(
+            self.get_logger().info(
                 f'CMD for section {section_name}: '
                 f'{" ".join(self.commands[section_name]["prefix"])}' )
             
             # Add the topics to the command at the end.
-            self.get_logger().warn(f"Recording section {section_name} topics:")
+            self.get_logger().info(f"Recording section {section_name} topics:")
             if 'exclude' in section_config.keys():
                 if 'topics' in section_config.keys():
                     self.get_logger().error('Cannot mix exclude with topics.')
@@ -134,26 +115,18 @@ class BagRecorderNode(Node):
                 for topic in section_config['topics']:
                     if topic.startswith('/'):
                         full_topic_name = topic
-                    if topic.endswith('/'):
-                        topics = self.get_all_matching_topics(topic)
-                        for t in topics:
-                            self.commands[section_name]['suffix'].append(t)
                     else:
                         full_topic_name = f"{namespace}/{topic}"
 
-                    self.commands[section_name]['suffix'].append(full_topic_name)
-                    self.get_logger().warn(f"{full_topic_name}")
-
-    def pub_status_callback(self):
-        msg = Bool()
-        msg.data = self.active
-        self.status_pub.publish(msg)
-
-    def set_status_callback(self, msg):
-        if msg.data:
-            self.run()
-        else:
-            self.interrupt()
+                    if full_topic_name.endswith('/'):
+                        time.sleep(5.0)
+                        topics = self.get_all_matching_topics(full_topic_name)
+                        for topic in topics:
+                            self.commands[section_name]['suffix'].append(topic)
+                            self.get_logger().info(f"{topic}")
+                    else:
+                        self.commands[section_name]['suffix'].append(full_topic_name)
+                        self.get_logger().info(f"{full_topic_name}")
     
     def get_all_matching_topics(self, topic_prefix):
         """Get all topics that start with the given prefix."""
@@ -180,14 +153,14 @@ class BagRecorderNode(Node):
                 if len(command_dict['suffix']) > 0:
                     cmd.extend(command_dict['suffix'])
                 
-                self.get_logger().warn(f"Running command: {' '.join(cmd)}")
-                #self.get_logger().warn(f"Running command: {cmd}")
+                self.get_logger().info(f"Running command: {' '.join(cmd)}")
+                #self.get_logger().info(f"Running command: {cmd}")
                 
                 self.process[section_name] = dict()
                 self.process[section_name]['process'] = subprocess.Popen(cmd)
                 self.process[section_name]['pid'] = self.process[section_name]['process'].pid
                 self.process[section_name]['output_filename'] = output_filename
-                self.get_logger().warn(f"Started Recording Section {section_name} with PID {self.process[section_name]['pid']} to {output_filename}")
+                self.get_logger().info(f"Started Recording Section {section_name} with PID {self.process[section_name]['pid']} to {output_filename}")
 
     def interrupt(self):
         if self.active:
@@ -195,7 +168,7 @@ class BagRecorderNode(Node):
                 process['process'].send_signal(signal.SIGINT)
                 process['process'].wait()
                 self.get_logger().info(f"Ending Recording of Section {section_name} with PID {process['pid']}")
-                self.get_logger().warn(f"Output filename: {process['output_filename']}")
+                self.get_logger().info(f"Output filename: {process['output_filename']}")
             self.active = False
 
 
