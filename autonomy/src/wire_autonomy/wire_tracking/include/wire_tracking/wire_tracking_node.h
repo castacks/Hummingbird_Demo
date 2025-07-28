@@ -61,8 +61,13 @@ private:
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
   bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
+
+  double linear_translation_dropout_{0.5}; // Dropout threshold for linear translation in meters
+  double angular_translation_dropout_{0.25}; // Dropout threshold for angular translation in radians
   double linear_velocity_dropout_{3.0}; // Dropout threshold for linear velocity in meters/second
   double angular_velocity_dropout_{0.5}; // Dropout threshold for angular velocity in radians/second
+  double linear_acceleration_dropout_{5.0}; // Dropout threshold for linear acceleration in meters/second^2
+  double angular_acceleration_dropout_{8.0}; // Dropout threshold for angular acceleration in radians/second^2
   bool using_velocity_transform_{false}; // Flag to indicate if velocity transform is being used
 
   // Queues

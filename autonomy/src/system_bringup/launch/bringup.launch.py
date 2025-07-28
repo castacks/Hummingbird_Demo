@@ -59,7 +59,7 @@ def generate_launch_description():
         # VINS Node (launch if VO is true)
         Node(
             package='vins',
-            executable='vins_node',
+            executable='vins_node',     
             name='vins_node',
             namespace='vins',
             parameters=[{'config_file': FindPackageShare('vins').find('vins') + '/config/zedx/zedx_stereo_config.yaml'}],

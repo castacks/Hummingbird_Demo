@@ -2,24 +2,28 @@ min_valid_kf_count_threshold: 25
 iteration_start_threshold: 50
 target_publish_frequency_hz: 10.0 # Hz
 
-vtol_payload: True
+vtol_payload: False
 zed_baseline: 0.12 # meters
 
+linear_translation_dropout: 1.0 # meters
+angular_translation_dropout: 0.5 # radians
 linear_velocity_dropout: 2.0 # meters / second
-angular_velocity_dropout: 1.0 # radians / second
+angular_velocity_dropout: 1.5 # radians / second
+linear_acceleration_dropout: 10.0 # meters / second^2
+angular_acceleration_dropout: 10.0 # radians / second^2
 
 initial_covariance_multiplier: 3.0 # multiplier for initial yaw covariance
-wire_matching_min_threshold_m: 0.15 # meters
+wire_matching_min_threshold_m: 0.2286 # meters
 valid_count_buffer: 3
 
-yaw_predict_covariance: 0.01 # radians
-yaw_measurement_covariance: 0.10 # radians
+yaw_predict_covariance: 0.10 # radians
+yaw_measurement_covariance: 0.05 # radians
 yaw_max_covariance: 0.10 # radians
 
-z_predict_covariance: 0.03 # meters
+z_predict_covariance: 0.3 # meters
 z_measurement_covariance: 0.30 # meters
 z_max_covariance: 0.30 # meters
 
-y_predict_covariance: 0.02 # meters
+y_predict_covariance: 0.4 # meters
 y_measurement_covariance: 0.20 # meters
 y_max_covariance: 0.20 # meters

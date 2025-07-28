@@ -10,7 +10,7 @@ line_bin_avg_threshold_multiplier: 0.35
 grad_bin_avg_threshold: 0.05
 max_wire_per_roi: 2
 min_depth_clip_m: 0.5
-max_depth_clip_m: 12.0
+max_depth_clip_m: 2.0
 
 # RANSAC settings
 ransac_max_iters: 400
