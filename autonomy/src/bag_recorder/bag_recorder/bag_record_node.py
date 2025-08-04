@@ -201,11 +201,14 @@ def main(args=None):
     
     signal.signal(signal.SIGINT, interrupt_handler)
     signal.signal(signal.SIGTERM, interrupt_handler)
-    rclpy.spin(node)
-
-    node.interrupt()
-    node.destroy_node()
-    rclpy.try_shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.interrupt()
+        node.destroy_node()
+        rclpy.try_shutdown()
+    except Exception as e:
+        node.get_logger().error(f"Error occurred: {e}")
 
 if __name__ == "__main__":
     main()
