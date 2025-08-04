@@ -82,7 +82,7 @@ def generate_launch_description():
         # ),
 
         TimerAction(
-            period=10.0,  # delay in seconds
+            period=5.0,  # delay in seconds
             actions=[
                 ExecuteProcess(
                     cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
