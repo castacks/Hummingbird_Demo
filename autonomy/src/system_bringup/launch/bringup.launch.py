@@ -1,20 +1,22 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, TimerAction
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PythonExpression, EnvironmentVariable
 from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.conditions import IfCondition
+import datetime
 
 
 def generate_launch_description():
     # Get current date for rosbag naming
-    date = str(os.popen('date +%Y-%m-%d_%H:%M:%S').read().strip())
+    date = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     # specify which RViz configuration to use based on WIRE_MODE
     rviz_config_path = PythonExpression([
-            '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
-            FindPackageShare('wire_detection').find('wire_detection'), '/rviz/wire_detection.rviz"']),
+        '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
+        FindPackageShare('wire_detection').find('wire_detection'), '/rviz/wire_detection.rviz"'
+    ])
     system_launch = LaunchDescription([
         # Wire tracking node (launch if WIRE_MODE is set to 2)
         Node(
@@ -78,6 +80,31 @@ def generate_launch_description():
         #     output='screen',
         #     condition=IfCondition(EnvironmentVariable('RECORD'))
         # ),
+
+        TimerAction(
+            period=10.0,  # delay in seconds
+            actions=[
+                ExecuteProcess(
+                    cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
+                        '-o', f'/root/data_collection/mavros_{date}',
+                        '--regex', '/mavros/.*'
+                    ],
+                    output='log',
+                    condition=IfCondition(EnvironmentVariable('RECORD'))
+                ),
+                ExecuteProcess(
+                    cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
+                        '-o', f'/root/data_collection/wire_{date}',
+                        '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color', 
+                        '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
+                        '/wire_cam/zed_node/depth/depth_registered', 
+                        '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
+                        '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
+                    output='log',
+                    condition=IfCondition(EnvironmentVariable('RECORD'))
+                ),
+            ]
+        )
     ])
 
     return system_launch
