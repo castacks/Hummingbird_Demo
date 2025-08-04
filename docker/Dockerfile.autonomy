@@ -74,4 +74,5 @@ RUN pip3 install \
 RUN echo "alias sws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash'" >> ~/.bashrc && \
     echo "alias bwt='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install --packages-select wire_tracking'" >> ~/.bashrc && \
     echo "alias bbr='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install --packages-select bag_recorder'" >> ~/.bashrc && \
-    echo "alias bws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install'" >> ~/.bashrc
+    echo "alias bws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install'" >> ~/.bashrc && \
+    echo "alias start_control='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test control_test.launch.xml'" >> ~/.bashrc

@@ -3,6 +3,9 @@ import rclpy
 from rclpy.node import Node
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from mavros_msgs.msg import PositionTarget
+
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy, LivelinessPolicy
+from rclpy.duration import Duration
 import time
 from geometry_msgs.msg import TwistStamped, PoseStamped
 import numpy as np
@@ -29,11 +32,22 @@ class DroneControlNode(Node):
 
         self.pos_control_publisher = self.create_publisher(PositionTarget, '/mavros/setpoint_raw/local', 10)
 
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,   # UNKNOWN not valid → fallback to KEEP_LAST
+            depth=5,                           # Required with KEEP_LAST, choose any small positive integer
+            durability=DurabilityPolicy.VOLATILE,
+            lifespan=Duration(sec=0, nanosec=0),  # Explicitly 0 nanoseconds
+            deadline=Duration(),                 # Infinite (0 seconds)
+            liveliness=LivelinessPolicy.AUTOMATIC,
+            liveliness_lease_duration=Duration()  # Infinite (0 seconds)
+        )
+
         self.position_subscriber = self.create_subscription(
             PoseStamped,
             '/mavros/local_position/pose',
             self.position_callback,
-            10
+            qos_profile
         )
 
         # Start mission
