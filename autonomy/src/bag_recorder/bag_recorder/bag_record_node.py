@@ -175,12 +175,20 @@ class BagRecorderNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = BagRecorderNode()
+
+    def interrupt_handler(signum, frame):
+        node.get_logger().info(f"Received signal {signum}, shutting down...")
+        node.interrupt()
+        node.destroy_node()
+        rclpy.try_shutdown()
+    
+    signal.signal(signal.SIGINT, interrupt_handler)
+    signal.signal(signal.SIGTERM, interrupt_handler)
     rclpy.spin(node)
+
     node.interrupt()
-        
     node.destroy_node()
     rclpy.try_shutdown()
-
 
 if __name__ == "__main__":
     main()

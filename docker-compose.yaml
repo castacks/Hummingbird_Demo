@@ -110,8 +110,8 @@ services:
                 source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc) --cmake-args -Wno-dev; 
                 else echo 'Already built'; fi && \
               source /root/ros2_ws/install/setup.bash && \
-              ros2 launch system_bringup bringup.launch.py"
-
+              exec ros2 launch system_bringup bringup.launch.py"
+    stop_signal: SIGINT
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
