@@ -104,13 +104,7 @@ services:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     depends_on:
     - base
-    command: >
-      bash -c "source /root/dependencies_ws/install/setup.bash \
-                if [ ! -d '/root/ros2_ws/install' ]; then \
-                source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc) --cmake-args -Wno-dev; 
-                else echo 'Already built'; fi && \
-              source /root/ros2_ws/install/setup.bash && \
-              exec ros2 launch system_bringup bringup.launch.py"
+    entrypoint: ["/root/entrypoint.sh"]
     stop_signal: SIGINT
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
