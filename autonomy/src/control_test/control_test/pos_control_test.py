@@ -13,7 +13,7 @@ class DroneControlNode(Node):
 
         # Get parameters
         self.declare_parameter('control_rate_hz', 10.0)
-        self.declare_parameter('velocity', 1.0)
+        self.declare_parameter('velocity', 0.5)
         self.declare_parameter('side_length', 10.0)
         self.declare_parameter('yaw', 0.0)
         self.declare_parameter('yaw_rate', 0.0)
@@ -41,6 +41,9 @@ class DroneControlNode(Node):
 
     def position_callback(self, msg):
         self.get_logger().info(f"Current Position: {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+        self.x_position = msg.pose.position.x
+        self.y_position = msg.pose.position.y
+        self.z_position = msg.pose.position.z
 
     def call_service(self, client, request):
         while not client.wait_for_service(timeout_sec=2.0):
@@ -66,18 +69,18 @@ class DroneControlNode(Node):
     def start_publishing_control(self):
         self.get_logger().info("Starting control publishing...")
         if rclpy.ok():
-            self.execute_position_side()
+            self.execute_side()
 
-    def execute_position_side(self):
+    def execute_side(self):
         start_time = time.time()
         side_time = self.side_length / self.velocity
         while rclpy.ok() and (time.time() - start_time < side_time):
             pos_msg = PositionTarget()
             pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
-            pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
-            pos_msg.velocity.x = self.velocity
-            pos_msg.velocity.y = 0.0
-            pos_msg.velocity.z = 0.0
+            pos_msg.type_mask = PositionTarget.IGNORE_VX | PositionTarget.IGNORE_VY | PositionTarget.IGNORE_VZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW_RATE
+            pos_msg.position.x = self.side_length - (self.velocity * (time.time() - start_time))
+            pos_msg.position.y = 0.0
+            pos_msg.position.z = 0.0
             pos_msg.yaw = self.yaw
             pos_msg.yaw_rate = self.yaw_rate
             self.pos_control_publisher.publish(pos_msg)
@@ -85,10 +88,10 @@ class DroneControlNode(Node):
         
         final_pos_msg = PositionTarget()
         final_pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
-        final_pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
-        final_pos_msg.velocity.x = 0.0
-        final_pos_msg.velocity.y = 0.0
-        final_pos_msg.velocity.z = 0.0
+        final_pos_msg.type_mask = PositionTarget.IGNORE_VX | PositionTarget.IGNORE_VY | PositionTarget.IGNORE_VZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW_RATE
+        final_pos_msg.position.x = 0.0
+        final_pos_msg.position.y = 0.0
+        final_pos_msg.position.z = 0.0
         final_pos_msg.yaw = self.yaw
         final_pos_msg.yaw_rate = 0.0
         self.pos_control_publisher.publish(final_pos_msg)

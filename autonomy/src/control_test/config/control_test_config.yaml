@@ -1,5 +1,5 @@
-velocity: 1.0 # m/s
-side_length: 5.0 # m
+velocity: 0.5 # m/s
+side_length: 10.0 # m
 control_rate_hz: 10.0 # Hz
 yaw: 0.0 # radians
 yaw_rate: 0.0 # radians/s

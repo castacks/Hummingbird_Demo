@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="control_test" exec="control_test" name="control_test">
+  <node pkg="control_test" exec="vel_control_test" name="control_test">
     <param from="$(find-pkg-share control_test)/control_test_config.yaml" />
   </node>
 </launch>
