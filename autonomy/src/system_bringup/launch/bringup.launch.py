@@ -66,18 +66,18 @@ def generate_launch_description():
             condition=IfCondition(EnvironmentVariable('VO'))
         ),
         # Rosbag recording process
-        Node(
-            package='bag_recorder',
-            executable='bag_record_node',
-            name='bag_recorder',
-            parameters=[
-                {'cfg_path': FindPackageShare('bag_recorder').find('bag_recorder') + '/config/record_topics.yaml'},
-                {'output_dir': '/root/data_collection/'},
-                {'mcap_qos_dir': FindPackageShare('bag_recorder').find('bag_recorder') + '/config'}
-            ],
-            output='screen',
-            condition=IfCondition(EnvironmentVariable('RECORD'))
-        ),
+        # Node(
+        #     package='bag_recorder',
+        #     executable='bag_record_node',
+        #     name='bag_recorder',
+        #     parameters=[
+        #         {'cfg_path': FindPackageShare('bag_recorder').find('bag_recorder') + '/config/record_topics.yaml'},
+        #         {'output_dir': '/root/data_collection/'},
+        #         {'mcap_qos_dir': FindPackageShare('bag_recorder').find('bag_recorder') + '/config'}
+        #     ],
+        #     output='screen',
+        #     condition=IfCondition(EnvironmentVariable('RECORD'))
+        # ),
     ])
 
     return system_launch
