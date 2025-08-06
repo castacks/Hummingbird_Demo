@@ -17,6 +17,12 @@ def generate_launch_description():
         '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
         FindPackageShare('wire_detection').find('wire_detection'), '/rviz/wire_detection.rviz"'
     ])
+    if EnvironmentVariable('RECORD'):
+        data_folder = f'/root/data_collection/flight_{date}'
+        os.mkdir(data_folder)
+    else:
+        data_folder = ''
+        
     system_launch = LaunchDescription([
         # Wire tracking node (launch if WIRE_MODE is set to 2)
         Node(
@@ -86,7 +92,7 @@ def generate_launch_description():
             actions=[
                 ExecuteProcess(
                     cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-                        '-o', f'/root/data_collection/mavros_{date}',
+                        '-o', f'{data_folder}/mavros_{date}',
                         '--regex', '/mavros/.*'
                     ],
                     output='log',
@@ -94,11 +100,11 @@ def generate_launch_description():
                 ),
                 ExecuteProcess(
                     cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-                        '-o', f'/root/data_collection/wire_{date}',
-                        '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color', 
-                        '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info', 
-                        '/wire_cam/zed_node/depth/depth_registered', 
-                        '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color', 
+                        '-o', f'{data_folder}/wire_{date}',
+                        '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color',
+                        '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info',
+                        '/wire_cam/zed_node/depth/depth_registered',
+                        '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color',
                         '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
                     output='log',
                     condition=IfCondition(EnvironmentVariable('RECORD'))
