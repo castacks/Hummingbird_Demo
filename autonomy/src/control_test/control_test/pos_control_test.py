@@ -76,7 +76,7 @@ class DroneControlNode(Node):
             self.get_logger().error("Failed to set GUIDED mode")
             return
 
-        time.sleep(5.0) # Wait for mode change
+        time.sleep(1.0) # Wait for mode change
 
         self.start_publishing_control()
 
