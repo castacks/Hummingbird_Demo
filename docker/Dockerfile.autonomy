@@ -71,7 +71,7 @@ RUN pip3 install \
   pyyaml \
   pybind11
 
-COPY autonomy_entrypoint.sh /root/entrypoint.sh
+COPY docker/autonomy_entrypoint.sh /root/entrypoint.sh
 RUN chmod +x /root/entrypoint.sh
 
 RUN echo "alias sws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash'" >> ~/.bashrc && \

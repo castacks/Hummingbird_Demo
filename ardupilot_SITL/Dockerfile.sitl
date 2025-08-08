@@ -1,0 +1,147 @@
+FROM ubuntu:22.04
+# ROS & MAVROS ----------------------------------------------------------------------------------------------
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Install base packages
+RUN apt-get update && apt-get install -y \
+    locales \
+    curl \
+    gnupg2 \
+    lsb-release \
+    sudo \
+    wget \
+    git \
+    vim \
+    build-essential \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set locale
+RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+
+# Add the ROS 2 GPG key and repo
+RUN apt-get update && apt-get install -y curl gnupg2 lsb-release && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
+    echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list
+
+# Install ROS 2 Humble base
+RUN apt-get update && apt-get install -y ros-humble-desktop && \
+    echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+
+# Install Gazebo Harmonic for ROS 2 Humble
+RUN curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null && \
+apt-get update && apt-get install -y gz-harmonic
+
+RUN apt-get update && apt-get install -y ros-humble-ros-gzharmonic
+
+# Install MAVROS and GeographicLib
+RUN apt-get update && apt-get install -y \
+    ros-humble-mavros \
+    ros-humble-mavros-extras \
+    && /opt/ros/humble/lib/mavros/install_geographiclib_datasets.sh
+
+# Source ROS 2 on container startup
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+
+# ARDUPILOT SITL ----------------------------------------------------------------------------------------------
+RUN pip install -U MAVProxy wget
+RUN apt-get update && apt-get install -y \
+    python3-colcon-common-extensions \
+    python3-vcstool \
+    python3-rosdep \
+    python3-pyqt5.qtsvg \
+    python3-pyqt5.qtwebengine \
+    python3-pyqt5.qtmultimedia \
+    python3-pyqt5.qtquick \
+    python3-pyqt5.qtsql \
+    ros-humble-ament-cmake && rm -rf /var/lib/apt/lists/*
+
+ENV ARDUPILOT_ROS2_PATH /root/ardu_ws
+
+RUN mkdir -p ${ARDUPILOT_ROS2_PATH}/src
+
+WORKDIR ${ARDUPILOT_ROS2_PATH}/src
+RUN git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git
+
+COPY ./install_ubuntu_prereqs.sh ${ARDUPILOT_ROS2_PATH}/src/ardupilot/Tools/environment_install/install-prereqs-ubuntu.sh
+RUN cd ardupilot && chmod +x Tools/environment_install/install-prereqs-ubuntu.sh && \
+./Tools/environment_install/install-prereqs-ubuntu.sh -y
+
+WORKDIR ${ARDUPILOT_ROS2_PATH}/src/ardupilot
+RUN . ~/.profile && ./waf configure --board PixSurveyA1 && ./waf copter 
+
+RUN pip install --upgrade pymavlink MAVProxy
+
+WORKDIR ${ARDUPILOT_ROS2_PATH}/src/
+RUN apt-get update && apt-get install default-jre && \
+git clone --recurse-submodules https://github.com/ardupilot/Micro-XRCE-DDS-Gen.git && \
+cd Micro-XRCE-DDS-Gen && \
+./gradlew assemble
+
+WORKDIR ${ARDUPILOT_ROS2_PATH}/
+RUN bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-up-to ardupilot_sitl"
+
+# 
+# RUN mkdir -p ${ARDUPILOT_ROS2_PATH}/src && \
+# cd ${ARDUPILOT_ROS2_PATH} && \
+# vcs import --recursive --input  https://raw.githubusercontent.com/ArduPilot/ardupilot/master/Tools/ros2/ros2.repos src
+
+# WORKDIR ${ARDUPILOT_ROS2_PATH}
+# RUN apt-get update && \
+# rosdep init && rosdep update && \
+# bash -c "source /opt/ros/humble/setup.bash && rosdep install --from-paths src --ignore-src -r -y"
+
+# WORKDIR ${ARDUPILOT_ROS2_PATH}
+# RUN apt-get update && apt-get install default-jre && \
+# git clone --recurse-submodules https://github.com/ardupilot/Micro-XRCE-DDS-Gen.git && \
+# cd Micro-XRCE-DDS-Gen && \
+# ./gradlew assemble
+
+# ENV PATH="${ARDUPILOT_ROS2_PATH}/Micro-XRCE-DDS-Gen/scripts:${PATH}"
+
+# RUN apt-get update && apt-get install -y \
+#     python3-ament-package \
+#     ros-humble-rosidl-typesupport-c \
+#     ros-humble-rosidl-default-generators \
+#     ros-humble-rosidl-default-runtime \
+#     && rm -rf /var/lib/apt/lists/*
+
+# RUN which microxrceddsgen
+
+# RUN bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-up-to ardupilot_dds_tests --cmake-args -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=TRUE -DCMAKE_BUILD_TYPE=Release"
+
+# RUN export CMAKE_PREFIX_PATH=/opt/ros/humble:$CMAKE_PREFIX_PATH && \
+# source /opt/ros/humble/setup.bash && \
+# colcon build --packages-up-to ardupilot_dds_tests
+
+# RUN source ./install/setup.bash && \
+# colcon test --executor sequential --parallel-workers 0 --base-paths src/ardupilot --event-handlers=console_cohesion+ && \
+# colcon test-result --all --verbose
+
+# WORKDIR ${ARDUPILOT_ROS2_PATH}
+
+# RUN colcon build --packages-up-to ardupilot_sitl
+
+# RUN echo "source ${ARDUPILOT_ROS2_PATH}/install/setup.bash" >> ~/.bashrc && \
+# export PATH=$PATH:~/ardu_ws/src/ardupilot/Tools/autotest
+
+# WORKDIR ${ARDUPILOT_ROS2_PATH}
+# RUN vcs import --input https://raw.githubusercontent.com/ArduPilot/ardupilot_gz/main/ros2_gz.repos --recursive src && \ 
+# export GZ_VERSION=${GZ_VERSION} && \ 
+# wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+# echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null && \
+# apt-get update && wget https://raw.githubusercontent.com/osrf/osrf-rosdep/master/gz/00-gazebo.list -O /etc/ros/rosdep/sources.list.d/00-gazebo.list && \
+# rosdep update && \ 
+# source /opt/ros/humble/setup.bash && \
+# apt-get update && \
+# rosdep update && \
+# rosdep install --from-paths src --ignore-src -y 
+
+# WORKDIR ${ARDUPILOT_ROS2_PATH}
+# RUN colcon build --packages-up-to ardupilot_gz_bringup
+
+

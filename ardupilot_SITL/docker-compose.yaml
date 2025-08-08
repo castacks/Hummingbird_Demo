@@ -1,0 +1,34 @@
+services:
+  ardupilot_sitl:
+    image: tharp789/ardupilot_sitl:humble_ardupilot_sitl
+    build:
+      context: ./ 
+      dockerfile: ./Dockerfile.sitl
+    # entrypoint: ["/root/entrypoint.sh"]
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    deploy:
+      # let it use the GPU
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia # https://stackoverflow.com/a/70761193
+              count: 1
+              capabilities: [ gpu ]
+    network_mode: host
+    privileged: true
+    ipc: host
+    pid: host
+    stdin_open: true
+    tty: true
+    volumes:
+      - /tmp:/tmp 
+      - /dev:/dev 
+
+networks:
+  sitl_network:
+    driver: bridge
+    internal: true
+    attachable: true
