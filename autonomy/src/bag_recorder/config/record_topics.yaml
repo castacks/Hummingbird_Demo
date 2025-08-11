@@ -24,4 +24,46 @@ sections:
       - /pose_cam/zed_node/right/image_rect_color
       - /pose_cam/zed_node/left/camera_info
       - /pose_cam/zed_node/right/camera_info
-      - /mavros/
+      - /mavros/setpoint_raw/local
+      - /mavros/setpoint_raw/global
+      - /mavros/setpoint_raw/attitude
+      - /mavros/global_position/global
+      - /mavros/global_position/local
+      - /mavros/global_position/gp_vel
+      - /mavros/global_position/rel_alt
+      - /mavros/global_position/compass_hdg
+      - /mavros/global_position/raw/satellites
+      - /mavros/global_position/raw/fix
+      - /mavros/global_position/raw/gps_vel
+      - /mavros/local_position/accel
+      - /mavros/local_position/odom
+      - /mavros/local_position/pose
+      - /mavros/local_position/pose_cov
+      - /mavros/local_position/velocity_body
+      - /mavros/local_position/velocity_body_cov
+      - /mavros/local_position/velocity_local
+      - /mavros/home_position/home
+      - /mavros/imu/data
+      - /mavros/imu/data_raw
+      - /mavros/imu/mag
+      - /mavros/imu/temperature
+      - /mavros/imu/atm_pressure
+      - /mavros/local_position/pose
+      - /mavros/local_position/velocity
+      - /mavros/manual_control/control
+      - /mavros/odometry/out
+      - /mavros/rc/in
+      - /mavros/rc/out
+      - /mavros/state
+      - /mavros/param/event
+      - /mavros/vfr_hud
+      - /mavros/wind_estimation
+      - /mavros/battery
+      - /diagnostics
+      - /mavlink/from
+      - /mavlink/to
+      - /mavros/trajectory/desired
+      - /mavros/trajectory/generated
+      - /mavros/trajectory/path
+      - /mavros/sys_status
+
