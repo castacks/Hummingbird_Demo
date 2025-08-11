@@ -60,9 +60,19 @@ def generate_launch_description():
             condition=IfCondition(EnvironmentVariable('SERVO'))
         ),
         
-        # MAVROS Node (launch if MAVROS is set)
-        IncludeLaunchDescription(XMLLaunchDescriptionSource([FindPackageShare('mavros'),'/launch/apm.launch']),
-        condition=IfCondition(EnvironmentVariable('MAVROS'))),
+        # MAVROS real Node (launch if MAVROS is set and SIMULATION is false)
+        IncludeLaunchDescription(
+            XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "0"']))
+        ),
+        # MAVROS SITL Node (launch if SIMULATION is true)
+        IncludeLaunchDescription(
+            XMLLaunchDescriptionSource([FindPackageShare('ardupilot_gz_bringup'), '/launch/apm.launch']),
+            launch_arguments={
+                'fcu_url': 'tcp://100.71.181.61:5760'  # replace with your sim FCU URL
+            }.items(),
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "1"']))
+        ),
 
         # VINS Node (launch if VO is true)
         Node(

@@ -63,3 +63,4 @@ colcon build --parallel-workers $(nproc) --symlink-install \
   ' --no-warn-unused-cli' "
 
 WORKDIR /root/ros2_ws
+RUN echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc

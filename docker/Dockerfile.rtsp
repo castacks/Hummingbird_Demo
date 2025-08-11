@@ -11,3 +11,4 @@ WORKDIR /root/ros2_ws/
 RUN /bin/bash -c "source ~/.bash_profile && colcon build --symlink-install"
 
 WORKDIR /root/ros2_ws/
+RUN echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc

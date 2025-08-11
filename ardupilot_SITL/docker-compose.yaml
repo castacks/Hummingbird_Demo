@@ -4,7 +4,7 @@ services:
     build:
       context: ./ 
       dockerfile: ./Dockerfile.sitl
-    # entrypoint: ["/root/entrypoint.sh"]
+    entrypoint: ["/root/entrypoint.sh"]
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
@@ -26,6 +26,9 @@ services:
     volumes:
       - /tmp:/tmp 
       - /dev:/dev 
+      - ./iris:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
+      - ./params:/root/ardu_ws/src/ardupilot_gazebo/config
+      - ./worlds:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_gazebo/worlds
 
 networks:
   sitl_network:
