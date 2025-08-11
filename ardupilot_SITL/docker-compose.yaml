@@ -7,16 +7,15 @@ services:
     entrypoint: ["/root/entrypoint.sh"]
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
       - QT_X11_NO_MITSHM=1
     deploy:
-      # let it use the GPU
       resources:
         reservations:
           devices:
-            - driver: nvidia # https://stackoverflow.com/a/70761193
+            - driver: nvidia
+              capabilities: [gpu]
               count: 1
-              capabilities: [ gpu ]
     network_mode: host
     privileged: true
     ipc: host
