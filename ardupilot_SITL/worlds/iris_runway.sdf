@@ -79,13 +79,13 @@
     </include>
 
     <model name="wire" static="true">
-      <pose>0 0 2.195 0 1.5708 0</pose>
+      <pose>0 0 4.195 0 1.5708 0</pose>
       <joint name="wire_fixed_joint" type="fixed">
         <parent>world</parent>
-        <child>link</child>
+        <child>wire</child>
         <pose>0 0 0 0 0 0</pose>  <!-- relative to parent -->
       </joint>
-      <link name="link">
+      <link name="wire">
           <visual name="visual">
             <geometry>
                 <cylinder>
