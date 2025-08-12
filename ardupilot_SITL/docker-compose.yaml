@@ -33,5 +33,4 @@ services:
 networks:
   sitl_network:
     driver: bridge
-    internal: true
     attachable: true
