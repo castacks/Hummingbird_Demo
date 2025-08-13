@@ -71,6 +71,8 @@ RUN pip3 install \
   pyyaml \
   pybind11
 
+RUN apt-get update && apt-get install -y telnet
+
 COPY docker/autonomy_entrypoint.sh /root/entrypoint.sh
 RUN chmod +x /root/entrypoint.sh
 
