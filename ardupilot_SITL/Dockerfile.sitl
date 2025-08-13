@@ -97,6 +97,8 @@ rosdep install --from-paths src --ignore-src -y -r
 WORKDIR ${ARDUPILOT_ROS2_PATH}
 RUN bash -c "source /opt/ros/humble/setup.bash && colcon build --symlink-install --packages-up-to ardupilot_gz_bringup --executor parallel --parallel-workers $(nproc)"
 
+RUN apt-get update && apt-get install -y telnet netcat iproute2
+
 RUN echo "source ${ARDUPILOT_ROS2_PATH}/install/setup.bash" >> ~/.bashrc
 RUN echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc
 
