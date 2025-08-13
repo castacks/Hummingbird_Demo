@@ -1,6 +1,8 @@
 services:
   ardupilot_sitl:
     image: tharp789/ardupilot_sitl:humble_ardupilot_sitl
+    ports:
+      - 5760:5760/udp
     build:
       context: ./ 
       dockerfile: ./Dockerfile.sitl
