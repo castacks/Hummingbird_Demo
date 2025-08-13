@@ -11,7 +11,7 @@ import datetime
 
 def generate_launch_description():
     # Get current date for rosbag naming
-    date = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    simulation_ip = os.environ.get('SIMULATION_IP', '')
     # specify which RViz configuration to use based on WIRE_MODE
     rviz_config_path = PythonExpression([
         '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
@@ -67,9 +67,9 @@ def generate_launch_description():
         ),
         # MAVROS SITL Node (launch if SIMULATION is true)
         IncludeLaunchDescription(
-            XMLLaunchDescriptionSource([FindPackageShare('ardupilot_gz_bringup'), '/launch/apm.launch']),
+            XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
             launch_arguments={
-                'fcu_url': 'tcp://100.71.181.61:5760'  # replace with your sim FCU URL
+                'fcu_url': f"tcp://{simulation_ip}:5760"
             }.items(),
             condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "1"']))
         ),
@@ -96,31 +96,6 @@ def generate_launch_description():
             output='screen',
             condition=IfCondition(EnvironmentVariable('RECORD'))
         ),
-
-        # TimerAction(
-        #     period=5.0,  # delay in seconds
-        #     actions=[
-        #         ExecuteProcess(
-        #             cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-        #                 '-o', f'{data_folder}/mavros_{date}',
-        #                 '--regex', '/mavros/.*'
-        #             ],
-        #             output='log',
-        #             condition=IfCondition(EnvironmentVariable('RECORD'))
-        #         ),
-        #         ExecuteProcess(
-        #             cmd=['ros2', 'bag', 'record', '-s', 'mcap', '-d', '60',
-        #                 '-o', f'{data_folder}/wire_{date}',
-        #                 '/wire_cam/zed_node/left/image_rect_color', '/wire_cam/zed_node/right/image_rect_color',
-        #                 '/wire_cam/zed_node/left/camera_info', '/wire_cam/zed_node/right/camera_info',
-        #                 '/wire_cam/zed_node/depth/depth_registered',
-        #                 '/pose_cam/zed_node/left/image_rect_color', '/pose_cam/zed_node/right/image_rect_color',
-        #                 '/pose_cam/zed_node/left/camera_info', '/pose_cam/zed_node/right/camera_info'],
-        #             output='log',
-        #             condition=IfCondition(EnvironmentVariable('RECORD'))
-        #         ),
-        #     ]
-        # )
     ])
 
     return system_launch

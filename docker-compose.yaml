@@ -118,6 +118,8 @@ services:
       - VO=${VO}
       - SERVO=${SERVO}
       - MAVROS=${MAVROS}
+      - SIMULATION=${SIMULATION}
+      - SIMULATION_IP=${SIMULATION_IP}
     deploy:
       # let it use the GPU
       resources:
