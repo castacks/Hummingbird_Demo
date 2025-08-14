@@ -13,6 +13,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - SIMULATION_IP=${SIMULATION_IP}
     deploy:
       resources:
         reservations:
@@ -30,7 +31,7 @@ services:
       - /tmp:/tmp 
       - /dev:/dev 
       - ./iris_model:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
-      - ./iris_launch:/root/ardu_ws/src/ardupilot_gz/launch/robots
+      - ./iris_launch:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_bringup/launch/robots
       - ./params:/root/ardu_ws/src/ardupilot_gazebo/config
       - ./worlds:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_gazebo/worlds
 

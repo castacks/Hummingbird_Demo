@@ -60,6 +60,7 @@ def generate_launch_description():
     pkg_ardupilot_sitl = get_package_share_directory("ardupilot_sitl")
     pkg_ardupilot_gazebo = get_package_share_directory("ardupilot_gazebo")
     pkg_project_bringup = get_package_share_directory("ardupilot_gz_bringup")
+    companion_ip = os.environ.get("COMPANION_IP", "192.168.155.20")
 
     # Include component launch files.
     sitl_dds = IncludeLaunchDescription(
@@ -98,7 +99,7 @@ def generate_launch_description():
             "sim_address": "127.0.0.1",
             "master": "tcp:127.0.0.1:5760",
             "sitl": "127.0.0.1:5501",
-            "out": "udp:127.0.0.1:14550,udp:127.0.0.1:14551"
+            "out": f"udp:{companion_ip}:14550"
         }.items(),
     )
 
