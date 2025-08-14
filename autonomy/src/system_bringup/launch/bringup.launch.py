@@ -69,7 +69,7 @@ def generate_launch_description():
         IncludeLaunchDescription(
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
             launch_arguments={
-                'fcu_url': f"udp://{simulation_ip}:14550@14555"
+                'fcu_url': f"udp://:14550@"
             }.items(),
             condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "1"']))
         ),
