@@ -2,7 +2,8 @@ services:
   ardupilot_sitl:
     image: tharp789/ardupilot_sitl:humble_ardupilot_sitl
     ports:
-      - "5760:5760/tcp"
+      - "14550:14550/udp"
+      - "14551:14551/udp"
     build:
       context: ./ 
       dockerfile: ./Dockerfile.sitl
@@ -28,7 +29,8 @@ services:
     volumes:
       - /tmp:/tmp 
       - /dev:/dev 
-      - ./iris:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
+      - ./iris_model:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
+      - ./iris_launch:/root/ardu_ws/src/ardupilot_gz/launch/robots
       - ./params:/root/ardu_ws/src/ardupilot_gazebo/config
       - ./worlds:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_gazebo/worlds
 
