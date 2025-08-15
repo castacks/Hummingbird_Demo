@@ -10,18 +10,11 @@ import datetime
 
 
 def generate_launch_description():
-    # Get current date for rosbag naming
-    simulation_ip = os.environ.get('SIMULATION_IP', '')
     # specify which RViz configuration to use based on WIRE_MODE
     rviz_config_path = PythonExpression([
         '"', FindPackageShare('wire_tracking').find('wire_tracking'), '/rviz/wire_tracking.rviz" if "', EnvironmentVariable('WIRE_MODE'), '" == "2" else "',
         FindPackageShare('wire_detection').find('wire_detection'), '/rviz/wire_detection.rviz"'
     ])
-    # if EnvironmentVariable('RECORD'):
-    #     data_folder = f'/root/data_collection/flight_{date}'
-    #     os.mkdir(data_folder)
-    # else:
-    #     data_folder = ''
         
     system_launch = LaunchDescription([
         # Wire tracking node (launch if WIRE_MODE is set to 2)
@@ -63,17 +56,32 @@ def generate_launch_description():
         # MAVROS real Node (launch if MAVROS is set and SIMULATION is false)
         IncludeLaunchDescription(
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
-            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "0"']))
+            condition=IfCondition(PythonExpression([
+                EnvironmentVariable('MAVROS'), ' == "1" and ', EnvironmentVariable('SIMULATION'), ' == "0"'
+            ]))
         ),
-        # MAVROS SITL Node (launch if SIMULATION is true)
+        # MAVROS SITL Node (launch if MAVROS == "1" and SIMULATION == "1")
         IncludeLaunchDescription(
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
-            launch_arguments={
-                'fcu_url': f"udp://:14550@"
-            }.items(),
-            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" != "" and "', EnvironmentVariable('SIMULATION'), '" == "1"']))
+            launch_arguments={'fcu_url': 'udp://:14550@'}.items(),
+            condition=IfCondition(PythonExpression([
+                EnvironmentVariable('MAVROS'), ' == "1" and ', EnvironmentVariable('SIMULATION'), ' == "1"'
+            ]))
         ),
-
+        # MAVROS Manager Node (launch if MAVROS == "1")
+        TimerAction(
+            period=2.0,  # delay in seconds, adjust as needed
+            actions=[
+                Node(
+                    package='mavros_manager',
+                    executable='mavros_manager_node',
+                    name='mavros_manager_node',
+                    condition=IfCondition(PythonExpression([
+                        EnvironmentVariable('MAVROS'), ' == "1"'
+                    ]))
+                )
+            ]
+        ),
         # VINS Node (launch if VO is true)
         Node(
             package='vins',
