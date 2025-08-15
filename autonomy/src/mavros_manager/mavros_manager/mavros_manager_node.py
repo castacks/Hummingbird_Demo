@@ -20,7 +20,7 @@ class MavrosManager(Node):
         for stream_id, rate, on_off in streams:
             req = MessageInterval.Request()
             req.message_id = stream_id
-            req.message_rate = rate
+            req.message_rate = float(rate)
             future = self.client.call_async(req)
             rclpy.spin_until_future_complete(self, future)
             self.get_logger().info(f'Set stream {stream_id} to {rate} Hz: {future.result()}')
