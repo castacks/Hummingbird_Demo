@@ -29,10 +29,11 @@ class MavrosManager(Node):
         rclpy.shutdown()
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    rclpy.init()
     node = MavrosManager()
     rclpy.spin(node)
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
