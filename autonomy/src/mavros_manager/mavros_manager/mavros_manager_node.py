@@ -15,7 +15,7 @@ class MavrosManager(Node):
             (32, 20, True),  # LOCAL_POSITION_NED
             (33, 20, True),  # GLOBAL_POSITION_INT
             (63, 20, True),  # GLOBAL_POSITION_INT_COV
-            (64, 10, True),  # LOCAL_POSITION_NED_COV
+            (64, 20, True),  # LOCAL_POSITION_NED_COV
         ]
         for stream_id, rate, on_off in streams:
             req = MessageInterval.Request()
@@ -26,13 +26,10 @@ class MavrosManager(Node):
             self.get_logger().info(f'Set stream {stream_id} to {rate} Hz: {future.result()}')
 
         self.get_logger().info('All streams set, shutting down...')
-        rclpy.shutdown()
-
 
 def main():
     rclpy.init()
-    node = MavrosManager()
-    rclpy.spin(node)
+    MavrosManager()
     rclpy.shutdown()
 
 if __name__ == '__main__':
