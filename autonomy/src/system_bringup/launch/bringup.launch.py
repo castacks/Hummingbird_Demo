@@ -42,7 +42,7 @@ def generate_launch_description():
                 '-d', rviz_config_path,
                 '--ros-args', '--log-level', 'WARN'
             ],
-            condition=IfCondition(PythonExpression([EnvironmentVariable('RVIZ')]))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('RVIZ'), '" == "1"']))
         ),
         # Visual Servoing Node (launch if SERVO is true)
         Node(
@@ -50,14 +50,14 @@ def generate_launch_description():
             executable='visual_servoing_node',
             name='visual_servoing_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(EnvironmentVariable('SERVO'))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('SERVO'), '" == "1"']))
         ),
         
         # MAVROS real Node (launch if MAVROS is set and SIMULATION is false)
         IncludeLaunchDescription(
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
             condition=IfCondition(PythonExpression([
-                EnvironmentVariable('MAVROS'), ' == "1" and ', EnvironmentVariable('SIMULATION'), ' == "0"'
+                '"', EnvironmentVariable('MAVROS'), '" == "1" and "', EnvironmentVariable('SIMULATION'), '" == "0"'
             ]))
         ),
         # MAVROS SITL Node (launch if MAVROS == "1" and SIMULATION == "1")
@@ -65,7 +65,7 @@ def generate_launch_description():
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
             launch_arguments={'fcu_url': 'udp://:14550@'}.items(),
             condition=IfCondition(PythonExpression([
-                EnvironmentVariable('MAVROS'), ' == "1" and ', EnvironmentVariable('SIMULATION'), ' == "1"'
+                '"', EnvironmentVariable('MAVROS'), '" == "1" and "', EnvironmentVariable('SIMULATION'), '" == "1"'
             ]))
         ),
         # MAVROS Manager Node (launch if MAVROS == "1")
@@ -76,9 +76,7 @@ def generate_launch_description():
                     package='mavros_manager',
                     executable='mavros_manager_node',
                     name='mavros_manager_node',
-                    condition=IfCondition(PythonExpression([
-                        EnvironmentVariable('MAVROS'), ' == "1"'
-                    ]))
+                    condition=IfCondition(PythonExpression(['"', EnvironmentVariable('MAVROS'), '" == "1"']))
                 )
             ]
         ),
@@ -89,7 +87,7 @@ def generate_launch_description():
             name='vins_node',
             namespace='vins',
             parameters=[{'config_file': FindPackageShare('vins').find('vins') + '/config/zedx/zedx_stereo_config.yaml'}],
-            condition=IfCondition(EnvironmentVariable('VO'))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('VO'), '" == "1"'])),
         ),
         # Rosbag recording process
         Node(
@@ -102,7 +100,7 @@ def generate_launch_description():
                 {'mcap_qos_dir': FindPackageShare('bag_recorder').find('bag_recorder') + '/config'}
             ],
             output='screen',
-            condition=IfCondition(EnvironmentVariable('RECORD'))
+            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('RECORD'), '" == "1"']))
         ),
     ])
 
