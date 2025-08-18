@@ -12,24 +12,30 @@ import numpy as np
 
 class DroneControlNode(Node):
     def __init__(self):
-        super().__init__('velocity_control_node')
+        super().__init__('wire_control_node')
 
         # Get parameters
+        self.declare_parameter('max_velocity_xy', 0.5)  # m/s
+        self.declare_parameter('max_velocity_z', 0.5)
         self.declare_parameter('control_rate_hz', 10.0)
-        self.declare_parameter('velocity', 0.5)
-        self.declare_parameter('side_length', 10.0)
-        self.declare_parameter('yaw', 0.0)
-        self.declare_parameter('yaw_rate', 0.0)
         self.declare_parameter('takeoff_height', 2.0)  # Height to take off to
-        self.declare_parameter('takeoff_wait_time', 10.0)  # Time to wait after takeoff before starting control
+        self.declare_parameter('takeoff_wait_time', 5.0)  # Time to wait after takeoff before starting control
+
+        self.declare_parameter('wire_yaw', 0.0)  # Yaw angle of the wire
+        self.declare_parameter('wire_x', 0.0)  # X coordinate of the wire
+        self.declare_parameter('wire_y', 0.0)  # Y coordinate of the wire
+        self.declare_parameter('wire_z', 6.0)  # Z coordinate of the wire
 
         self.control_rate_hz = self.get_parameter('control_rate_hz').get_parameter_value().double_value
-        self.velocity = self.get_parameter('velocity').get_parameter_value().double_value
-        self.side_length = self.get_parameter('side_length').get_parameter_value().double_value
-        self.yaw = self.get_parameter('yaw').get_parameter_value().double_value
-        self.yaw_rate = self.get_parameter('yaw_rate').get_parameter_value().double_value
+        self.max_velocity_xy = self.get_parameter('max_velocity_xy').get_parameter_value().double_value
+        self.max_velocity_z = self.get_parameter('max_velocity_z').get_parameter_value().double_value
         self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
         self.takeoff_height = self.get_parameter('takeoff_height').get_parameter_value().double_value
+
+        self.wire_yaw = self.get_parameter('wire_yaw').get_parameter_value().double_value
+        self.wire_x = self.get_parameter('wire_x').get_parameter_value().double_value
+        self.wire_y = self.get_parameter('wire_y').get_parameter_value().double_value
+        self.wire_z = self.get_parameter('wire_z').get_parameter_value().double_value
 
         # MAVROS service clients
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
@@ -98,34 +104,76 @@ class DroneControlNode(Node):
             time.sleep(self.takeoff_wait_time)
 
         self.get_logger().info("Starting control publishing...")
-        self.execute_side()
+        self.execute_wire_approach()
 
-    def execute_side(self):
-        start_time = time.time()
-        side_time = self.side_length / self.velocity
-        while rclpy.ok() and (time.time() - start_time < side_time):
-            pos_msg = PositionTarget()
-            pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
-            pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
-            pos_msg.velocity.x = self.velocity
-            pos_msg.velocity.y = self.velocity
-            pos_msg.velocity.z = self.velocity
-            pos_msg.yaw = self.yaw
-            pos_msg.yaw_rate = self.yaw_rate
-            self.pos_control_publisher.publish(pos_msg)
-            time.sleep(1.0 / self.control_rate_hz)
-        
-        final_pos_msg = PositionTarget()
-        final_pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
-        final_pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
-        final_pos_msg.velocity.x = 0.0
-        final_pos_msg.velocity.y = 0.0
-        final_pos_msg.velocity.z = 0.0
-        final_pos_msg.yaw = self.yaw
-        final_pos_msg.yaw_rate = 0.0
-        self.pos_control_publisher.publish(final_pos_msg)
-        self.get_logger().info("Final position published, stopping control.")
-        return
+    def execute_wire_approach(self):
+        """Approach the wire location using velocity control."""
+        rate = self.create_rate(self.control_rate_hz)
+        arrival_threshold = 0.2  # meters
+
+        # Store current position (updated in callback)
+        self.current_position = None
+
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
+
+            if self.current_position is None:
+                self.get_logger().warn("Waiting for current position...")
+                rate.sleep()
+                continue
+
+            # Vector to target
+            dx = self.wire_x - self.current_position[0]
+            dy = self.wire_y - self.current_position[1]
+            dz = self.wire_z - self.current_position[2]
+
+            dist_xy = np.sqrt(dx**2 + dy**2)
+            dist_3d = np.sqrt(dx**2 + dy**2 + dz**2)
+
+            # Stop if close enough
+            if dist_3d < arrival_threshold:
+                self.get_logger().info("Arrived at wire location.")
+                break
+
+            # Velocity in XY (scaled to max)
+            if dist_xy > 1e-3:
+                vx = (dx / dist_xy) * min(dist_xy, self.max_velocity_xy)
+                vy = (dy / dist_xy) * min(dist_xy, self.max_velocity_xy)
+            else:
+                vx, vy = 0.0, 0.0
+
+            # Velocity in Z (clamped)
+            vz = np.clip(dz, -self.max_velocity_z, self.max_velocity_z)
+
+            # Publish MAVROS PositionTarget in ENU
+            vel_msg = PositionTarget()
+            vel_msg.header.stamp = self.get_clock().now().to_msg()
+            vel_msg.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
+            vel_msg.type_mask = (
+                PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ |
+                PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ |
+                PositionTarget.IGNORE_YAW_RATE
+            )
+            vel_msg.velocity.x = vx
+            vel_msg.velocity.y = vy
+            vel_msg.velocity.z = vz
+            vel_msg.yaw = self.wire_yaw
+
+            self.pos_control_publisher.publish(vel_msg)
+            rate.sleep()
+
+        # Stop motion after approach
+        stop_msg = PositionTarget()
+        stop_msg.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
+        stop_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | \
+                             PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | \
+                             PositionTarget.IGNORE_YAW_RATE
+        stop_msg.velocity.x = 0.0
+        stop_msg.velocity.y = 0.0
+        stop_msg.velocity.z = 0.0
+        stop_msg.yaw = self.wire_yaw
+        self.pos_control_publisher.publish(stop_msg)
+        self.get_logger().info("Final position reached, stopping control.")
 
 def main(args=None):
     rclpy.init(args=args)
