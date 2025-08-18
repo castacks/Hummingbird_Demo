@@ -13,7 +13,6 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
-      - SIMULATION_IP=${SIMULATION_IP}
     deploy:
       resources:
         reservations:
@@ -34,6 +33,7 @@ services:
       - ./iris_launch:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_bringup/launch/robots
       - ./params:/root/ardu_ws/src/ardupilot_gazebo/config
       - ./worlds:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_gazebo/worlds
+      - ./iris_urdf/iris.urdf:/root/ardu_ws/src/ardupilot/libraries/SITL/examples/JSON/pybullet/models/iris/iris.urdf
 
 networks:
   sitl_network:
