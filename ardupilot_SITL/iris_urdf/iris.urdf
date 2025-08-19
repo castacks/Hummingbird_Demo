@@ -79,15 +79,15 @@
       <jointName>iris/rotor_0_joint</jointName>
       <linkName>iris/rotor_0</linkName>
       <turningDirection>ccw</turningDirection>
-      <timeConstantUp>0.0125</timeConstantUp>
-      <timeConstantDown>0.025</timeConstantDown>
-      <maxRotVelocity>838</maxRotVelocity>
-      <motorConstant>8.54858e-06</motorConstant>
+      <timeConstantUp>0.03</timeConstantUp>
+      <timeConstantDown>0.06</timeConstantDown>
+      <maxRotVelocity>420</maxRotVelocity>
+      <motorConstant>1.37e-04</motorConstant>
       <momentConstant>0.016</momentConstant>
       <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>0</motorNumber>
-      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
-      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorDragCoefficient>3.23e-04</rotorDragCoefficient>
+      <rollingMomentCoefficient>3e-06</rollingMomentCoefficient>
       <motorSpeedPubTopic>motor_speed/0</motorSpeedPubTopic>
       <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
     </plugin>
@@ -132,15 +132,15 @@
       <jointName>iris/rotor_1_joint</jointName>
       <linkName>iris/rotor_1</linkName>
       <turningDirection>ccw</turningDirection>
-      <timeConstantUp>0.0125</timeConstantUp>
-      <timeConstantDown>0.025</timeConstantDown>
-      <maxRotVelocity>838</maxRotVelocity>
-      <motorConstant>8.54858e-06</motorConstant>
+      <timeConstantUp>0.03</timeConstantUp>
+      <timeConstantDown>0.06</timeConstantDown>
+      <maxRotVelocity>420</maxRotVelocity>
+      <motorConstant>1.37e-04</motorConstant>
       <momentConstant>0.016</momentConstant>
       <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>1</motorNumber>
-      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
-      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorDragCoefficient>3.23e-04</rotorDragCoefficient>
+      <rollingMomentCoefficient>3e-06</rollingMomentCoefficient>
       <motorSpeedPubTopic>motor_speed/1</motorSpeedPubTopic>
       <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
     </plugin>
@@ -185,15 +185,15 @@
       <jointName>iris/rotor_2_joint</jointName>
       <linkName>iris/rotor_2</linkName>
       <turningDirection>cw</turningDirection>
-      <timeConstantUp>0.0125</timeConstantUp>
-      <timeConstantDown>0.025</timeConstantDown>
-      <maxRotVelocity>838</maxRotVelocity>
-      <motorConstant>8.54858e-06</motorConstant>
+      <timeConstantUp>0.03</timeConstantUp>
+      <timeConstantDown>0.06</timeConstantDown>
+      <maxRotVelocity>420</maxRotVelocity>
+      <motorConstant>1.37e-04</motorConstant>
       <momentConstant>0.016</momentConstant>
       <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>2</motorNumber>
-      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
-      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorDragCoefficient>3.23e-04</rotorDragCoefficient>
+      <rollingMomentCoefficient>3e-06</rollingMomentCoefficient>
       <motorSpeedPubTopic>motor_speed/2</motorSpeedPubTopic>
       <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
     </plugin>
@@ -238,15 +238,15 @@
       <jointName>iris/rotor_3_joint</jointName>
       <linkName>iris/rotor_3</linkName>
       <turningDirection>cw</turningDirection>
-      <timeConstantUp>0.0125</timeConstantUp>
-      <timeConstantDown>0.025</timeConstantDown>
-      <maxRotVelocity>838</maxRotVelocity>
-      <motorConstant>8.54858e-06</motorConstant>
+      <timeConstantUp>0.03</timeConstantUp>
+      <timeConstantDown>0.06</timeConstantDown>
+      <maxRotVelocity>420</maxRotVelocity>
+      <motorConstant>1.37e-04</motorConstant>
       <momentConstant>0.016</momentConstant>
       <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>3</motorNumber>
-      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
-      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorDragCoefficient>3.23e-04</rotorDragCoefficient>
+      <rollingMomentCoefficient>3e-06</rollingMomentCoefficient>
       <motorSpeedPubTopic>motor_speed/3</motorSpeedPubTopic>
       <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
     </plugin>

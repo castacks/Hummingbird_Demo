@@ -9,6 +9,7 @@ from rclpy.duration import Duration
 import time
 from geometry_msgs.msg import TwistStamped, PoseStamped
 import numpy as np
+import math
 
 class DroneControlNode(Node):
     def __init__(self):
@@ -64,6 +65,16 @@ class DroneControlNode(Node):
 
     def position_callback(self, msg):
         self.get_logger().info(f"Current Position: {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+        self.curr_x = msg.pose.position.x
+        self.curr_y = msg.pose.position.y
+        self.curr_z = msg.pose.position.z
+        self.curr_yaw = self.get_yaw_from_quaternion(msg.pose.orientation)
+
+    def get_yaw_from_quaternion(self, orientation):
+        """Convert quaternion orientation to yaw angle."""
+        siny = 2.0 * (orientation.z * orientation.w + orientation.x * orientation.y)
+        cosy = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
+        return math.atan2(siny, cosy)
 
     def call_service(self, client, request):
         while not client.wait_for_service(timeout_sec=2.0):

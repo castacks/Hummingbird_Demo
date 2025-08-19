@@ -17,7 +17,7 @@ class DroneControlNode(Node):
         # Get parameters
         self.declare_parameter('control_rate_hz', 10.0)
         self.declare_parameter('velocity', 0.5)
-        self.declare_parameter('side_length', 10.0)
+        self.declare_parameter('travel_distance', 10.0)
         self.declare_parameter('yaw', 0.0)
         self.declare_parameter('yaw_rate', 0.0)
         self.declare_parameter('takeoff_height', 2.0)  # Height to take off to
@@ -25,7 +25,7 @@ class DroneControlNode(Node):
 
         self.control_rate_hz = self.get_parameter('control_rate_hz').get_parameter_value().double_value
         self.velocity = self.get_parameter('velocity').get_parameter_value().double_value
-        self.side_length = self.get_parameter('side_length').get_parameter_value().double_value
+        self.travel_distance = self.get_parameter('travel_distance').get_parameter_value().double_value
         self.yaw = self.get_parameter('yaw').get_parameter_value().double_value
         self.yaw_rate = self.get_parameter('yaw_rate').get_parameter_value().double_value
         self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
@@ -102,7 +102,7 @@ class DroneControlNode(Node):
 
     def execute_side(self):
         start_time = time.time()
-        side_time = self.side_length / self.velocity
+        side_time = self.travel_distance / self.velocity
         while rclpy.ok() and (time.time() - start_time < side_time):
             pos_msg = PositionTarget()
             pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
