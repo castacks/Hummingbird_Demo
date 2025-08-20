@@ -80,5 +80,6 @@ RUN echo "alias sws='source ~/.bash_profile && source /root/dependencies_ws/inst
     echo "alias bwt='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install --packages-select wire_tracking'" >> ~/.bashrc && \
     echo "alias bbr='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install --packages-select bag_recorder'" >> ~/.bashrc && \
     echo "alias bws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install'" >> ~/.bashrc && \
-    echo "alias start_control='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test control_test.launch.xml'" >> ~/.bashrc && \
+    echo "alias vel_test='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test vel_control_test.launch.xml'" >> ~/.bashrc && \
+    echo "alias wire_test='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test wire_control_test.launch.xml'" >> ~/.bashrc && \
     echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc

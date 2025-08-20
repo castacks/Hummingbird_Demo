@@ -1,5 +1,5 @@
 <launch>
   <node pkg="control_test" exec="wire_control_test" name="wire_control_test">
-    <param from="$(find-pkg-share control_test)/wire_control_test_config.yaml" />
+    <param from="$(find-pkg-share control_test)/config/wire_control_test_config.yaml" />
   </node>
 </launch>

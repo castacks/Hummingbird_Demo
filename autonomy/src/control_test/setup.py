@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/control_test.launch.xml']),
-        ('share/' + package_name + '/config', ['config/control_test_config.yaml']),
+        ('share/' + package_name + '/launch', ['launch/vel_control_test.launch.xml', 'launch/wire_control_test.launch.xml']),
+        ('share/' + package_name + '/config', ['config/vel_control_test_config.yaml', 'config/wire_control_test_config.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,6 +21,6 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [ 'vel_control_test = control_test.vel_control_test:main']
+        'console_scripts': [ 'vel_control_test = control_test.vel_control_test:main', 'wire_control_test = control_test.wire_control_test:main']
     },
 )

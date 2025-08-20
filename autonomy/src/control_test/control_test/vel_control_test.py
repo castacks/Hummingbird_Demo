@@ -5,9 +5,8 @@ from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from mavros_msgs.msg import PositionTarget
 
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy, LivelinessPolicy
-from rclpy.duration import Duration
 import time
-from geometry_msgs.msg import TwistStamped, PoseStamped
+from geometry_msgs.msg import PoseStamped
 import numpy as np
 
 class DroneControlNode(Node):
@@ -30,6 +29,14 @@ class DroneControlNode(Node):
         self.yaw_rate = self.get_parameter('yaw_rate').get_parameter_value().double_value
         self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
         self.takeoff_height = self.get_parameter('takeoff_height').get_parameter_value().double_value
+
+        self.get_logger().info(f"using control_rate_hz: {self.control_rate_hz}")
+        self.get_logger().info(f"using velocity: {self.velocity}")
+        self.get_logger().info(f"using travel_distance: {self.travel_distance}")
+        self.get_logger().info(f"using yaw: {self.yaw}")
+        self.get_logger().info(f"using yaw_rate: {self.yaw_rate}")
+        self.get_logger().info(f"using takeoff_height: {self.takeoff_height}")
+        self.get_logger().info(f"using takeoff_wait_time: {self.takeoff_wait_time}")      
 
         # MAVROS service clients
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
@@ -106,10 +113,18 @@ class DroneControlNode(Node):
         while rclpy.ok() and (time.time() - start_time < side_time):
             pos_msg = PositionTarget()
             pos_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
-            pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
+            if self.yaw_rate == 0.0 and self.yaw != 0.0:
+                pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW_RATE
+                self.get_logger().info("Using yaw control")
+            elif self.yaw_rate != 0.0 and self.yaw == 0.0:
+                pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW
+                self.get_logger().info("Using yaw rate control")
+            else:
+                pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
+                self.get_logger().info("Using no yaw control")
             pos_msg.velocity.x = self.velocity
-            pos_msg.velocity.y = self.velocity
-            pos_msg.velocity.z = self.velocity
+            pos_msg.velocity.y = 0.0 # Move in the x direction
+            pos_msg.velocity.z = 0.0
             pos_msg.yaw = self.yaw
             pos_msg.yaw_rate = self.yaw_rate
             self.pos_control_publisher.publish(pos_msg)
@@ -121,7 +136,7 @@ class DroneControlNode(Node):
         final_pos_msg.velocity.x = 0.0
         final_pos_msg.velocity.y = 0.0
         final_pos_msg.velocity.z = 0.0
-        final_pos_msg.yaw = self.yaw
+        final_pos_msg.yaw = 0.0
         final_pos_msg.yaw_rate = 0.0
         self.pos_control_publisher.publish(final_pos_msg)
         self.get_logger().info("Final position published, stopping control.")
