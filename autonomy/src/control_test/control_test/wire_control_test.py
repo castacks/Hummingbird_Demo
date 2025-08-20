@@ -11,6 +11,60 @@ from geometry_msgs.msg import TwistStamped, PoseStamped
 import numpy as np
 import math
 
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+class WireTransforms:
+    def __init__(self, wire_x_offset, wire_y_offset, wire_z_offset, wire_yaw_offset, drone_origin_position, drone_origin_quat):
+        self.wire_x = wire_x_offset + drone_origin_position[0]
+        self.wire_y = wire_y_offset + drone_origin_position[1]
+        self.wire_z = wire_z_offset + drone_origin_position[2]
+        self.drone_origin_yaw = R.from_quat(drone_origin_quat).as_euler('zyx')[0]
+        self.wire_yaw = wire_yaw_offset + self.drone_origin_yaw
+        self.wire_pos = np.array([self.wire_x, self.wire_y, self.wire_z])
+
+    def transform_wire_local_to_body(self, drone_pos, drone_quat):
+        """
+        Transform wire pose from local ENU frame to drone body frame (base_link/FLU).
+
+        Args:
+            drone_pos (array-like): [x, y, z] drone position in local ENU
+            drone_quat (array-like): [x, y, z, w] quaternion of drone in local ENU
+            wire_pos (array-like): [x, y, z] wire point in local ENU
+            wire_yaw (float): yaw angle of the wire in local ENU
+
+        Returns:
+            wire_pos_body (np.ndarray): wire point in body frame (3,)
+            wire_dir_body (np.ndarray or None): wire direction in body frame (3,) if given
+        """
+        drone_pos = np.array(drone_pos)
+
+        # Rotation from world->body
+        R_wb = R.from_quat(drone_quat).as_matrix()
+        R_bw = R_wb.T  # inverse rotation
+
+        # Translate wire into drone-centered coords
+        delta_w = self.wire_pos - drone_pos
+        wire_pos_body = R_bw @ delta_w
+
+        wire_dir_w = np.array([np.cos(self.wire_yaw), np.sin(self.wire_yaw), 0.0])
+
+        # Rotate direction into body frame
+        wire_dir_b = R_bw @ wire_dir_w
+
+        # Compute yaw of wire in body frame
+        wire_yaw_body = np.arctan2(wire_dir_b[1], wire_dir_b[0])
+        wire_yaw_body = self.clamp_angle_rad(wire_yaw_body)
+
+        return wire_pos_body, wire_yaw_body
+    
+    def clamp_angle_rad(self, angle):
+        """
+        Clamp an angle in radians to the range [-pi, pi].
+        Works with scalars or numpy arrays.
+        """
+        return ((angle + np.pi) % (2 * np.pi)) - np.pi
+
 class DroneControlNode(Node):
     def __init__(self):
         super().__init__('wire_control_node')
@@ -22,10 +76,20 @@ class DroneControlNode(Node):
         self.declare_parameter('takeoff_height', 2.0)  # Height to take off to
         self.declare_parameter('takeoff_wait_time', 5.0)  # Time to wait after takeoff before starting control
 
-        self.declare_parameter('wire_yaw', 0.0)  # Yaw angle of the wire
-        self.declare_parameter('wire_x', 0.0)  # X coordinate of the wire
-        self.declare_parameter('wire_y', 0.0)  # Y coordinate of the wire
-        self.declare_parameter('wire_z', 6.0)  # Z coordinate of the wire
+        self.declare_parameter('wire_yaw_offset', 0.0)  # Yaw angle of the wire
+        self.declare_parameter('wire_x_offset', 0.0)  # X coordinate of the wire
+        self.declare_parameter('wire_y_offset', 0.0)  # Y coordinate of the wire
+        self.declare_parameter('wire_z_offset', 6.0)  # Z coordinate of the wire
+
+        self.declare_parameter('p_xy', 0.5)
+        self.declare_parameter('d_xy', 0.1)
+        self.declare_parameter('i_xy', 0.0)
+        self.declare_parameter('p_z', 0.25)
+        self.declare_parameter('d_z', 0.05)
+        self.declare_parameter('i_z', 0.0)
+        self.declare_parameter('p_yaw', 1.0)
+        self.declare_parameter('d_yaw', 0.1)
+        self.declare_parameter('i_yaw', 0.0)
 
         self.control_rate_hz = self.get_parameter('control_rate_hz').get_parameter_value().double_value
         self.max_velocity_xy = self.get_parameter('max_velocity_xy').get_parameter_value().double_value
@@ -33,10 +97,20 @@ class DroneControlNode(Node):
         self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
         self.takeoff_height = self.get_parameter('takeoff_height').get_parameter_value().double_value
 
-        self.wire_yaw = self.get_parameter('wire_yaw').get_parameter_value().double_value
-        self.wire_x = self.get_parameter('wire_x').get_parameter_value().double_value
-        self.wire_y = self.get_parameter('wire_y').get_parameter_value().double_value
-        self.wire_z = self.get_parameter('wire_z').get_parameter_value().double_value
+        self.wire_yaw_offset = self.get_parameter('wire_yaw_offset').get_parameter_value().double_value
+        self.wire_x_offset = self.get_parameter('wire_x_offset').get_parameter_value().double_value
+        self.wire_y_offset = self.get_parameter('wire_y_offset').get_parameter_value().double_value
+        self.wire_z_offset = self.get_parameter('wire_z_offset').get_parameter_value().double_value
+
+        self.p_xy = self.get_parameter('p_xy').get_parameter_value().double_value
+        self.d_xy = self.get_parameter('d_xy').get_parameter_value().double_value
+        self.i_xy = self.get_parameter('i_xy').get_parameter_value().double_value
+        self.p_z = self.get_parameter('p_z').get_parameter_value().double_value
+        self.d_z = self.get_parameter('d_z').get_parameter_value().double_value
+        self.i_z = self.get_parameter('i_z').get_parameter_value().double_value
+        self.p_yaw = self.get_parameter('p_yaw').get_parameter_value().double_value
+        self.d_yaw = self.get_parameter('d_yaw').get_parameter_value().double_value
+        self.i_yaw = self.get_parameter('i_yaw').get_parameter_value().double_value
 
         # MAVROS service clients
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
@@ -48,7 +122,7 @@ class DroneControlNode(Node):
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,   # UNKNOWN not valid → fallback to KEEP_LAST
-            depth=5,                           # Required with KEEP_LAST, choose any small positive integer
+            depth=1,                           # Required with KEEP_LAST, choose any small positive integer
             durability=DurabilityPolicy.VOLATILE,
             liveliness=LivelinessPolicy.AUTOMATIC,
         )
@@ -56,25 +130,15 @@ class DroneControlNode(Node):
         self.position_subscriber = self.create_subscription(
             PoseStamped,
             '/mavros/local_position/pose',
-            self.position_callback,
+            self.position_estimate_callback,
             qos_profile
         )
 
-        # Start mission
-        self.takeoff_and_control()
-
-    def position_callback(self, msg):
-        self.get_logger().info(f"Current Position: {msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
-        self.curr_x = msg.pose.position.x
-        self.curr_y = msg.pose.position.y
-        self.curr_z = msg.pose.position.z
-        self.curr_yaw = self.get_yaw_from_quaternion(msg.pose.orientation)
-
-    def get_yaw_from_quaternion(self, orientation):
-        """Convert quaternion orientation to yaw angle."""
-        siny = 2.0 * (orientation.z * orientation.w + orientation.x * orientation.y)
-        cosy = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
-        return math.atan2(siny, cosy)
+        # Start takeoff to get drone into starting position
+        self.origin_position = None
+        self.prev_timestamp = None
+        self.first_pass = True
+        self.takeoff()
 
     def call_service(self, client, request):
         while not client.wait_for_service(timeout_sec=2.0):
@@ -84,7 +148,7 @@ class DroneControlNode(Node):
         rclpy.spin_until_future_complete(self, future)
         return future.result()
 
-    def takeoff_and_control(self):
+    def takeoff(self):
         self.get_logger().info("Setting mode to GUIDED...")
         mode_request = SetMode.Request()
         mode_request.custom_mode = "GUIDED"
@@ -111,80 +175,62 @@ class DroneControlNode(Node):
             takeoff_skipped = True
 
         if not takeoff_skipped:
-            self.get_logger().info(f"Waiting {self.takeoff_wait_time} seconds before control...")
+            self.get_logger().info(f"Waiting {self.takeoff_wait_time} seconds before being ready to control...")
             time.sleep(self.takeoff_wait_time)
+        return
 
-        self.get_logger().info("Starting control publishing...")
-        self.execute_wire_approach()
+    def position_estimate_callback(self, msg):
+        if self.origin_position is None:
+            self.origin_position = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+            self.origin_quat = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
+            self.wire_transforms = WireTransforms(self.wire_x_offset, self.wire_y_offset, self.wire_z_offset, self.wire_yaw_offset, self.origin_position, self.origin_quat)
 
-    def execute_wire_approach(self):
-        """Approach the wire location using velocity control."""
-        rate = self.create_rate(self.control_rate_hz)
-        arrival_threshold = 0.2  # meters
+        self.curr_pos = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+        self.curr_quat = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
+        wire_pos_body, wire_yaw_body = self.wire_transforms.transform_wire_local_to_body(self.curr_pos, self.curr_quat)
 
-        # Store current position (updated in callback)
-        self.current_position = None
+        self.prev_err_x = getattr(self, "prev_err_x", 0)
+        self.prev_err_y = getattr(self, "prev_err_y", 0)
+        self.prev_err_z = getattr(self, "prev_err_z", 0)
+        self.prev_err_yaw = getattr(self, "prev_err_yaw", 0)
+        self.sum_err_x = getattr(self, "sum_err_x", 0)
+        self.sum_err_y = getattr(self, "sum_err_y", 0)
+        self.sum_err_z = getattr(self, "sum_err_z", 0)
+        self.sum_err_yaw = getattr(self, "sum_err_yaw", 0)
 
-        while rclpy.ok():
-            rclpy.spin_once(self, timeout_sec=0.1)
+        if self.first_pass is True:
+            self.vx = self.p_xy * wire_pos_body[0] 
+            self.vy = self.p_xy * wire_pos_body[1]
+            self.vz = self.p_z * wire_pos_body[2]
+            self.yaw_rate = self.p_yaw * wire_yaw_body
+            dt = 0.0
+            self.first_pass = False
+        else:
+            dt = time.perf_counter() - self.prev_timestamp
+            self.vx = self.p_xy * wire_pos_body[0] + self.d_xy * (wire_pos_body[0] - self.prev_err_x) / dt + self.i_xy * self.sum_err_x
+            self.vy = self.p_xy * wire_pos_body[1] + self.d_xy * (wire_pos_body[1] - self.prev_err_y) / dt + self.i_xy * self.sum_err_y
+            self.vz = self.p_z * wire_pos_body[2] + self.d_z * (wire_pos_body[2] - self.prev_err_z) / dt + self.i_z * self.sum_err_z
+            self.yaw_rate = self.p_yaw * wire_yaw_body + self.d_yaw * self.wire_transforms.clamp_angle_rad(wire_yaw_body - self.prev_err_yaw) / dt + self.i_yaw * self.sum_err_yaw
 
-            if self.current_position is None:
-                self.get_logger().warn("Waiting for current position...")
-                rate.sleep()
-                continue
+        self.prev_timestamp = time.perf_counter()
+        self.prev_err_x = wire_pos_body[0]
+        self.prev_err_y = wire_pos_body[1]
+        self.prev_err_z = wire_pos_body[2]
+        self.prev_err_yaw = wire_yaw_body
+        self.sum_err_x += wire_pos_body[0] * dt
+        self.sum_err_y += wire_pos_body[1] * dt
+        self.sum_err_z += wire_pos_body[2] * dt
+        self.sum_err_yaw += wire_yaw_body * dt
 
-            # Vector to target
-            dx = self.wire_x - self.current_position[0]
-            dy = self.wire_y - self.current_position[1]
-            dz = self.wire_z - self.current_position[2]
+        vel_target_msg = PositionTarget()
+        vel_target_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
+        vel_target_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW
+        vel_target_msg.velocity.x = np.clip(self.vx, -self.max_velocity_xy, self.max_velocity_xy)
+        vel_target_msg.velocity.y = np.clip(self.vy, -self.max_velocity_xy, self.max_velocity_xy)
+        vel_target_msg.velocity.z = np.clip(self.vz, -self.max_velocity_z, self.max_velocity_z)
+        vel_target_msg.yaw_rate = self.yaw_rate
 
-            dist_xy = np.sqrt(dx**2 + dy**2)
-            dist_3d = np.sqrt(dx**2 + dy**2 + dz**2)
-
-            # Stop if close enough
-            if dist_3d < arrival_threshold:
-                self.get_logger().info("Arrived at wire location.")
-                break
-
-            # Velocity in XY (scaled to max)
-            if dist_xy > 1e-3:
-                vx = (dx / dist_xy) * min(dist_xy, self.max_velocity_xy)
-                vy = (dy / dist_xy) * min(dist_xy, self.max_velocity_xy)
-            else:
-                vx, vy = 0.0, 0.0
-
-            # Velocity in Z (clamped)
-            vz = np.clip(dz, -self.max_velocity_z, self.max_velocity_z)
-
-            # Publish MAVROS PositionTarget in ENU
-            vel_msg = PositionTarget()
-            vel_msg.header.stamp = self.get_clock().now().to_msg()
-            vel_msg.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
-            vel_msg.type_mask = (
-                PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ |
-                PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ |
-                PositionTarget.IGNORE_YAW_RATE
-            )
-            vel_msg.velocity.x = vx
-            vel_msg.velocity.y = vy
-            vel_msg.velocity.z = vz
-            vel_msg.yaw = self.wire_yaw
-
-            self.pos_control_publisher.publish(vel_msg)
-            rate.sleep()
-
-        # Stop motion after approach
-        stop_msg = PositionTarget()
-        stop_msg.coordinate_frame = PositionTarget.FRAME_LOCAL_NED
-        stop_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | \
-                             PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | \
-                             PositionTarget.IGNORE_YAW_RATE
-        stop_msg.velocity.x = 0.0
-        stop_msg.velocity.y = 0.0
-        stop_msg.velocity.z = 0.0
-        stop_msg.yaw = self.wire_yaw
-        self.pos_control_publisher.publish(stop_msg)
-        self.get_logger().info("Final position reached, stopping control.")
+        self.pos_control_publisher.publish(vel_target_msg)
 
 def main(args=None):
     rclpy.init(args=args)
@@ -192,7 +238,6 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
