@@ -184,6 +184,7 @@ class DroneControlNode(Node):
 
     def position_estimate_callback(self, msg):
         if self.origin_position is None:
+            self.get_logger().info("Initializing the position origin of the drone")
             self.origin_position = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
             self.origin_quat = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
             self.wire_transforms = WireTransforms(self.wire_x_offset, self.wire_y_offset, self.wire_z_offset, self.wire_yaw_offset, self.origin_position, self.origin_quat)
@@ -232,7 +233,7 @@ class DroneControlNode(Node):
         vel_target_msg.velocity.y = np.clip(self.vy, -self.max_velocity_xy, self.max_velocity_xy)
         vel_target_msg.velocity.z = np.clip(self.vz, -self.max_velocity_z, self.max_velocity_z)
         vel_target_msg.yaw_rate = self.yaw_rate
-
+        self.get_logger().info(f"Sending velocity commnd: {self.vx} m/s, {self.vy}m/s, {self.vz}m/s, {self.yaw_rate}rad/s")
         self.pos_control_publisher.publish(vel_target_msg)
 
 def main(args=None):

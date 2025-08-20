@@ -123,8 +123,8 @@ class DroneControlNode(Node):
                 pos_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ
                 self.get_logger().info("Using no yaw control")
             pos_msg.velocity.x = self.velocity
-            pos_msg.velocity.y = 0.0 # Move in the x direction
-            pos_msg.velocity.z = 0.0
+            pos_msg.velocity.y = self.velocity
+            pos_msg.velocity.z = self.velocity
             pos_msg.yaw = self.yaw
             pos_msg.yaw_rate = self.yaw_rate
             self.pos_control_publisher.publish(pos_msg)

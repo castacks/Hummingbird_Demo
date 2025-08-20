@@ -15,9 +15,9 @@
     i_yaw: 0.0
 
     control_rate_hz: 10.0 # Hz
-    takeoff_height: 3.0 # m
+    takeoff_height: 2.0 # m
     takeoff_wait_time: 10.0 # s
     wire_yaw_offset: 0.52359877559 # rad (30 degrees)
     wire_x_offset: 0.0 # m
-    wire_y_offset: 0.0 # m
+    wire_y_offset: 1.0 # m
     wire_z_offset: 3.0 # m
