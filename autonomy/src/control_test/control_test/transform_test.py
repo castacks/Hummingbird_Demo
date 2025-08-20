@@ -11,7 +11,7 @@ def test_wire_transform_1():
     wire_transforms = WireTransforms(1.0, 2.0, 3.0, 0.0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
     drone_pos = np.array([0.0, 0.0, 0.0])
     drone_quat = np.array([0.0, 0.0, 0.0, 1.0])
-    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_to_body(drone_pos, drone_quat)
+    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_local_to_body(drone_pos, drone_quat)
     assert np.allclose(wire_pos_body, np.array([1.0, 2.0, 3.0]))
     assert np.isclose(wire_yaw_body, 0.0)
     print("test_wire_transform_1 passed")
@@ -23,19 +23,19 @@ def test_wire_transform_2():
     drone_pos = np.array([0.0, 0.0, 0.0]) 
     # drone_quat = np.array([ 0, 0, 0.6427863, 0.7660455 ]) # 80 degree rotation
     # drone_quat = np.array([ 0, 0, 0.7660455, 0.6427863 ]) # 100 degree rotation
-    drone_quat = np.array([ 0, 0, 0.7071068, 0.7071068 ]) # 90 degree rotation
+    drone_quat = np.array([ 0, 0, 0, 1 ]) # 90 degree rotation
 
-    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_to_body(drone_pos, drone_quat)
+    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_local_to_body(drone_pos, drone_quat)
     print(f"Wire body position: {wire_pos_body}")
     print(f"Wire body yaw: {np.rad2deg(wire_yaw_body)} degrees")
     visualize_wire_transform(drone_pos, drone_quat, wire_transforms.wire_pos, wire_pos_body, wire_yaw_body)
 
 def test_wire_transform_3():
-    wire_transforms = WireTransforms(1.0, 1.0, 1.0, 0.0, [0.0, 0.0, 0.0], [ 0.0, 0.0, 0.0, 1.0]) # 90 degree rotation
+    wire_transforms = WireTransforms(1.0, 1.0, 1.0, 0.0, [0.0, 0.0, 0.0], [ 0.0, 0.0, 0.0, 1.0])
     drone_pos = np.array([0.0, 0.0, 0.0]) 
-    # drone_quat = np.array([ 0, 0, 0.0871557, 0.9961947 ]) # 10 degree rotation
-    drone_quat = np.array([ 0, 0, 0.7071068, 0.7071068 ]) # 90 degree rotation
-    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_to_body(drone_pos, drone_quat)
+    drone_quat = np.array([ 0, 0, 0.0871557, 0.9961947 ]) # 10 degree rotation
+    # drone_quat = np.array([ 0, 0, 0.7071068, 0.7071068 ]) # 90 degree rotation
+    wire_pos_body, wire_yaw_body = wire_transforms.transform_wire_local_to_body(drone_pos, drone_quat)
     print(f"Wire body position: {wire_pos_body}")
     print(f"Wire body yaw: {np.rad2deg(wire_yaw_body)} degrees")
     visualize_wire_transform(drone_pos, drone_quat, wire_transforms.wire_pos, wire_pos_body, wire_yaw_body)
@@ -108,5 +108,5 @@ def visualize_wire_transform(drone_pos, drone_quat, wire_pos_world, wire_pos_bod
 
 
 if __name__ == "__main__":
-    # test_wire_transform_2()
-    test_wire_transform_3()
+    test_wire_transform_2()
+    # test_wire_transform_3()

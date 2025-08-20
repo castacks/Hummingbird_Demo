@@ -16,11 +16,14 @@ from scipy.spatial.transform import Rotation as R
 
 class WireTransforms:
     def __init__(self, wire_x_offset, wire_y_offset, wire_z_offset, wire_yaw_offset, drone_origin_position, drone_origin_quat):
-        self.wire_x = wire_x_offset + drone_origin_position[0]
-        self.wire_y = wire_y_offset + drone_origin_position[1]
-        self.wire_z = wire_z_offset + drone_origin_position[2]
         self.drone_origin_yaw = R.from_quat(drone_origin_quat).as_euler('zyx')[0]
-        self.wire_yaw = wire_yaw_offset + self.drone_origin_yaw
+        self.rot_matrix = np.array([[np.cos(self.drone_origin_yaw), -np.sin(self.drone_origin_yaw)],
+                                     [np.sin(self.drone_origin_yaw), np.cos(self.drone_origin_yaw)]])
+        x_offset, y_offset = self.rot_matrix @ np.array([wire_x_offset, wire_y_offset])
+        self.wire_x = drone_origin_position[0] + x_offset
+        self.wire_y = drone_origin_position[1] + y_offset
+        self.wire_z = drone_origin_position[2] + wire_z_offset
+        self.wire_yaw = self.drone_origin_yaw + wire_yaw_offset
         self.wire_pos = np.array([self.wire_x, self.wire_y, self.wire_z])
 
     def transform_wire_local_to_body(self, drone_pos, drone_quat):
