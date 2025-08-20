@@ -1,21 +1,23 @@
-max_velocity_xy: 1.0 # m/s
-max_velocity_z: 0.5 # m/s
-max_velocity_yaw: 0.25 # rad/s
+/**:
+  ros__parameters:
+    max_velocity_xy: 1.0 # m/s
+    max_velocity_z: 0.5 # m/s
+    max_velocity_yaw: 0.25 # rad/s
 
-p_xy: 0.5
-d_xy: 0.1
-i_xy: 0.0
-p_z: 0.25
-d_z: 0.05
-i_z: 0.0
-p_yaw: 1.0
-d_yaw: 0.1
-i_yaw: 0.0
+    p_xy: 0.5
+    d_xy: 0.1
+    i_xy: 0.0
+    p_z: 0.25
+    d_z: 0.05
+    i_z: 0.0
+    p_yaw: 1.0
+    d_yaw: 0.1
+    i_yaw: 0.0
 
-control_rate_hz: 10.0 # Hz
-takeoff_height: 3.0 # m
-takeoff_wait_time: 10.0 # s
-wire_yaw_offset: 0.52359877559 # rad (30 degrees)
-wire_x_offset: 0.0 # m
-wire_y_offset: 0.0 # m
-wire_z_offset: 3.0 # m
+    control_rate_hz: 10.0 # Hz
+    takeoff_height: 3.0 # m
+    takeoff_wait_time: 10.0 # s
+    wire_yaw_offset: 0.52359877559 # rad (30 degrees)
+    wire_x_offset: 0.0 # m
+    wire_y_offset: 0.0 # m
+    wire_z_offset: 3.0 # m
