@@ -69,6 +69,7 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
     vtol_payload_ = config_["vtol_payload"].as<bool>();
+    use_mavros_ = config_["use_mavros"].as<bool>();
 
     linear_translation_dropout_ = config_["linear_translation_dropout"].as<double>();
     angular_translation_dropout_ = config_["angular_translation_dropout"].as<double>();
@@ -79,24 +80,34 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
-    H_pose_to_wire_.setIdentity();
+    H_pose_to_cam_.setIdentity();
     if (!vtol_payload_) // zeds are in same orientation
     {
         Matrix3d Ry;
         Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
-        H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
-        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
+        H_pose_to_cam_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
+        H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
     }
     else
     {
-        Matrix3d Rz;
-        Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
-        Matrix3d Rx;
-        Rx = Eigen::AngleAxisd(M_PI, Vector3d::UnitX());
-        H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Rx;
-        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-0.035, baseline / 2.0, 0.18415);
+        if (!use_mavros_)
+        {
+            Matrix3d Rz;
+            Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
+            Matrix3d Rx;
+            Rx = Eigen::AngleAxisd(M_PI, Vector3d::UnitX());
+            H_pose_to_cam_.topLeftCorner<3, 3>() = Rz * Rx;
+            H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(-0.035, baseline / 2.0, 0.18415);
+        }
+        else // mavros uses FLU
+        {
+            Matrix3d Rz;
+            Rz = Eigen::AngleAxisd(M_PI, Vector3d::UnitZ());
+            H_pose_to_cam_.topLeftCorner<3, 3>() = Rz;
+            H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(0.15875, 0.0, 0.0635)
+        }
     }
-    H_wire_to_pose_ = H_pose_to_wire_.inverse();
+    H_cam_to_pose_ = H_pose_to_cam_.inverse();
 
     // Populate Kalman filters
     direction_kalman_filter_ = DirectionKalmanFilter(config_);
@@ -179,75 +190,13 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
         double delta_time = curr_stamp - previous_transform_stamp_;
         double delta_translation = (H_to_pose.block<3, 1>(0, 3) - previous_transform_.block<3, 1>(0, 3)).norm();
 
-        Eigen::Vector3d curr_linear_velocity;
-        Eigen::Vector3d curr_angular_velocity;
-        std::tie(curr_linear_velocity, curr_angular_velocity) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
-
-        Eigen::Vector3d curr_linear_acceleration = (curr_linear_velocity - last_linear_velocity_) / delta_time;
-        double max_linear_velocity = curr_linear_velocity.cwiseAbs().maxCoeff();
-        double max_angular_velocity = curr_angular_velocity.cwiseAbs().maxCoeff();
-
-        Eigen::Vector3d curr_angular_acceleration = (curr_angular_velocity - last_angular_velocity_) / delta_time;
-        double max_linear_acceleration = curr_linear_acceleration.cwiseAbs().maxCoeff();
-        double max_angular_acceleration = curr_angular_acceleration.cwiseAbs().maxCoeff();
-
-        RCLCPP_INFO(this->get_logger(), "Curr Linear velocity: [%.2f, %.2f, %.2f] m/s, Previous Linear Velocity: [%.2f, %.2f, %.2f], Delta Time: %.2f",
-                    curr_linear_velocity(0), curr_linear_velocity(1), curr_linear_velocity(2), last_linear_velocity_(0), last_linear_velocity_(1), last_linear_velocity_(2), delta_time);
-        RCLCPP_INFO(this->get_logger(), "Curr Angular velocity: [%.2f, %.2f, %.2f] rad/s, Previous Angular Velocity: [%.2f, %.2f, %.2f]",
-                    curr_angular_velocity(0), curr_angular_velocity(1), curr_angular_velocity(2), last_angular_velocity_(0), last_angular_velocity_(1), last_angular_velocity_(2));
-        RCLCPP_INFO(this->get_logger(), "Current Linear Acceleration: [%.2f, %.2f, %.2f] m/s^2, Current Angular Acceleration: [%.2f, %.2f, %.2f] rad/s^2",
-                    curr_linear_acceleration(0), curr_linear_acceleration(1), curr_linear_acceleration(2),
-                    curr_angular_acceleration(0), curr_angular_acceleration(1), curr_angular_acceleration(2));
-
-        // if (max_linear_velocity < linear_velocity_dropout_ && max_angular_velocity < angular_velocity_dropout_ &&
-        //     max_linear_acceleration < linear_acceleration_dropout_ && max_angular_acceleration < angular_acceleration_dropout_)
-        if (delta_translation < linear_translation_dropout_ && max_linear_acceleration < linear_acceleration_dropout_ && max_angular_acceleration < angular_acceleration_dropout_)
-        {
-            std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
-            RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
-            relative_transform_timestamps_.push_back(curr_stamp);
-            relative_transforms_.push_back(H_relative_in_wire_cam);
-            last_linear_velocity_ = curr_linear_velocity;
-            last_angular_velocity_ = curr_angular_velocity;
-            using_velocity_transform_ = false;
-        }
-        else
-        {
-            if (last_linear_velocity_.norm() < 1e-6 && last_angular_velocity_.norm() < 1e-6)
-            {
-                RCLCPP_WARN(this->get_logger(), "No previous velocity available, cannot fabricate transform from velocity.");
-                return;
-            }
-            if (delta_translation >= linear_translation_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "Translation %.2f exceeds dropout threshold %.2f, fabricating transform from velocity", delta_translation, linear_translation_dropout_);
-            }
-            // if (max_linear_velocity >= linear_velocity_dropout_)
-            // {
-            //     RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max linear velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_linear_velocity, linear_velocity_dropout_);
-            // }
-            // if (max_angular_velocity >= angular_velocity_dropout_)
-            // {
-            //     RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max angular velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_angular_velocity, angular_velocity_dropout_);
-            // }
-            if (max_linear_acceleration >= linear_acceleration_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max linear acceleration %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_linear_acceleration, linear_acceleration_dropout_);
-            }
-            if (max_angular_acceleration >= angular_acceleration_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max angular acceleration %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_angular_acceleration, angular_acceleration_dropout_);
-            }
-            // // If the translation exceeds the dropout threshold, fabricate a transform based on the last velocity
-            // Eigen::Matrix4d delta_pose_transform = getRelativeTransformFromVelocity(last_linear_velocity_, last_angular_velocity_, delta_time);
-            // RCLCPP_INFO(this->get_logger(), "linear translation of fabricated relative transform: [%.2f, %.2f, %.2f], in time: %.2f",
-            //             delta_pose_transform(0, 3), delta_pose_transform(1, 3), delta_pose_transform(2, 3), delta_time);
-
-            // H_relative_in_wire_cam = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, delta_pose_transform);
-            // relative_transform_timestamps_.push_back(curr_stamp);
-            // relative_transforms_.push_back(H_relative_in_wire_cam);
-            // using_velocity_transform_ = true;
-        }
+        std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_cam_, H_cam_tod, previous_transform_, msg->pose.pose);
+        RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
+        relative_transform_timestamps_.push_back(curr_stamp);
+        relative_transforms_.push_back(H_relative_in_wire_cam);
+        last_linear_velocity_ = curr_linear_velocity;
+        last_angular_velocity_ = curr_angular_velocity;
+        using_velocity_transform_ = false;
 
         previous_transform_ = H_to_pose;
         previous_transform_stamp_ = curr_stamp;
