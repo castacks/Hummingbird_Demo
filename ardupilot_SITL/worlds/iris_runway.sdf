@@ -79,7 +79,7 @@
     </include>
 
     <model name="wire" static="true">
-      <pose>0 0 4.195 1.5708 1.5708 0</pose>
+      <pose>0 0 6.0 1.5708 1.5708 0</pose>
       <joint name="wire_fixed_joint" type="fixed">
         <parent>world</parent>
         <child>wire</child>
