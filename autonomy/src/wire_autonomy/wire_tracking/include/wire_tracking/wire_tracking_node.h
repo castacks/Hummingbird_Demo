@@ -60,8 +60,6 @@ private:
   int total_iterations_{0};
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
-  bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
-  bool use_mavros_{false}; // Flag to indicate if MAVROS is being used
 
   double linear_translation_dropout_{0.5}; // Dropout threshold for linear translation in meters
   double angular_translation_dropout_{0.25}; // Dropout threshold for angular translation in radians
@@ -83,7 +81,7 @@ private:
   std::vector<cv::Mat> rgb_images_;
 
   Eigen::Matrix3d camera_matrix_;
-  Eigen::Matrix4d H_pose_to_cam, H_cam_to_pose_;
+  Eigen::Matrix4d H_fc_to_cam_, H_cam_to_fc_;
   bool initialized_{false};
   int image_height_, image_width_;
   double line_length_{0.0}; // Length of the line to be drawn in pixels

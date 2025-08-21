@@ -2,8 +2,6 @@ min_valid_kf_count_threshold: 25
 iteration_start_threshold: 50
 target_publish_frequency_hz: 15.0 # Hz
 
-vtol_payload: False
-use_mavros: True
 zed_baseline: 0.12 # meters
 
 linear_translation_dropout: 1.0 # meters

@@ -80,34 +80,13 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
-    H_pose_to_cam_.setIdentity();
-    if (!vtol_payload_) // zeds are in same orientation
-    {
-        Matrix3d Ry;
-        Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
-        H_pose_to_cam_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
-        H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
-    }
-    else
-    {
-        if (!use_mavros_)
-        {
-            Matrix3d Rz;
-            Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
-            Matrix3d Rx;
-            Rx = Eigen::AngleAxisd(M_PI, Vector3d::UnitX());
-            H_pose_to_cam_.topLeftCorner<3, 3>() = Rz * Rx;
-            H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(-0.035, baseline / 2.0, 0.18415);
-        }
-        else // mavros uses FLU
-        {
-            Matrix3d Rz;
-            Rz = Eigen::AngleAxisd(M_PI, Vector3d::UnitZ());
-            H_pose_to_cam_.topLeftCorner<3, 3>() = Rz;
-            H_pose_to_cam_.block<3, 1>(0, 3) = Vector3d(0.15875, 0.0, 0.0635)
-        }
-    }
-    H_cam_to_pose_ = H_pose_to_cam_.inverse();
+    H_fc_to_cam_.setIdentity();
+    Matrix3d Rz;
+    Rz = Eigen::AngleAxisd(M_PI, Vector3d::UnitZ());
+    H_fc_to_cam_.topLeftCorner<3, 3>() = Rz;
+    H_fc_to_cam_.block<3, 1>(0, 3) = Vector3d(0.15875, 0.0, 0.0635);
+
+    H_cam_to_fc_ = H_fc_to_cam_.inverse();
 
     // Populate Kalman filters
     direction_kalman_filter_ = DirectionKalmanFilter(config_);
@@ -171,6 +150,13 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
 {
     if (!initialized_)
     {
+        RCLCPP_INFO(this->get_logger(), "Wire Tracking Node not initialized yet. Waiting for camera info.");
+        return;
+    }
+
+    if (!direction_kalman_filter_ || !position_kalman_filters_)
+    {
+        RCLCPP_INFO(this->get_logger(), "Kalman filters not initialized yet. Waiting for measurment initialization.");
         return;
     }
 
@@ -182,87 +168,31 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     }
     else
     {
-        Eigen::Matrix4d H_relative_in_wire_cam;
-        Eigen::Matrix4d H_to_pose = poseToHomogeneous(msg->pose.pose);
-
         // Compute the relative transform from the previous pose to the current pose
         double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         double delta_time = curr_stamp - previous_transform_stamp_;
         double delta_translation = (H_to_pose.block<3, 1>(0, 3) - previous_transform_.block<3, 1>(0, 3)).norm();
-
-        std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_cam_, H_cam_tod, previous_transform_, msg->pose.pose);
-        RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
-        relative_transform_timestamps_.push_back(curr_stamp);
-        relative_transforms_.push_back(H_relative_in_wire_cam);
-        last_linear_velocity_ = curr_linear_velocity;
-        last_angular_velocity_ = curr_angular_velocity;
-        using_velocity_transform_ = false;
-
-        previous_transform_ = H_to_pose;
+        
+        Eigen::Matrix4d H_relative_cam;
+        std::tie(H_relative_cam, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose.pose);
         previous_transform_stamp_ = curr_stamp;
-    }
-}
-
-void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
-{
-    if (!initialized_)
-    {
-        RCLCPP_INFO(this->get_logger(), "Wire Tracking Node not initialized yet. Waiting for camera info.");
-        return;
-    }
-
-    if (!direction_kalman_filter_ || !position_kalman_filters_)
-    {
-        RCLCPP_INFO(this->get_logger(), "Kalman filters not initialized yet. Waiting for measurment initialization.");
-        return;
-    }
-
-    if (relative_transform_timestamps_.empty())
-    {
-        RCLCPP_INFO(this->get_logger(), "No relative pose transforms available. Waiting for pose updates.");
-        return;
-    }
-
-    // Find index for latest pose before input_stamp
-    auto it = std::upper_bound(relative_transform_timestamps_.begin(),
-                               relative_transform_timestamps_.end(),
-                               input_stamp);
-    int idx = static_cast<int>(std::distance(relative_transform_timestamps_.begin(), it)) - 1;
-
-    if (idx < 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "No relative pose transforms available for prediction.");
-        return;
-    }
-    else
-    {
-        RCLCPP_INFO(this->get_logger(), "Predicting Kalman filters up to timestamp: %.2f, using %d transforms.", input_stamp, idx + 1);
-    }
-
-    // Iterate over poses up to idx
-    for (int i = 0; i <= idx; ++i)
-    {
-        const Eigen::Matrix4d &relative_pose_transform = relative_transforms_[i];
-        RCLCPP_INFO_STREAM(this->get_logger(), "Predicting Transform: " << relative_pose_transform);
+        RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_cam(0, 3), H_relative_cam(1, 3), H_relative_cam(2, 3));
 
         if (direction_kalman_filter_->isInitialized())
         {
             double previous_yaw = direction_kalman_filter_->getYaw();
-            double curr_yaw = direction_kalman_filter_->predict(relative_pose_transform.block<3, 3>(0, 0));
+            double curr_yaw = direction_kalman_filter_->predict(H_relative_cam.block<3, 3>(0, 0));
 
             if (position_kalman_filters_->isInitialized())
             {
                 RCLCPP_INFO(this->get_logger(), "Linear translation of relative transform: [%.2f, %.2f, %.2f], yaw change: %.2f degrees",
-                            relative_pose_transform(0, 3), relative_pose_transform(1, 3), relative_pose_transform(2, 3),
+                            H_relative_cam(0, 3), H_relative_cam(1, 3), H_relative_cam(2, 3),
                             (curr_yaw - previous_yaw) * 180.0 / M_PI);
-                position_kalman_filters_->predict(relative_pose_transform, previous_yaw, curr_yaw);
+                position_kalman_filters_->predict(H_relative_cam, previous_yaw, curr_yaw);
             }
         }
-    }
 
-    // Remove old transforms
-    relative_transforms_.erase(relative_transforms_.begin(), relative_transforms_.begin() + idx + 1);
-    relative_transform_timestamps_.erase(relative_transform_timestamps_.begin(), relative_transform_timestamps_.begin() + idx + 1);
+    }
 }
 
 void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg)
@@ -271,13 +201,6 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
         return;
 
     double wire_detection_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-    if (!relative_transforms_.empty())
-    {
-        // Use the most recent relative transform
-        predict_kfs_up_to_timestamp(wire_detection_stamp);
-        RCLCPP_INFO(this->get_logger(), "Kalman Debug After Predict:");
-        debugPrintKFs();
-    }
 
     if (msg->avg_angle > 0.0 && msg->avg_angle < M_PI && !msg->wire_detections.empty())
     {
