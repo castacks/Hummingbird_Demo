@@ -68,8 +68,6 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
     tracking_3d_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(tracking_3d_viz_topic_, 10);
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
-    vtol_payload_ = config_["vtol_payload"].as<bool>();
-    use_mavros_ = config_["use_mavros"].as<bool>();
 
     linear_translation_dropout_ = config_["linear_translation_dropout"].as<double>();
     angular_translation_dropout_ = config_["angular_translation_dropout"].as<double>();
@@ -163,7 +161,7 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     // if last relative transform is not set, initialize it
     if (previous_transform_.isZero())
     {
-        previous_transform_ = poseToHomogeneous(msg->pose.pose);
+        previous_transform_ = poseToHomogeneous2(H_cam_to_fc_, msg->pose.pose);
         previous_transform_stamp_ = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
     }
     else
@@ -171,7 +169,6 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
         // Compute the relative transform from the previous pose to the current pose
         double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         double delta_time = curr_stamp - previous_transform_stamp_;
-        double delta_translation = (H_to_pose.block<3, 1>(0, 3) - previous_transform_.block<3, 1>(0, 3)).norm();
         
         Eigen::Matrix4d H_relative_cam;
         std::tie(H_relative_cam, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose.pose);

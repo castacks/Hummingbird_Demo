@@ -15,9 +15,9 @@ Matrix4d poseToHomogeneous2(const Eigen::Matrix4d &H_cam_to_fc_, const geometry_
   Matrix4d H_cam_to_world = Matrix4d::Identity();
   // Translation
   H_fc_to_w.block<3, 1>(0, 3) = Vector3d(
-      pose.position.x,
-      pose.position.y,
-      pose.position.z);
+      pose_fc_to_w.position.x,
+      pose_fc_to_w.position.y,
+      pose_fc_to_w.position.z);
 
   // Rotation: Eigen::Quaterniond(w, x, y, z)
   Quaterniond q{
