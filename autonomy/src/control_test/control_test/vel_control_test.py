@@ -124,7 +124,7 @@ class DroneControlNode(Node):
                 self.get_logger().info("Using no yaw control")
             pos_msg.velocity.x = self.velocity
             pos_msg.velocity.y = self.velocity
-            pos_msg.velocity.z = self.velocity
+            pos_msg.velocity.z = 0.25
             pos_msg.yaw = self.yaw
             pos_msg.yaw_rate = self.yaw_rate
             self.pos_control_publisher.publish(pos_msg)

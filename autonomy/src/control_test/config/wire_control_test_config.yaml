@@ -1,17 +1,17 @@
 /**:
   ros__parameters:
-    max_velocity_xy: 1.0 # m/s
-    max_velocity_z: 0.5 # m/s
-    max_velocity_yaw: 0.25 # rad/s
+    max_velocity_xy: 0.5 # m/s
+    max_velocity_z: 0.25 # m/s
+    max_velocity_yaw: 0.17 # rad/s
 
-    p_xy: 0.5
+    p_xy: 0.25
     d_xy: 0.1
     i_xy: 0.0
-    p_z: 0.25
+    p_z: 0.125
     d_z: 0.05
     i_z: 0.0
-    p_yaw: 1.0
-    d_yaw: 0.1
+    p_yaw: .25
+    d_yaw: 0.2
     i_yaw: 0.0
 
     control_rate_hz: 10.0 # Hz
