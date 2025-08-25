@@ -52,12 +52,12 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
         rgb_image_sub_topic_, 1,
         std::bind(&WireTrackingNode::rgbCallback, this, _1));
 
-    // this->declare_parameter<std::string>("wire_target_topic", "/default/wire_target");
-    // this->get_parameter("wire_target_topic", wire_target_topic_);
-    // target_pub_ = this->create_publisher<wire_interfaces::msg::WireTarget>(wire_target_topic_, 10);
-    // target_timer_ = this->create_wall_timer(
-    //     std::chrono::duration<double>(1.0 / config_["target_publish_frequency_hz"].as<double>()),
-    //     std::bind(&WireTrackingNode::targetTimerCallback, this));
+    this->declare_parameter<std::string>("wire_target_topic", "/default/wire_target");
+    this->get_parameter("wire_target_topic", wire_target_topic_);
+    target_pub_ = this->create_publisher<wire_interfaces::msg::WireTarget>(wire_target_topic_, 10);
+    target_timer_ = this->create_wall_timer(
+        std::chrono::duration<double>(1.0 / config_["target_publish_frequency_hz"].as<double>()),
+        std::bind(&WireTrackingNode::targetTimerCallback, this));
 
     this->declare_parameter<std::string>("tracking_2d_viz_topic", "/default/tracking_2d_viz_topic_");
     this->get_parameter("tracking_2d_viz_topic", tracking_2d_viz_topic_);
@@ -437,6 +437,7 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
 
 void WireTrackingNode::targetTimerCallback()
 {
+    // TODO: Check this logic of defining the target
     if (!initialized_)
         return;
     if (total_iterations_ < iteration_start_threshold_)
@@ -459,46 +460,16 @@ void WireTrackingNode::targetTimerCallback()
         return;
     }
 
-    Eigen::Vector3d wire_direction = direction_kalman_filter_->getDirection();
-    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(direction_kalman_filter_->getYaw(), {kf_index});
-    Eigen::Vector3d start_point = kf_xyz + 20.0 * wire_direction;
-    Eigen::Vector3d end_point = kf_xyz - 20.0 * wire_direction;
-
-    Eigen::Vector3d start_proj = camera_matrix_ * start_point;
-    Eigen::Vector3d end_proj = camera_matrix_ * end_point;
-    Eigen::Vector3d kf_proj = camera_matrix_ * kf_xyz;
-
-    cv::Point start_point_2d(start_proj(0) / start_proj(2), start_proj(1) / start_proj(2));
-    cv::Point end_point_2d(end_proj(0) / end_proj(2), end_proj(1) / end_proj(2));
-    std::tuple<int, int, double> kf_point_2d(
-        static_cast<int>(kf_proj(0) / kf_proj(2)),
-        static_cast<int>(kf_proj(1) / kf_proj(2)),
-        kf_xyz[2] // Assuming kf_xyz is in the form [x, y, z], and the z is the height away from camera
-    );
-
-    // Calculate pitch
-    double dz = start_point(2) - end_point(2);
-    double dxdy = cv::norm(start_point_2d - end_point_2d);
-    double pitch = std::atan2(dz, dxdy);
-
-    // Image plane angle theta (from end to start)
-    double theta = std::atan2(
-        start_point_2d.y - end_point_2d.y,
-        start_point_2d.x - end_point_2d.x);
-
-    // Distance of midpoint from origin
-    cv::Point2d mid_point = 0.5 * (start_point_2d + end_point_2d);
-    double rho = std::hypot(mid_point.x, mid_point.y);
+    double wire_yaw = direction_kalman_filter_->getYaw();
+    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {kf_index});
 
     wire_interfaces::msg::WireTarget target_msg;
     target_msg.header.stamp = this->now();
     target_msg.header.frame_id = "wire_cam";
-    target_msg.target_image_x = std::get<0>(kf_point_2d);
-    target_msg.target_image_y = std::get<1>(kf_point_2d);
-    target_msg.target_height = std::get<2>(kf_point_2d); // Assuming kf_dh[1] is the height
-    target_msg.target_angle = theta;
-    target_msg.target_distance = rho;
-    target_msg.target_pitch = pitch;
+    target_msg.target_x = kf_xyz(0);
+    target_msg.target_y = kf_xyz(1);
+    target_msg.target_z = kf_xyz(2);
+    target_msg.target_yaw = wire_yaw;
 
     target_pub_->publish(target_msg);
 }

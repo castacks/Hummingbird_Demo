@@ -11,6 +11,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallb
 
 from wire_interfaces.msg import WireTarget
 from mavros_msgs.msg import PositionTarget
+from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -31,27 +32,63 @@ class WireGraspingNode(Node):
         self.set_params()
 
         # Subscribers
+        self.wire_target_callback_group = MutuallyExclusiveCallbackGroup()
         self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_topic, self.wire_target_callback, 1)
 
         # Publishers
         self.velocity_pub = self.create_publisher(PositionTarget, self.velocity_cmd_topic, 1)
 
+        self.velocity_timer = self.create_timer(1.0 / self.velocity_command_frequency, self.velocity_timer_callback)
+
         self.first_pass = True
-        self.get_logger().info("Wire Grasping Node initialized")
+        self.last_received_timestamp = None
+        self.got_target = False
+
+        self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
+        self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
+        self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
+
+        self.takeoff()
+        self.get_logger().info("Servoing Node initialized and in flight")
+
+    def call_service(self, client, request):
+        while not client.wait_for_service(timeout_sec=2.0):
+            self.get_logger().warn(f'Waiting for {client.srv_name} service...')
         
-        
-    def activate_callback(self, request, response):
-        if request.data:
-            self.activate_wire_grasping = True
-            response.success = True
-            response.message = "Wire grasping activated."
-            self.get_logger().info("Wire grasping activated.")
-        else:
-            self.activate_wire_grasping = False
-            response.success = True
-            response.message = "Wire grasping deactivated."
-            self.get_logger().info("Wire grasping deactivated.")
-        return response
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        return future.result()
+
+    def takeoff(self):
+        self.get_logger().info("Setting mode to GUIDED...")
+        mode_request = SetMode.Request()
+        mode_request.custom_mode = "GUIDED"
+        mode_response = self.call_service(self.set_mode_client, mode_request)
+        if not mode_response or not mode_response.mode_sent:
+            self.get_logger().error("Failed to set GUIDED mode")
+            return
+
+        self.get_logger().info("Arming drone...")
+        arm_request = CommandBool.Request()
+        arm_request.value = True
+        arm_response = self.call_service(self.arming_client, arm_request)
+        if not arm_response or not arm_response.success:
+            self.get_logger().error("Failed to arm the drone")
+            return
+
+        self.get_logger().info("Taking off...")
+        takeoff_request = CommandTOL.Request()
+        takeoff_request.altitude = self.takeoff_height
+        takeoff_response = self.call_service(self.takeoff_client, takeoff_request)
+        takeoff_skipped = False
+        if not takeoff_response or not takeoff_response.success:
+            self.get_logger().error("Failed to take off")
+            takeoff_skipped = True
+
+        if not takeoff_skipped:
+            self.get_logger().info(f"Waiting {self.takeoff_wait_time} seconds before being ready to control...")
+            time.sleep(self.takeoff_wait_time)
+        return
         
     def publish_velocity(self, vx, vy, vz, v_yaw):
         vel_target_msg = PositionTarget()
@@ -65,48 +102,66 @@ class WireGraspingNode(Node):
         self.velocity_pub.publish(vel_target_msg)
 
     def wire_target_callback(self, msg):
-        self.prev_err_x = getattr(self, "prev_err_x", 0)
-        self.prev_err_y = getattr(self, "prev_err_y", 0)
-        self.prev_err_z = getattr(self, "prev_err_z", 0)
-        self.prev_err_yaw = getattr(self, "prev_err_yaw", 0)
-        self.sum_err_x = getattr(self, "sum_err_x", 0)
-        self.sum_err_y = getattr(self, "sum_err_y", 0)
-        self.sum_err_z = getattr(self, "sum_err_z", 0)
-        self.sum_err_yaw = getattr(self, "sum_err_yaw", 0)
+        self.get_logger().info(f"Received wire target: {msg}")
+        # Process the wire target message
+        self.target_x = msg.target_x - self.x_wire_offset_from_camera_m
+        self.target_y = msg.target_y
+        self.target_z = msg.target_z - self.z_wire_offset_from_camera_m
+        self.target_yaw = msg.target_yaw
+        self.got_target = True
+        self.last_received_timestamp = time.perf_counter()
 
-        target_position = np.array([msg.target_x, msg.target_y - self.x_wire_offset_from_camera_m, msg.target_z - self.z_wire_offset_from_camera_m])
-        target_yaw = msg.target_yaw
+    def velocity_timer_callback(self):
+        if self.last_received_timestamp is not None and (time.perf_counter() - self.last_received_timestamp) < self.target_timeout and self.got_target:
+            self.prev_err_x = getattr(self, "prev_err_x", 0)
+            self.prev_err_y = getattr(self, "prev_err_y", 0)
+            self.prev_err_z = getattr(self, "prev_err_z", 0)
+            self.prev_err_yaw = getattr(self, "prev_err_yaw", 0)
+            self.sum_err_x = getattr(self, "sum_err_x", 0)
+            self.sum_err_y = getattr(self, "sum_err_y", 0)
+            self.sum_err_z = getattr(self, "sum_err_z", 0)
+            self.sum_err_yaw = getattr(self, "sum_err_yaw", 0)
 
-        if self.first_pass is True:
-            self.vx = self.kp_xy * target_position[0]
-            self.vy = self.kp_xy * target_position[1]
-            self.vz = self.kp_z * target_position[2]
-            self.yaw_rate = self.kp_yaw * target_yaw
-            dt = 0.0
-            self.first_pass = False
+            if self.first_pass is True:
+                self.vx = self.kp_xy * self.target_x
+                self.vy = self.kp_xy * self.target_y
+                self.vz = self.kp_z * self.target_z
+                self.yaw_rate = self.kp_yaw * self.target_yaw
+                dt = 0.0
+                self.first_pass = False
+            else:
+                dt = time.perf_counter() - self.prev_timestamp
+                self.vx = self.kp_xy * self.target_x + self.kd_xy * (self.target_x - self.prev_err_x) / dt + self.ki_xy * self.sum_err_x
+                self.vy = self.kp_xy * self.target_y + self.kd_xy * (self.target_y - self.prev_err_y) / dt + self.ki_xy * self.sum_err_y
+                self.vz = self.kp_z * self.target_z + self.kd_z * (self.target_z - self.prev_err_z) / dt + self.ki_z * self.sum_err_z
+                self.yaw_rate = self.kp_yaw * self.target_yaw + self.kd_yaw * clamp_angle_rad(self.target_yaw - self.prev_err_yaw) / dt + self.ki_yaw * self.sum_err_yaw
+
+            self.prev_timestamp = time.perf_counter()
+            self.prev_err_x = self.target_x
+            self.prev_err_y = self.target_y
+            self.prev_err_z = self.target_z
+            self.prev_err_yaw = self.target_yaw
+            self.sum_err_x += self.target_x * dt
+            self.sum_err_y += self.target_y * dt
+            self.sum_err_z += self.target_z * dt
+            self.sum_err_yaw += self.target_yaw * dt
+
+            self.publish_velocity(self.vx, self.vy, self.vz, self.yaw_rate)
+
         else:
-            dt = time.perf_counter() - self.prev_timestamp
-            self.vx = self.kp_xy * target_position[0] + self.kd_xy * (target_position[0] - self.prev_err_x) / dt + self.ki_xy * self.sum_err_x
-            self.vy = self.kp_xy * target_position[1] + self.kd_xy * (target_position[1] - self.prev_err_y) / dt + self.ki_xy * self.sum_err_y
-            self.vz = self.kp_z * target_position[2] + self.kd_z * (target_position[2] - self.prev_err_z) / dt + self.ki_z * self.sum_err_z
-            self.yaw_rate = self.kp_yaw * target_yaw + self.kd_yaw * clamp_angle_rad(target_yaw - self.prev_err_yaw) / dt + self.ki_yaw * self.sum_err_yaw
-
-        self.prev_timestamp = time.perf_counter()
-        self.prev_err_x = target_position[0]
-        self.prev_err_y = target_position[1]
-        self.prev_err_z = target_position[2]
-        self.prev_err_yaw = target_yaw
-        self.sum_err_x += target_position[0] * dt
-        self.sum_err_y += target_position[1] * dt
-        self.sum_err_z += target_position[2] * dt
-        self.sum_err_yaw += target_yaw * dt
-
-        self.publish_velocity(self.vx, self.vy, self.vz, self.yaw_rate)
+            self.got_target = False
+            self.publish_velocity(0.0, 0.0, 0.0, 0.0)
 
     def set_params(self):
         try:
-            # Services
-            self.activate_srv_topic = self.get_parameter('activate_srv_topic').get_parameter_value().string_value
+            self.declare_parameter('takeoff_height', 2.0)  # Height to take off to
+            self.takeoff_height = self.get_parameter('takeoff_height').get_parameter_value().double_value
+            self.declare_parameter('takeoff_wait_time', 5.0)  # Time to wait after takeoff before starting control
+            self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
+            self.declare_parameter('target_timeout', 0.25)  # Time to wait before considering target lost
+            self.target_timeout = self.get_parameter('target_timeout').get_parameter_value().double_value
+            self.declare_parameter('velocity_command_frequency', 15.0)  # Hz
+            self.velocity_command_frequency = self.get_parameter('velocity_command_frequency').get_parameter_value().double_value
 
             # Subscribers
             self.declare_parameter('wire_target_topic', rclpy.Parameter.Type.STRING)
