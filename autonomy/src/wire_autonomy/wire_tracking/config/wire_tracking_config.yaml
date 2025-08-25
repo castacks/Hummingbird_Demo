@@ -20,9 +20,9 @@ yaw_measurement_covariance: 0.05 # radians
 yaw_max_covariance: 0.10 # radians
 
 z_predict_covariance: 0.3 # meters
-z_measurement_covariance: 0.60 # meters
+z_measurement_covariance: 0.40 # meters
 z_max_covariance: 0.30 # meters
 
 y_predict_covariance: 0.4 # meters
-y_measurement_covariance: 0.20 # meters
+y_measurement_covariance: 0.40 # meters
 y_max_covariance: 0.20 # meters

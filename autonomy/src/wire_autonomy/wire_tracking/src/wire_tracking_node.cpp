@@ -314,24 +314,17 @@ void WireTrackingNode::targetTimerCallback()
     {
         return;
     }
+
+    tracked_wire_id_ = position_kalman_filters_->getTargetID();
     if (tracked_wire_id_ == -1)
     {
-        tracked_wire_id_ = position_kalman_filters_->getTargetID();
-        if (tracked_wire_id_ == -1)
-        {
-            RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
-            return;
-        }
-    }
-    auto [wire_dh, kf_index] = position_kalman_filters_->getKFByID(tracked_wire_id_);
-    if (kf_index == -1)
-    {
-        RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filter found.");
+        RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
         return;
     }
-
+    
+    RCLCPP_INFO(this->get_logger(), "Target ID: %i", tracked_wire_id_);
     double wire_yaw = direction_kalman_filter_->getYaw();
-    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {kf_index});
+    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {tracked_wire_id_});
 
     wire_interfaces::msg::WireTarget target_msg;
     target_msg.header.stamp = this->now();

@@ -342,8 +342,7 @@ int PositionKalmanFilters::removeStaleKFs()
     if (target_kf_id_ >= 0)
     {
         // Build a mask for where kf_ids_ == target_kf_id_
-        Eigen::Array<bool, 1, Eigen::Dynamic> targetMask =
-            (kf_ids_.array() == target_kf_id_);
+        Eigen::Array<bool, 1, Eigen::Dynamic> targetMask = (kf_ids_.array() == target_kf_id_);
         // If any of those columns are now invalid, reset:
         if ((targetMask && (keepMask == false)).any())
         {
@@ -429,7 +428,7 @@ int PositionKalmanFilters::getTargetID()
 
     if (closest_index != -1)
     {
-        target_kf_id_ = kf_ids_(0, closest_index);
+        target_kf_id_ = kf_ids_(closest_index);
         return target_kf_id_;
     }
 
@@ -462,9 +461,11 @@ std::pair<Eigen::Vector2d, int> PositionKalmanFilters::getKFByID(int kf_id) cons
     // Find all matching indices
     std::vector<int> matches;
     matches.reserve(kf_ids_.cols());
+    Eigen::Vector2d state;
+    int idx = -1;
     for (int j = 0; j < kf_ids_.cols(); ++j)
     {
-        if (kf_ids_(0, j) == kf_id)
+        if (kf_ids_(j) == kf_id)
         {
             matches.push_back(j);
         }
@@ -472,16 +473,18 @@ std::pair<Eigen::Vector2d, int> PositionKalmanFilters::getKFByID(int kf_id) cons
 
     if (matches.empty())
     {
-        throw std::out_of_range("getKFByID: ID " + std::to_string(kf_id) + " not found");
+        // throw std::out_of_range("getKFByID: ID " + std::to_string(kf_id) + " not found");
+        idx = -1;
     }
-    if (matches.size() > 1)
+    else if (matches.size() > 1)
     {
         throw std::out_of_range("getKFByID: multiple entries for ID " + std::to_string(kf_id));
     }
-
-    int idx = matches[0];
-    // Extract the (distance, height) column
-    Eigen::Vector2d state = kf_points_.col(idx);
+    else {
+        idx = matches[0];
+        // Extract the (distance, height) column
+        state = kf_points_.col(idx);
+    }
     return {state, idx};
 }
 std::vector<bool> PositionKalmanFilters::checkKFsInFrame(
