@@ -258,7 +258,9 @@ class WireDetectorNode(Node):
         self.use_mask = self.get_parameter('use_mask').get_parameter_value().bool_value
         if self.use_mask:
             mask_path = get_package_share_directory('wire_detection') + '/config/mask.png'
-            self.mask = cv2.threshold(cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE), 127, 255, cv2.THRESH_BINARY)[1]
+            self.mask = cv2.bitwise_not(
+                cv2.threshold(cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE), 127, 255, cv2.THRESH_BINARY)[1]
+            )
 
         wire_viz = bool(os.getenv('WIRE_VIZ', None).lower())
         wire_mode = int(os.getenv('WIRE_MODE', None).lower())
