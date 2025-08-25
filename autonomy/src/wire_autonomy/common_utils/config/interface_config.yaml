@@ -25,3 +25,4 @@
 
     # general settings
     use_cpu: true
+    use_mask: true

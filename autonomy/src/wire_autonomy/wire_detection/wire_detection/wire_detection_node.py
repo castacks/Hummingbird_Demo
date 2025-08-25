@@ -67,6 +67,12 @@ class WireDetectorNode(Node):
         self.camera_matrix = np.array([[self.fx, 0, self.cx],
                                     [0, self.fy, self.cy],
                                     [0, 0, 1]])
+
+        self.image_width = data.width
+        self.image_height = data.height
+        if self.use_mask:
+            self.mask = cv2.resize(self.mask, (self.image_width, self.image_height), interpolation=cv2.INTER_NEAREST)
+
         if self.use_cpu:
             self.wire_detector = WireDetectorCPU(get_package_share_directory('wire_detection') + '/config/wire_detection_config.yaml', self.camera_matrix)
         else:
@@ -87,6 +93,11 @@ class WireDetectorNode(Node):
             # if any element in depth is nan, inf, or -inf, replace it with 0
             depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
             assert np.all(np.isfinite(depth)), "Depth image contains non-finite values."
+
+            if self.use_mask:
+                rgb = cv2.bitwise_and(rgb, rgb, mask=self.mask)
+                depth = cv2.bitwise_and(depth, depth, mask=self.mask)
+
         except Exception as e:
             rclpy.logerr("CvBridge Error: {0}".format(e))
             return
@@ -242,6 +253,13 @@ class WireDetectorNode(Node):
         # general parameters 
         self.declare_parameter('use_cpu', rclpy.Parameter.Type.BOOL)
         self.use_cpu = self.get_parameter('use_cpu').get_parameter_value().bool_value
+
+        self.declare_parameter('use_mask', rclpy.Parameter.Type.BOOL)
+        self.use_mask = self.get_parameter('use_mask').get_parameter_value().bool_value
+        if self.use_mask:
+            mask_path = get_package_share_directory('wire_detection') + '/config/mask.png'
+            self.mask = cv2.threshold(cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE), 127, 255, cv2.THRESH_BINARY)[1]
+
         wire_viz = bool(os.getenv('WIRE_VIZ', None).lower())
         wire_mode = int(os.getenv('WIRE_MODE', None).lower())
         self.wire_viz_2d = wire_viz and wire_mode == 1
