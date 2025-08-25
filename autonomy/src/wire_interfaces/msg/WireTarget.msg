@@ -1,7 +1,5 @@
 std_msgs/Header header
-float64 target_angle
-float64 target_distance
-float64 target_pitch
-int64 target_image_x
-int64 target_image_y
-float64 target_height
+float64 target_x
+float64 target_y
+float64 target_z
+float64 target_yaw

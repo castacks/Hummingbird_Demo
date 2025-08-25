@@ -1,20 +1,18 @@
-y_wire_offset_from_camera_m: 0.0
-z_wire_offset_from_camera_m: 0.0
+x_wire_offset_from_camera_m: 0.5
+z_wire_offset_from_camera_m: 1.0
 
-kp_xy_value: 0.0
-kd_xy_value: 0.0
-ki_xy_value: 0.0
-v_xy_limit: 0.0
+kp_xy: 0.25
+kd_xy: 0.1
+ki_xy: 0.0
+v_xy_limit: 0.5
 
-kp_z_value: 0.0
-kd_z_value: 0.0
-ki_z_value: 0.0
-v_z_limit: 0.0
+kp_z: 0.125
+kd_z: 0.05
+ki_z: 0.0
+v_z_limit: 0.25
 
-kp_yaw_value: 0.0
-kd_yaw_value: 0.0
-ki_yaw_value: 0.0
-v_yaw_limit: 0.0
-
-
+kp_yaw: 0.25
+kd_yaw: 0.2
+ki_yaw: 0.0
+v_yaw_limit: 0.17
     

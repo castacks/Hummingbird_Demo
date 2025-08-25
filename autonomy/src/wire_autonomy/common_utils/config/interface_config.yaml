@@ -10,7 +10,7 @@
     # internode publishers
     wire_detections_topic: "/pincer/wire_detections"
     wire_target_topic: "/pincer/wire_target"
-    velocity_cmd_topic: "/mavros/setpoint_velocity/cmd_vel"
+    velocity_cmd_topic: "/mavros/setpoint_raw/local"
 
     # viz publishers
     depth_viz_topic: "/pincer/depth_viz"

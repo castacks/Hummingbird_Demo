@@ -5,7 +5,24 @@
 # bag_recorder node via a user specified argument. All MCAP QoS files must be in the same directory.
 
 sections:
-  wire_tracking:
+  tracking_data:
+    mcap_qos: mcap_qos.yaml
+    args: 
+      - -d
+      - 60 # ~1min
+      - --max-cache-size 
+      - 1073741824 # 1GB
+    topics:
+      - /pincer/wire_detections
+      - /pincer/wire_target
+      - /mavros/setpoint_raw/local
+      - /pincer/depth_viz
+      - /pincer/pose_viz
+      - /pincer/depth_pc_viz
+      - /pincer/tracking_2d_viz
+      - /pincer/tracking_3d_viz
+
+  wire_data:
     mcap_qos: mcap_qos.yaml
     args: 
       - -d

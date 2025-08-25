@@ -1,23 +1,16 @@
 #!/usr/bin/env python
 
 import rclpy
-import rclpy.clock
 from rclpy.node import Node
 import numpy as np
-import cv2
 import yaml
-from sensor_msgs.msg import Image, CameraInfo
-from std_srvs.srv import Trigger
-from geometry_msgs.msg import TwistStamped, PoseStamped
-from visualization_msgs.msg import Marker
+import time
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 
-# For synchronized message filtering
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-
 from wire_interfaces.msg import WireTarget
+from mavros_msgs.msg import PositionTarget
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -25,42 +18,25 @@ from ament_index_python.packages import get_package_share_directory
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+def clamp_angle_rad(angle):
+    """
+    Clamp an angle in radians to the range [-pi, pi].
+    Works with scalars or numpy arrays.
+    """
+    return ((angle + np.pi) % (2 * np.pi)) - np.pi
+
 class WireGraspingNode(Node):
     def __init__(self):
         super().__init__('wire_grasping_node')
         self.set_params()
 
-        # Toggles
-        self.activate_wire_grasping = False
-        self.initialized = False
-
-        self.delta_theta = 0.1
-        self.desired_theta = 0.0
-        self.desired_rho = 0.0
-
-        self.prev_ex = None
-        self.prev_ey = None
-        self.prev_ez = None
-        self.prev_error_theta = 0.0
-        self.integral_ex = 0.0
-        self.integral_ey = 0.0
-        self.integral_ez = 0.0
-        self.integral_error_theta = 0.0
-
         # Subscribers
-        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_detections_topic, self.wire_target_callback, 1)
-
-        # Visual Servoing timer
-        visual_servo_callback_group = MutuallyExclusiveCallbackGroup()
-        self.visual_servo_timer = self.create_timer(0.1, self.ibvs_control, callback_group=visual_servo_callback_group)
-
-        # Service
-        activate_srv_cb_group = ReentrantCallbackGroup()
-        self.activate_srv = self.create_service(Trigger, self.activate_srv_topic, self.activate_callback, callback_group=activate_srv_cb_group)
+        self.wire_target_sub = self.create_subscription(WireTarget, self.wire_target_topic, self.wire_target_callback, 1)
 
         # Publishers
-        self.velocity_pub = self.create_publisher(TwistStamped, self.velocity_cmd_topic, 1)
+        self.velocity_pub = self.create_publisher(PositionTarget, self.velocity_cmd_topic, 1)
 
+        self.first_pass = True
         self.get_logger().info("Wire Grasping Node initialized")
         
         
@@ -77,79 +53,64 @@ class WireGraspingNode(Node):
             self.get_logger().info("Wire grasping deactivated.")
         return response
         
-    def publish_velocity_ibvs(self, vx, vy, vz, v_yaw):
-        vel_msg = TwistStamped()
-        vel_msg.header.frame_id = "/drone"
-        vel_msg.header.stamp = rclpy.clock.Clock().now().to_msg()
-        vel_msg.twist.linear.x = vx
-        vel_msg.twist.linear.y = vy
-        vel_msg.twist.linear.z = vz
-        vel_msg.twist.angular.z = v_yaw
-        self.velocity_pub.publish(vel_msg)
+    def publish_velocity(self, vx, vy, vz, v_yaw):
+        vel_target_msg = PositionTarget()
+        vel_target_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
+        vel_target_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW
+        vel_target_msg.velocity.x = np.clip(vx, -self.v_xy_limit, self.v_xy_limit)
+        vel_target_msg.velocity.y = np.clip(vy, -self.v_xy_limit, self.v_xy_limit)
+        vel_target_msg.velocity.z = np.clip(vz, -self.v_z_limit, self.v_z_limit)
+        vel_target_msg.yaw_rate = np.clip(v_yaw, -self.v_yaw_limit, self.v_yaw_limit)
+        self.get_logger().info(f"Sending velocity command: {vx} m/s, {vy} m/s, {vz} m/s, {v_yaw} rad/s")
+        self.velocity_pub.publish(vel_target_msg)
 
-    def ibvs_control_plucker(self, theta0, rho0, pitch, center_point):
-        if self.activate_wire_grasping:
-            theta1 = theta0 + self.delta_theta
-            theta2 = theta0 - self.delta_theta
-            x1, y1 = center_point[0] + rho0 * np.cos(theta1), center_point[1] + rho0 * np.sin(theta1)
-            x2, y2 = center_point[0] + rho0 * np.cos(theta2), center_point[1] + rho0 * np.sin(theta2)
-            z1 = center_point[2] + pitch * np.linalg.norm(center_point[:2] - np.array([x1, y1]))
-            z2 = center_point[2] + pitch * np.linalg.norm(center_point[:2] - np.array([x2, y2]))
-            rho1 = rho0 / (np.cos(theta1) * np.cose(theta0) + np.sin(theta1) * np.sin(theta0))
-            rho2 = rho0 / (np.cos(theta2) * np.cos(theta0) + np.sin(theta2) * np.sin(theta0))
-            z0 = center_point[2]
-            assert rho1 == rho2, "rho1 and rho2 should be equal, got {}, {}".format(rho1, rho2)
-            L_theta_vx = (1 / (2 * rho1)) * (np.cos(theta1) / z1 - np.cos(theta2) / z2) * np.cot(self.delta_theta) +  (1 / (2 * rho1)) * (np.sin(theta2) / z2 + np.sin(theta1) / z1)
-            L_theta_vy = (1 / (2 * rho1)) * (np.sin(theta1) / z1 - np.sin(theta2) / z2) * np.cot(self.delta_theta) +  (1 / (2 * rho1)) * (np.cos(theta2) / z2 + np.cos(theta1) / z1)
-            L = np.array([
-                [ - np.cos(theta0) / z0, - np.sin(theta0) / z0, rho0 / z0],
-                [L_theta_vx, L_theta_vy, 1 / (2 * z2) - 1 / (2 * z1)]
-            ])
-            error_theta = theta0 - self.desired_theta
-            error_rho = rho0 - self.desired_rho
-            e = np.array([[error_theta], [error_rho]])
-            L_inv = np.linalg.pinv(L)
-            v = - np.dot(L_inv, e)
-            ex, ey, _ = v.flatten()
-            ez = center_point[2] - self.z_wire_offset_from_camera_m
+    def wire_target_callback(self, msg):
+        self.prev_err_x = getattr(self, "prev_err_x", 0)
+        self.prev_err_y = getattr(self, "prev_err_y", 0)
+        self.prev_err_z = getattr(self, "prev_err_z", 0)
+        self.prev_err_yaw = getattr(self, "prev_err_yaw", 0)
+        self.sum_err_x = getattr(self, "sum_err_x", 0)
+        self.sum_err_y = getattr(self, "sum_err_y", 0)
+        self.sum_err_z = getattr(self, "sum_err_z", 0)
+        self.sum_err_yaw = getattr(self, "sum_err_yaw", 0)
 
-            if self.prev_ex is None:
-                self.prev_ex = ex
-                self.prev_ey = ey
-                self.prev_ez = ez
-                self.integral_ex = 0.0
-                self.integral_ey = 0.0
-                self.integral_ez = 0.0
+        target_position = np.array([msg.target_x, msg.target_y - self.x_wire_offset_from_camera_m, msg.target_z - self.z_wire_offset_from_camera_m])
+        target_yaw = msg.target_yaw
 
-            vx = self.kp_xy_value * ex + self.kd_xy_value * (ex - self.prev_ex) + self.ki_y_value * self.integral_ex
-            vy = self.kp_xy_value * ey + self.kd_xy_value * (ey - self.prev_ey) + self.ki_y_value * self.integral_ey
-            vz = self.kp_z_value * ez + self.kd_z_value * (ez - self.prev_ez) + self.ki_z_value * self.integral_ez
-            v_yaw = self.kp_yaw_value * error_theta + self.kd_yaw_value * (error_theta - self.prev_error_theta) + self.ki_yaw_value * self.integral_error_theta
+        if self.first_pass is True:
+            self.vx = self.kp_xy * target_position[0]
+            self.vy = self.kp_xy * target_position[1]
+            self.vz = self.kp_z * target_position[2]
+            self.yaw_rate = self.kp_yaw * target_yaw
+            dt = 0.0
+            self.first_pass = False
+        else:
+            dt = time.perf_counter() - self.prev_timestamp
+            self.vx = self.kp_xy * target_position[0] + self.kd_xy * (target_position[0] - self.prev_err_x) / dt + self.ki_xy * self.sum_err_x
+            self.vy = self.kp_xy * target_position[1] + self.kd_xy * (target_position[1] - self.prev_err_y) / dt + self.ki_xy * self.sum_err_y
+            self.vz = self.kp_z * target_position[2] + self.kd_z * (target_position[2] - self.prev_err_z) / dt + self.ki_z * self.sum_err_z
+            self.yaw_rate = self.kp_yaw * target_yaw + self.kd_yaw * clamp_angle_rad(target_yaw - self.prev_err_yaw) / dt + self.ki_yaw * self.sum_err_yaw
 
-            self.prev_ex = ex
-            self.prev_ey = ey
-            self.prev_ez = ez
-            self.prev_error_theta = error_theta
-            self.integral_ex += ex
-            self.integral_ey += ey
-            self.integral_ez += ez
-            self.integral_error_theta += error_theta
+        self.prev_timestamp = time.perf_counter()
+        self.prev_err_x = target_position[0]
+        self.prev_err_y = target_position[1]
+        self.prev_err_z = target_position[2]
+        self.prev_err_yaw = target_yaw
+        self.sum_err_x += target_position[0] * dt
+        self.sum_err_y += target_position[1] * dt
+        self.sum_err_z += target_position[2] * dt
+        self.sum_err_yaw += target_yaw * dt
 
-            # Limit the velocities
-            vx = np.clip(vx, -self.v_xy_limit, self.v_xy_limit)
-            vy = np.clip(vy, -self.v_xy_limit, self.v_xy_limit)
-            vz = np.clip(vz, -self.v_z_limit, self.v_z_limit)
-            v_yaw = np.clip(v_yaw, -self.v_yaw_limit, self.v_yaw_limit)
-            self.publish_velocity_ibvs(vy, vz, v_yaw)
-        
+        self.publish_velocity(self.vx, self.vy, self.vz, self.yaw_rate)
+
     def set_params(self):
         try:
             # Services
             self.activate_srv_topic = self.get_parameter('activate_srv_topic').get_parameter_value().string_value
 
             # Subscribers
-            self.declare_parameter('wire_detections_topic', rclpy.Parameter.Type.STRING)
-            self.wire_detections_topic = self.get_parameter('wire_detections_topic').get_parameter_value().string_value            
+            self.declare_parameter('wire_target_topic', rclpy.Parameter.Type.STRING)
+            self.wire_target_topic = self.get_parameter('wire_target_topic').get_parameter_value().string_value
 
             # Publishers
             self.declare_parameter('velocity_cmd_topic', rclpy.Parameter.Type.STRING)
@@ -158,26 +119,26 @@ class WireGraspingNode(Node):
             with open(get_package_share_directory('visual_servoing') + '/config/visual_servo_config.yaml', 'r') as file:
                 self.visual_servo_config = yaml.safe_load(file)
 
-            self.y_wire_offset_from_camera_m = self.visual_servo_config['y_wire_offset_from_camera_m']
+            self.x_wire_offset_from_camera_m = self.visual_servo_config['x_wire_offset_from_camera_m']
             self.z_wire_offset_from_camera_m = self.visual_servo_config['z_wire_offset_from_camera_m']
 
-            self.kp_xy_value = self.visual_servo_config['kp_xy_value']
-            self.kd_xy_value = self.visual_servo_config['kd_xy_value']
-            self.ki_xy_value = self.visual_servo_config['ki_xy_value']
+            self.kp_xy = self.visual_servo_config['kp_xy']
+            self.kd_xy = self.visual_servo_config['kd_xy']
+            self.ki_xy = self.visual_servo_config['ki_xy']
             self.v_xy_limit = self.visual_servo_config['v_xy_limit']
 
-            self.kp_z_value = self.visual_servo_config['kp_z_value']
-            self.kd_z_value = self.visual_servo_config['kd_z_value']
-            self.ki_z_value = self.visual_servo_config['ki_z_value']
+            self.kp_z = self.visual_servo_config['kp_z']
+            self.kd_z = self.visual_servo_config['kd_z']
+            self.ki_z = self.visual_servo_config['ki_z']
             self.v_z_limit = self.visual_servo_config['v_z_limit']
 
-            self.kp_yaw_value = self.visual_servo_config['kp_yaw_value']
-            self.kd_yaw_value = self.visual_servo_config['kd_yaw_value']
-            self.ki_yaw_value = self.visual_servo_config['ki_yaw_value']
+            self.kp_yaw = self.visual_servo_config['kp_yaw']
+            self.kd_yaw = self.visual_servo_config['kd_yaw']
+            self.ki_yaw = self.visual_servo_config['ki_yaw']
             self.v_yaw_limit = self.visual_servo_config['v_yaw_limit']
 
         except Exception as e:
-            self.get_logger().info(f"Error in declare_parameters: {e}")
+            self.get_logger().error(f"Error in declare_parameters: {e}")
     
     
 def main():

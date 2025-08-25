@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation as R
 pio.renderers.default = "browser"
 
 # -------- Parameters --------
-filename = "/media/tyler/Storage/field_tests/250815_vtolwire_2/pose_data.csv"  # CSV file with: timestamp,x,y,z,qx,qy,qz,qw
+filename = "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_161536/pose_data.csv"  # CSV file with: timestamp,x,y,z,qx,qy,qz,qw
 
 # -------- Load Data --------
 data = pd.read_csv(filename)
