@@ -3,7 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <wire_interfaces/msg/wire_detections.hpp>
 #include <wire_interfaces/msg/wire_target.hpp>
 #include <Eigen/Dense>
@@ -20,7 +20,7 @@ public:
 private:
   // ROS callbacks
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
-  void poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+  void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
   void wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg);
   void targetTimerCallback();
   void rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg);
@@ -42,7 +42,7 @@ private:
 
   // members
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::Subscription<wire_interfaces::msg::WireDetections>::SharedPtr detection_sub_;
 
   rclcpp::Publisher<wire_interfaces::msg::WireTarget>::SharedPtr target_pub_;

@@ -37,8 +37,7 @@ Eigen::Matrix4d getRelativeTransform(
     const Eigen::Matrix4d &to_transform)
 {
   // Relative: H_rel = H1⁻¹ * H2
-  // return {from_transform.inverse() * to_transform, to_transform};
-  return to_transform.inverse() * from_transform;
+  return from_transform.inverse() * to_transform;
 }
 
 std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInCam(

@@ -1,7 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <wire_interfaces/msg/wire_detections.hpp>
 #include <wire_interfaces/msg/wire_target.hpp>
@@ -36,7 +36,7 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     this->declare_parameter<std::string>("pose_sub_topic", "/default/pose_topic");
     this->get_parameter("pose_sub_topic", pose_sub_topic_);
-    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
         pose_sub_topic_, rclcpp::SensorDataQoS(),
         std::bind(&WireTrackingNode::poseCallback, this, _1));
 
@@ -144,7 +144,7 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
     RCLCPP_INFO(this->get_logger(), "Wire Tracking Node initialized, Camera info received.");
 }
 
-void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+void WireTrackingNode::poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
     if (!initialized_)
     {
@@ -161,7 +161,7 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
     // if last relative transform is not set, initialize it
     if (previous_transform_.isZero())
     {
-        previous_transform_ = poseToHomogeneous2(H_cam_to_fc_, msg->pose.pose);
+        previous_transform_ = poseToHomogeneous2(H_cam_to_fc_, msg->pose);
         previous_transform_stamp_ = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
     }
     else
@@ -171,7 +171,7 @@ void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg
         double delta_time = curr_stamp - previous_transform_stamp_;
         
         Eigen::Matrix4d H_relative_cam;
-        std::tie(H_relative_cam, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose.pose);
+        std::tie(H_relative_cam, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose);
         previous_transform_stamp_ = curr_stamp;
         RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_cam(0, 3), H_relative_cam(1, 3), H_relative_cam(2, 3));
 

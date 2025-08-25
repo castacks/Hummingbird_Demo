@@ -9,11 +9,10 @@ import bisect
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
-from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge
 from std_msgs.msg import ColorRGBA
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseStamped
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
@@ -66,7 +65,7 @@ class WireTrackingNode(Node):
         self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_sub_topic, self.camera_info_callback, 1, callback_group=camera_info_callback_group)
 
         pose_callback_group = ReentrantCallbackGroup()
-        self.pose_sub = self.create_subscription(Odometry, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data, callback_group=pose_callback_group)
+        self.pose_sub = self.create_subscription(PoseStamped, self.pose_sub_topic, self.pose_callback, rclpy.qos.qos_profile_sensor_data, callback_group=pose_callback_group)
         self.relative_transform_timestamps = []  # Queue to hold relative pose transforms
         self.relative_transforms = []  # Queue to hold relative pose transforms
         self.wire_detection_sub = self.create_subscription(WireDetections, self.wire_detections_topic, self.wire_detection_callback, 1, callback_group=pose_callback_group)
