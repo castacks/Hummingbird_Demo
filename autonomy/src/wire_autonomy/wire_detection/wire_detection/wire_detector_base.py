@@ -201,7 +201,7 @@ class WireDetector:
 
         # limit the count per region to the max number of wires per ROI
         roi_line_count = np.array(roi_line_count)
-        roi_line_count = np.maximum(roi_line_count, 1, np.ceil(roi_line_count / 2))  # Ensure at least 1 wire per ROI, and round up to nearest even number)
+        roi_line_count = np.maximum(np.ceil(roi_line_count / 2), 1)  # Ensure at least 1 wire per ROI, and round up to nearest even number
         roi_line_count = np.clip(roi_line_count, 0, self.max_wire_per_roi).astype(int)  
         return regions_of_interest, roi_line_count
 
