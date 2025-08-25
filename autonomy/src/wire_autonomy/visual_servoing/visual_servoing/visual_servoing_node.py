@@ -104,8 +104,8 @@ class WireGraspingNode(Node):
     def wire_target_callback(self, msg):
         self.get_logger().info(f"Received wire target: {msg}")
         # Process the wire target message
-        self.target_x = msg.target_x - self.x_wire_offset_from_camera_m
-        self.target_y = msg.target_y
+        self.target_x = - msg.target_x - self.x_wire_offset_from_camera_m # flip for frame convention                                       
+        self.target_y = - msg.target_y # flip for frame convention  
         self.target_z = msg.target_z - self.z_wire_offset_from_camera_m
         self.target_yaw = msg.target_yaw
         self.got_target = True
