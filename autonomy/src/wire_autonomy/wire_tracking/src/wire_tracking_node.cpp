@@ -170,22 +170,23 @@ void WireTrackingNode::poseCallback(const geometry_msgs::msg::PoseStamped::Share
         double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         double delta_time = curr_stamp - previous_transform_stamp_;
         
-        Eigen::Matrix4d H_relative_cam;
-        std::tie(H_relative_cam, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose);
+        Eigen::Matrix4d H_cam_2_to_1;
+        std::tie(H_cam_2_to_1, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose);
         previous_transform_stamp_ = curr_stamp;
-        RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_cam(0, 3), H_relative_cam(1, 3), H_relative_cam(2, 3));
+        // RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_cam_2_to_1(0, 3), H_cam_2_to_1(1, 3), H_cam_2_to_1(2, 3));
 
         if (direction_kalman_filter_->isInitialized())
         {
             double previous_yaw = direction_kalman_filter_->getYaw();
-            double curr_yaw = direction_kalman_filter_->predict(H_relative_cam.block<3, 3>(0, 0));
+            double curr_yaw = direction_kalman_filter_->predict(H_cam_2_to_1.block<3, 3>(0, 0));
 
             if (position_kalman_filters_->isInitialized())
             {
-                RCLCPP_INFO(this->get_logger(), "Linear translation of relative transform: [%.2f, %.2f, %.2f], yaw change: %.2f degrees",
-                            H_relative_cam(0, 3), H_relative_cam(1, 3), H_relative_cam(2, 3),
-                            (curr_yaw - previous_yaw) * 180.0 / M_PI);
-                position_kalman_filters_->predict(H_relative_cam, previous_yaw, curr_yaw);
+                // RCLCPP_INFO(this->get_logger(), "Linear translation of relative transform: [%.2f, %.2f, %.2f], yaw change: %.2f degrees",
+                //             H_cam_2_to_1(0, 3), H_cam_2_to_1(1, 3), H_cam_2_to_1(2, 3),
+                //             (curr_yaw - previous_yaw) * 180.0 / M_PI);
+
+                position_kalman_filters_->predict(H_cam_2_to_1, previous_yaw, curr_yaw);
             }
         }
 

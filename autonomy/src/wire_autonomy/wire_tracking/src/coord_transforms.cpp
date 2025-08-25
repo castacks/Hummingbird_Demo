@@ -27,7 +27,7 @@ Matrix4d poseToHomogeneous2(const Eigen::Matrix4d &H_cam_to_fc_, const geometry_
       pose_fc_to_w.orientation.z};
   H_fc_to_w.block<3, 3>(0, 0) = q.normalized().toRotationMatrix();
 
-  H_cam_to_world = H_cam_to_fc_ * H_fc_to_w;
+  H_cam_to_world = H_fc_to_w * H_cam_to_fc_;
   return H_cam_to_world;
 }
 
@@ -36,8 +36,9 @@ Eigen::Matrix4d getRelativeTransform(
     const Eigen::Matrix4d &from_transform,
     const Eigen::Matrix4d &to_transform)
 {
-  // Relative: H_rel = H1⁻¹ * H2
-  return from_transform.inverse() * to_transform;
+  // Relative: H_1_to_2_relative = H1⁻¹ * H2
+  // return from_transform.inverse() * to_transform;
+  return to_transform.inverse() * from_transform;
 }
 
 std::pair<Eigen::Matrix4d, Eigen::Matrix4d> getRelativeTransformInCam(
