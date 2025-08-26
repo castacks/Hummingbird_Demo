@@ -4,6 +4,6 @@
     exec="servoing_node" 
     name="servoing_node">
     <param 
-      from="$(find-pkg-share servoing)/visual_servo_config.yaml" />
+      from="$(find-pkg-share servoing)/config/servoing_config.yaml" />
   </node>
 </launch>

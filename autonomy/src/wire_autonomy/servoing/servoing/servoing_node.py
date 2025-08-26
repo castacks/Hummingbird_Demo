@@ -26,6 +26,18 @@ def clamp_angle_rad(angle):
     """
     return ((angle + np.pi) % (2 * np.pi)) - np.pi
 
+def fold_angles_from_0_to_pi(angles):
+    '''
+    Fold angles to the range [0, π].
+    '''
+    angles = np.asarray(angles)  # Ensure input is an array
+    angles = angles % (2 * np.pi)  # Wrap into [0, 2π)
+
+    # Fold anything > π into [0, π]
+    folded = np.where(angles > np.pi, angles - np.pi, angles)
+
+    return folded.item() if np.isscalar(angles) else folded
+
 class ServoingNode(Node):
     def __init__(self):
         super().__init__('wire_grasping_node')
@@ -106,12 +118,13 @@ class ServoingNode(Node):
         self.velocity_pub.publish(vel_target_msg)
 
     def wire_target_callback(self, msg):
-        self.get_logger().info(f"Received wire target: {msg}")
         # Process the wire target message
-        self.target_x = - msg.target_x - self.x_wire_offset_from_camera_m # flip for frame convention                                       
+        self.target_x = - msg.target_x + self.x_wire_offset_from_camera_m # flip for frame convention                                       
         self.target_y = - msg.target_y # flip for frame convention  
         self.target_z = msg.target_z - self.z_wire_offset_from_camera_m
-        self.target_yaw = msg.target_yaw - self.yaw_wire_offset_from_camera_rad
+        adjusted_yaw = fold_angles_from_0_to_pi(msg.target_yaw)
+        self.target_yaw = adjusted_yaw - self.yaw_wire_offset_from_camera_rad
+        self.get_logger().info(f"Processed wire target: x={self.target_x}, y={self.target_y}, z={self.target_z}, yaw={self.target_yaw}")
         self.got_target = True
         self.last_received_timestamp = time.perf_counter()
 

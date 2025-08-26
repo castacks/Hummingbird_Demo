@@ -29,7 +29,6 @@ private:
   
   // helper functions
   void loadConfig();
-  void predict_kfs_up_to_timestamp(double input_stamp);
   void debugPrintKFs();
   void visualizeWireTracking(cv::Mat img, double stamp, const std::vector<wire_interfaces::msg::WireDetection> *wire_detections);
 

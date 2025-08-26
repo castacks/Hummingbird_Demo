@@ -1,4 +1,4 @@
-min_valid_kf_count_threshold: 25
+min_valid_kf_count_threshold: 50
 iteration_start_threshold: 50
 target_publish_frequency_hz: 15.0 # Hz
 

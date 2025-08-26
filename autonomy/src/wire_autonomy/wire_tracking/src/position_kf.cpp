@@ -386,7 +386,7 @@ int PositionKalmanFilters::removeStaleKFs()
     return removed;
 }
 
-int PositionKalmanFilters::getTargetID()
+std::pair<int, int> PositionKalmanFilters::getTargetID()
 {
     // If target_kf_id_ is still valid, return it
     if (target_kf_id_ != -1)
@@ -394,14 +394,15 @@ int PositionKalmanFilters::getTargetID()
         // Check if it's in the current list
         if ((kf_ids_.array() == target_kf_id_).any())
         {
-            return target_kf_id_;
+            int target_index = PositionKalmanFilters::getKFByID(target_kf_id_).second;
+            return {target_kf_id_, target_index};
         }
     }
 
     // No Kalman filter points
     if (kf_ids_.size() == 0)
     {
-        return -1;
+        return {-1, -1};
     }
 
     // Create mask for valid counts
@@ -409,7 +410,7 @@ int PositionKalmanFilters::getTargetID()
 
     if (!valid_mask.any())
     {
-        return -1;
+        return {-1, -1};
     }
 
     // Filter heights and find index of min height among valid
@@ -429,10 +430,10 @@ int PositionKalmanFilters::getTargetID()
     if (closest_index != -1)
     {
         target_kf_id_ = kf_ids_(closest_index);
-        return target_kf_id_;
+        return {target_kf_id_, closest_index};
     }
 
-    return -1;
+    return {-1, -1};
 }
 
 std::vector<int> PositionKalmanFilters::getValidKFIndices() const
@@ -456,6 +457,7 @@ Eigen::VectorXd PositionKalmanFilters::getKFColor(int kf_index) const
     // Return the color for the specified KF index
     return kf_colors_.col(kf_index);
 }
+
 std::pair<Eigen::Vector2d, int> PositionKalmanFilters::getKFByID(int kf_id) const
 {
     // Find all matching indices
@@ -487,6 +489,7 @@ std::pair<Eigen::Vector2d, int> PositionKalmanFilters::getKFByID(int kf_id) cons
     }
     return {state, idx};
 }
+
 std::vector<bool> PositionKalmanFilters::checkKFsInFrame(
     const std::vector<int> &kf_indices,
     double camera_yaw) const

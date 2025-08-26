@@ -67,7 +67,7 @@ public:
     void predict(const Eigen::Matrix4d &relative_H, double yaw_prev, double yaw_curr);
     void update(const Eigen::Matrix3Xd &cam_points, double wire_yaw);
     std::pair<Eigen::Vector2d, int> getKFByID(int kf_id) const;
-    int getTargetID();
+    std::pair<int, int> getTargetID();
     std::vector<int> getValidKFIndices() const;
     Eigen::VectorXd getKFColor(int kf_index) const;
     bool isInitialized() const { return initialized_; }

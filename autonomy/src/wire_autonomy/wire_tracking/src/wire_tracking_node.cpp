@@ -248,10 +248,6 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
                             wire_directions(0, i), wire_directions(1, i), wire_directions(2, i));
             }
         }
-        else
-        {
-            RCLCPP_INFO(this->get_logger(), "Measured Average wire direction: [%.6f, %.6f, %.6f]", avg_dir.x(), avg_dir.y(), avg_dir.z());
-        }
 
         // update or initialize your direction filter
         if (direction_kalman_filter_->isInitialized())
@@ -282,8 +278,8 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
         total_iterations_++;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Kalman Debug After Update:");
-    debugPrintKFs();
+    // RCLCPP_INFO(this->get_logger(), "Kalman Debug After Update:");
+    // debugPrintKFs();
 
     if (wire_viz_2d_ || wire_viz_3d_)
     {
@@ -316,16 +312,16 @@ void WireTrackingNode::targetTimerCallback()
         return;
     }
 
-    tracked_wire_id_ = position_kalman_filters_->getTargetID();
+    int tracked_wire_index_ = -1;
+    std::tie(tracked_wire_id_, tracked_wire_index_) = position_kalman_filters_->getTargetID();
     if (tracked_wire_id_ == -1)
     {
         RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
         return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Target ID: %i", tracked_wire_id_);
     double wire_yaw = direction_kalman_filter_->getYaw();
-    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {tracked_wire_id_});
+    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {tracked_wire_index_});
 
     wire_interfaces::msg::WireTarget target_msg;
     target_msg.header.stamp = this->now();
@@ -334,7 +330,7 @@ void WireTrackingNode::targetTimerCallback()
     target_msg.target_y = kf_xyz(1);
     target_msg.target_z = kf_xyz(2);
     target_msg.target_yaw = wire_yaw;
-
+    target_msg.target_kf_id = tracked_wire_id_;
     target_pub_->publish(target_msg);
 }
 
