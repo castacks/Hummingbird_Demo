@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-package_name = 'visual_servoing'  # This should match your package directory name
+package_name = 'servoing'  # This should match your package directory name
 
 setup(
     name=package_name,
@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
          ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name, ['launch/visual_servo_launch.xml']),  # If you have a launch file
-        ('share/' + package_name + '/config', ['config/visual_servo_config.yaml']),  # If you have a config file
+        ('share/' + package_name, ['launch/servoing.launch.xml']),  # If you have a launch file
+        ('share/' + package_name + '/config', ['config/servoing_config.yaml']),  # If you have a config file
         
     ],
     install_requires=['setuptools'],
@@ -22,7 +22,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'visual_servo_node = visual_servoing.visual_servo_node:main',  # Point to the main function
+            'servoing_node = servoing.servoing_node:main',  # Point to the main function
         ],
     },
 )

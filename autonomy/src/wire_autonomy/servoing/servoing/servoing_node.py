@@ -26,7 +26,7 @@ def clamp_angle_rad(angle):
     """
     return ((angle + np.pi) % (2 * np.pi)) - np.pi
 
-class WireGraspingNode(Node):
+class ServoingNode(Node):
     def __init__(self):
         super().__init__('wire_grasping_node')
         self.set_params()
@@ -94,11 +94,15 @@ class WireGraspingNode(Node):
         vel_target_msg = PositionTarget()
         vel_target_msg.coordinate_frame = PositionTarget.FRAME_BODY_OFFSET_NED
         vel_target_msg.type_mask = PositionTarget.IGNORE_PX | PositionTarget.IGNORE_PY | PositionTarget.IGNORE_PZ | PositionTarget.IGNORE_AFX | PositionTarget.IGNORE_AFY | PositionTarget.IGNORE_AFZ | PositionTarget.IGNORE_YAW
-        vel_target_msg.velocity.x = np.clip(vx, -self.v_xy_limit, self.v_xy_limit)
-        vel_target_msg.velocity.y = np.clip(vy, -self.v_xy_limit, self.v_xy_limit)
-        vel_target_msg.velocity.z = np.clip(vz, -self.v_z_limit, self.v_z_limit)
-        vel_target_msg.yaw_rate = np.clip(v_yaw, -self.v_yaw_limit, self.v_yaw_limit)
+        vx = np.clip(vx, -self.v_xy_limit, self.v_xy_limit)
+        vy = np.clip(vy, -self.v_xy_limit, self.v_xy_limit)
+        vz = np.clip(vz, -self.v_z_limit, self.v_z_limit)
+        v_yaw = np.clip(v_yaw, -self.v_yaw_limit, self.v_yaw_limit)
         self.get_logger().info(f"Sending velocity command: {vx} m/s, {vy} m/s, {vz} m/s, {v_yaw} rad/s")
+        vel_target_msg.velocity.x = vx
+        vel_target_msg.velocity.y = vy
+        vel_target_msg.velocity.z = vz
+        vel_target_msg.yaw_rate = v_yaw
         self.velocity_pub.publish(vel_target_msg)
 
     def wire_target_callback(self, msg):
@@ -107,7 +111,7 @@ class WireGraspingNode(Node):
         self.target_x = - msg.target_x - self.x_wire_offset_from_camera_m # flip for frame convention                                       
         self.target_y = - msg.target_y # flip for frame convention  
         self.target_z = msg.target_z - self.z_wire_offset_from_camera_m
-        self.target_yaw = msg.target_yaw
+        self.target_yaw = msg.target_yaw - self.yaw_wire_offset_from_camera_rad
         self.got_target = True
         self.last_received_timestamp = time.perf_counter()
 
@@ -171,26 +175,27 @@ class WireGraspingNode(Node):
             self.declare_parameter('velocity_cmd_topic', rclpy.Parameter.Type.STRING)
             self.velocity_cmd_topic = self.get_parameter('velocity_cmd_topic').get_parameter_value().string_value
 
-            with open(get_package_share_directory('visual_servoing') + '/config/visual_servo_config.yaml', 'r') as file:
-                self.visual_servo_config = yaml.safe_load(file)
+            with open(get_package_share_directory('servoing') + '/config/servoing_config.yaml', 'r') as file:
+                self.servoing_config = yaml.safe_load(file)
 
-            self.x_wire_offset_from_camera_m = self.visual_servo_config['x_wire_offset_from_camera_m']
-            self.z_wire_offset_from_camera_m = self.visual_servo_config['z_wire_offset_from_camera_m']
+            self.x_wire_offset_from_camera_m = self.servoing_config['x_wire_offset_from_camera_m']
+            self.z_wire_offset_from_camera_m = self.servoing_config['z_wire_offset_from_camera_m']
+            self.yaw_wire_offset_from_camera_rad = self.servoing_config['yaw_wire_offset_from_camera_rad']
 
-            self.kp_xy = self.visual_servo_config['kp_xy']
-            self.kd_xy = self.visual_servo_config['kd_xy']
-            self.ki_xy = self.visual_servo_config['ki_xy']
-            self.v_xy_limit = self.visual_servo_config['v_xy_limit']
+            self.kp_xy = self.servoing_config['kp_xy']
+            self.kd_xy = self.servoing_config['kd_xy']
+            self.ki_xy = self.servoing_config['ki_xy']
+            self.v_xy_limit = self.servoing_config['v_xy_limit']
 
-            self.kp_z = self.visual_servo_config['kp_z']
-            self.kd_z = self.visual_servo_config['kd_z']
-            self.ki_z = self.visual_servo_config['ki_z']
-            self.v_z_limit = self.visual_servo_config['v_z_limit']
+            self.kp_z = self.servoing_config['kp_z']
+            self.kd_z = self.servoing_config['kd_z']
+            self.ki_z = self.servoing_config['ki_z']
+            self.v_z_limit = self.servoing_config['v_z_limit']
 
-            self.kp_yaw = self.visual_servo_config['kp_yaw']
-            self.kd_yaw = self.visual_servo_config['kd_yaw']
-            self.ki_yaw = self.visual_servo_config['ki_yaw']
-            self.v_yaw_limit = self.visual_servo_config['v_yaw_limit']
+            self.kp_yaw = self.servoing_config['kp_yaw']
+            self.kd_yaw = self.servoing_config['kd_yaw']
+            self.ki_yaw = self.servoing_config['ki_yaw']
+            self.v_yaw_limit = self.servoing_config['v_yaw_limit']
 
         except Exception as e:
             self.get_logger().error(f"Error in declare_parameters: {e}")
@@ -198,7 +203,7 @@ class WireGraspingNode(Node):
     
 def main():
     rclpy.init()
-    node = WireGraspingNode()
+    node = ServoingNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:

@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>visual_servoing</name>
+  <name>servoing</name>
   <version>0.1.0</version>
-  <description>A visual servoing ROS 2 package</description>
+  <description>A servoing ROS 2 package</description>
   
   <maintainer email="your_email@example.com">Your Name</maintainer>
   <license>MIT</license>
