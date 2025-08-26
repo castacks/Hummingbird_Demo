@@ -8,6 +8,8 @@
 #include <wire_interfaces/msg/wire_target.hpp>
 #include <Eigen/Dense>
 #include <yaml-cpp/yaml.h>
+#include <opencv2/opencv.hpp>
+
 
 #include "direction_kf.h"
 #include "position_kf.h"
@@ -84,6 +86,7 @@ private:
   Eigen::Matrix4d H_fc_to_cam_, H_cam_to_fc_;
   bool initialized_{false};
   int image_height_, image_width_;
+  int center_x_, center_y_;
   double line_length_{0.0}; // Length of the line to be drawn in pixels
   double fx_, fy_, cx_, cy_;
   YAML::Node config_;

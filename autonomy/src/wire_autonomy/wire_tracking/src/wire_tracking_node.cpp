@@ -136,6 +136,8 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
         0, 0, 1;
     image_height_ = msg->height;
     image_width_ = msg->width;
+    center_x_ = image_width_ / 2;
+    center_y_ = image_height_ / 2;
     line_length_ = std::max(image_height_, image_width_) * 1.5;
     // Init the position Kalman filter
     position_kalman_filters_ = PositionKalmanFilters(config_, camera_matrix_, {image_width_, image_height_});
@@ -169,7 +171,7 @@ void WireTrackingNode::poseCallback(const geometry_msgs::msg::PoseStamped::Share
         // Compute the relative transform from the previous pose to the current pose
         double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
         double delta_time = curr_stamp - previous_transform_stamp_;
-        
+
         Eigen::Matrix4d H_cam_2_to_1;
         std::tie(H_cam_2_to_1, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose);
         previous_transform_stamp_ = curr_stamp;
@@ -189,7 +191,6 @@ void WireTrackingNode::poseCallback(const geometry_msgs::msg::PoseStamped::Share
                 position_kalman_filters_->predict(H_cam_2_to_1, previous_yaw, curr_yaw);
             }
         }
-
     }
 }
 
@@ -321,7 +322,7 @@ void WireTrackingNode::targetTimerCallback()
         RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
         return;
     }
-    
+
     RCLCPP_INFO(this->get_logger(), "Target ID: %i", tracked_wire_id_);
     double wire_yaw = direction_kalman_filter_->getYaw();
     Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {tracked_wire_id_});
@@ -435,6 +436,21 @@ void WireTrackingNode::visualizeWireTracking(cv::Mat img = cv::Mat(), double sta
             {
                 cv::circle(img, center_px, 10, cv::Scalar(0, 255, 0), 2);
             }
+            
+            // Crosshair size in pixels
+            int cross_size = 10;
+
+            // Horizontal line
+            cv::line(img,
+                     cv::Point(center_x_ - cross_size, center_y_),
+                     cv::Point(center_x_ + cross_size, center_y_),
+                     cv::Scalar(0, 255, 0), 2); // green, thickness=2
+
+            // Vertical line
+            cv::line(img,
+                     cv::Point(center_x_, center_y_ - cross_size),
+                     cv::Point(center_x_, center_y_ + cross_size),
+                     cv::Scalar(0, 255, 0), 2); // green, thickness=2
 
             tracking_3d_pub_->publish(marker);
         }
