@@ -7,7 +7,7 @@ def generate_launch_description():
    config = os.path.join(
       get_package_share_directory('image2rtsp'),
       'config',
-      'parameters.yaml'
+      'wire_rtsp_config.yaml'
       )
 
    return LaunchDescription([

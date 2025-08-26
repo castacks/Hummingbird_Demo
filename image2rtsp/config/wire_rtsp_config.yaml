@@ -6,7 +6,7 @@
       source: "v4l2src device=/dev/video0"
 
       # If the source is a ros2 topic (default case)
-      topic: "/wire_cam/detection_debug"
+      topic: "/pincer/tracking_2d_viz"
 
       # General setup
       mountpoint: "/detection"
