@@ -3,11 +3,13 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <wire_interfaces/msg/wire_detections.hpp>
 #include <wire_interfaces/msg/wire_target.hpp>
 #include <Eigen/Dense>
 #include <yaml-cpp/yaml.h>
+#include <opencv2/opencv.hpp>
+
 
 #include "direction_kf.h"
 #include "position_kf.h"
@@ -20,7 +22,7 @@ public:
 private:
   // ROS callbacks
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
-  void poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+  void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
   void wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg);
   void targetTimerCallback();
   void rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg);
@@ -42,7 +44,7 @@ private:
 
   // members
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::Subscription<wire_interfaces::msg::WireDetections>::SharedPtr detection_sub_;
 
   rclcpp::Publisher<wire_interfaces::msg::WireTarget>::SharedPtr target_pub_;
@@ -60,7 +62,6 @@ private:
   int total_iterations_{0};
   int iteration_start_threshold_{0}; // Number of iterations before starting to track
   int min_valid_kf_count_threshold_{0}; // Minimum number of valid Kalman filters to consider tracking
-  bool vtol_payload_{false}; // Flag to indicate if the payload is a VTOL
 
   double linear_translation_dropout_{0.5}; // Dropout threshold for linear translation in meters
   double angular_translation_dropout_{0.25}; // Dropout threshold for angular translation in radians
@@ -82,9 +83,10 @@ private:
   std::vector<cv::Mat> rgb_images_;
 
   Eigen::Matrix3d camera_matrix_;
-  Eigen::Matrix4d H_pose_to_wire_, H_wire_to_pose_;
+  Eigen::Matrix4d H_fc_to_cam_, H_cam_to_fc_;
   bool initialized_{false};
   int image_height_, image_width_;
+  int center_x_, center_y_;
   double line_length_{0.0}; // Length of the line to be drawn in pixels
   double fx_, fy_, cx_, cy_;
   YAML::Node config_;

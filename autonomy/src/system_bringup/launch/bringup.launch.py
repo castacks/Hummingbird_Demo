@@ -46,9 +46,9 @@ def generate_launch_description():
         ),
         # Visual Servoing Node (launch if SERVO is true)
         Node(
-            package='visual_servoing',
-            executable='visual_servoing_node',
-            name='visual_servoing_node',
+            package='servoing',
+            executable='servoing_node',
+            name='servoing_node',
             parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
             condition=IfCondition(PythonExpression(['"', EnvironmentVariable('SERVO'), '" == "1"']))
         ),

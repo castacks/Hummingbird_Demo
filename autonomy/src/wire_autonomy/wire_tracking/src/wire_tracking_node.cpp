@@ -1,7 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <wire_interfaces/msg/wire_detections.hpp>
 #include <wire_interfaces/msg/wire_target.hpp>
@@ -36,7 +36,7 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     this->declare_parameter<std::string>("pose_sub_topic", "/default/pose_topic");
     this->get_parameter("pose_sub_topic", pose_sub_topic_);
-    pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
         pose_sub_topic_, rclcpp::SensorDataQoS(),
         std::bind(&WireTrackingNode::poseCallback, this, _1));
 
@@ -68,7 +68,6 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
     tracking_3d_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(tracking_3d_viz_topic_, 10);
 
     iteration_start_threshold_ = config_["iteration_start_threshold"].as<int>();
-    vtol_payload_ = config_["vtol_payload"].as<bool>();
 
     linear_translation_dropout_ = config_["linear_translation_dropout"].as<double>();
     angular_translation_dropout_ = config_["angular_translation_dropout"].as<double>();
@@ -79,24 +78,13 @@ WireTrackingNode::WireTrackingNode() : rclcpp::Node("wire_tracking_node")
 
     // Precompute transforms
     double baseline = config_["zed_baseline"].as<double>();
-    H_pose_to_wire_.setIdentity();
-    if (!vtol_payload_) // zeds are in same orientation
-    {
-        Matrix3d Ry;
-        Ry = Eigen::AngleAxisd(M_PI, Vector3d::UnitY());
-        H_pose_to_wire_.topLeftCorner<3, 3>() = Ry; // Only rotation around Y-axis
-        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-baseline, 0.0, 0.18415);
-    }
-    else
-    {
-        Matrix3d Rz;
-        Rz = Eigen::AngleAxisd(M_PI / 2, Vector3d::UnitZ());
-        Matrix3d Rx;
-        Rx = Eigen::AngleAxisd(M_PI, Vector3d::UnitX());
-        H_pose_to_wire_.topLeftCorner<3, 3>() = Rz * Rx;
-        H_pose_to_wire_.block<3, 1>(0, 3) = Vector3d(-0.035, baseline / 2.0, 0.18415);
-    }
-    H_wire_to_pose_ = H_pose_to_wire_.inverse();
+    H_fc_to_cam_.setIdentity();
+    Matrix3d Rz;
+    Rz = Eigen::AngleAxisd(M_PI, Vector3d::UnitZ());
+    H_fc_to_cam_.topLeftCorner<3, 3>() = Rz;
+    H_fc_to_cam_.block<3, 1>(0, 3) = Vector3d(0.15875, 0.0, 0.0635);
+
+    H_cam_to_fc_ = H_fc_to_cam_.inverse();
 
     // Populate Kalman filters
     direction_kalman_filter_ = DirectionKalmanFilter(config_);
@@ -148,6 +136,8 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
         0, 0, 1;
     image_height_ = msg->height;
     image_width_ = msg->width;
+    center_x_ = image_width_ / 2;
+    center_y_ = image_height_ / 2;
     line_length_ = std::max(image_height_, image_width_) * 1.5;
     // Init the position Kalman filter
     position_kalman_filters_ = PositionKalmanFilters(config_, camera_matrix_, {image_width_, image_height_});
@@ -156,105 +146,7 @@ void WireTrackingNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
     RCLCPP_INFO(this->get_logger(), "Wire Tracking Node initialized, Camera info received.");
 }
 
-void WireTrackingNode::poseCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
-{
-    if (!initialized_)
-    {
-        return;
-    }
-
-    // if last relative transform is not set, initialize it
-    if (previous_transform_.isZero())
-    {
-        previous_transform_ = poseToHomogeneous(msg->pose.pose);
-        previous_transform_stamp_ = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-    }
-    else
-    {
-        Eigen::Matrix4d H_relative_in_wire_cam;
-        Eigen::Matrix4d H_to_pose = poseToHomogeneous(msg->pose.pose);
-
-        // Compute the relative transform from the previous pose to the current pose
-        double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-        double delta_time = curr_stamp - previous_transform_stamp_;
-        double delta_translation = (H_to_pose.block<3, 1>(0, 3) - previous_transform_.block<3, 1>(0, 3)).norm();
-
-        Eigen::Vector3d curr_linear_velocity;
-        Eigen::Vector3d curr_angular_velocity;
-        std::tie(curr_linear_velocity, curr_angular_velocity) = getVelocityFromTransforms(previous_transform_, H_to_pose, delta_time);
-
-        Eigen::Vector3d curr_linear_acceleration = (curr_linear_velocity - last_linear_velocity_) / delta_time;
-        double max_linear_velocity = curr_linear_velocity.cwiseAbs().maxCoeff();
-        double max_angular_velocity = curr_angular_velocity.cwiseAbs().maxCoeff();
-
-        Eigen::Vector3d curr_angular_acceleration = (curr_angular_velocity - last_angular_velocity_) / delta_time;
-        double max_linear_acceleration = curr_linear_acceleration.cwiseAbs().maxCoeff();
-        double max_angular_acceleration = curr_angular_acceleration.cwiseAbs().maxCoeff();
-
-        RCLCPP_INFO(this->get_logger(), "Curr Linear velocity: [%.2f, %.2f, %.2f] m/s, Previous Linear Velocity: [%.2f, %.2f, %.2f], Delta Time: %.2f",
-                    curr_linear_velocity(0), curr_linear_velocity(1), curr_linear_velocity(2), last_linear_velocity_(0), last_linear_velocity_(1), last_linear_velocity_(2), delta_time);
-        RCLCPP_INFO(this->get_logger(), "Curr Angular velocity: [%.2f, %.2f, %.2f] rad/s, Previous Angular Velocity: [%.2f, %.2f, %.2f]",
-                    curr_angular_velocity(0), curr_angular_velocity(1), curr_angular_velocity(2), last_angular_velocity_(0), last_angular_velocity_(1), last_angular_velocity_(2));
-        RCLCPP_INFO(this->get_logger(), "Current Linear Acceleration: [%.2f, %.2f, %.2f] m/s^2, Current Angular Acceleration: [%.2f, %.2f, %.2f] rad/s^2",
-                    curr_linear_acceleration(0), curr_linear_acceleration(1), curr_linear_acceleration(2),
-                    curr_angular_acceleration(0), curr_angular_acceleration(1), curr_angular_acceleration(2));
-
-        // if (max_linear_velocity < linear_velocity_dropout_ && max_angular_velocity < angular_velocity_dropout_ &&
-        //     max_linear_acceleration < linear_acceleration_dropout_ && max_angular_acceleration < angular_acceleration_dropout_)
-        if (delta_translation < linear_translation_dropout_ && max_linear_acceleration < linear_acceleration_dropout_ && max_angular_acceleration < angular_acceleration_dropout_)
-        {
-            std::tie(H_relative_in_wire_cam, H_to_pose) = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, previous_transform_, msg->pose.pose);
-            RCLCPP_INFO(this->get_logger(), "Received in bounds pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_relative_in_wire_cam(0, 3), H_relative_in_wire_cam(1, 3), H_relative_in_wire_cam(2, 3));
-            relative_transform_timestamps_.push_back(curr_stamp);
-            relative_transforms_.push_back(H_relative_in_wire_cam);
-            last_linear_velocity_ = curr_linear_velocity;
-            last_angular_velocity_ = curr_angular_velocity;
-            using_velocity_transform_ = false;
-        }
-        else
-        {
-            if (last_linear_velocity_.norm() < 1e-6 && last_angular_velocity_.norm() < 1e-6)
-            {
-                RCLCPP_WARN(this->get_logger(), "No previous velocity available, cannot fabricate transform from velocity.");
-                return;
-            }
-            if (delta_translation >= linear_translation_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "Translation %.2f exceeds dropout threshold %.2f, fabricating transform from velocity", delta_translation, linear_translation_dropout_);
-            }
-            // if (max_linear_velocity >= linear_velocity_dropout_)
-            // {
-            //     RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max linear velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_linear_velocity, linear_velocity_dropout_);
-            // }
-            // if (max_angular_velocity >= angular_velocity_dropout_)
-            // {
-            //     RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max angular velocity %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_angular_velocity, angular_velocity_dropout_);
-            // }
-            if (max_linear_acceleration >= linear_acceleration_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max linear acceleration %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_linear_acceleration, linear_acceleration_dropout_);
-            }
-            if (max_angular_acceleration >= angular_acceleration_dropout_)
-            {
-                RCLCPP_WARN(this->get_logger(), "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Max angular acceleration %.2f exceeds dropout threshold %.2f, fabricating transform from velocity!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", max_angular_acceleration, angular_acceleration_dropout_);
-            }
-            // // If the translation exceeds the dropout threshold, fabricate a transform based on the last velocity
-            // Eigen::Matrix4d delta_pose_transform = getRelativeTransformFromVelocity(last_linear_velocity_, last_angular_velocity_, delta_time);
-            // RCLCPP_INFO(this->get_logger(), "linear translation of fabricated relative transform: [%.2f, %.2f, %.2f], in time: %.2f",
-            //             delta_pose_transform(0, 3), delta_pose_transform(1, 3), delta_pose_transform(2, 3), delta_time);
-
-            // H_relative_in_wire_cam = getRelativeTransformInAnotherFrame(H_pose_to_wire_, H_wire_to_pose_, delta_pose_transform);
-            // relative_transform_timestamps_.push_back(curr_stamp);
-            // relative_transforms_.push_back(H_relative_in_wire_cam);
-            // using_velocity_transform_ = true;
-        }
-
-        previous_transform_ = H_to_pose;
-        previous_transform_stamp_ = curr_stamp;
-    }
-}
-
-void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
+void WireTrackingNode::poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
     if (!initialized_)
     {
@@ -268,52 +160,38 @@ void WireTrackingNode::predict_kfs_up_to_timestamp(double input_stamp)
         return;
     }
 
-    if (relative_transform_timestamps_.empty())
+    // if last relative transform is not set, initialize it
+    if (previous_transform_.isZero())
     {
-        RCLCPP_INFO(this->get_logger(), "No relative pose transforms available. Waiting for pose updates.");
-        return;
-    }
-
-    // Find index for latest pose before input_stamp
-    auto it = std::upper_bound(relative_transform_timestamps_.begin(),
-                               relative_transform_timestamps_.end(),
-                               input_stamp);
-    int idx = static_cast<int>(std::distance(relative_transform_timestamps_.begin(), it)) - 1;
-
-    if (idx < 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "No relative pose transforms available for prediction.");
-        return;
+        previous_transform_ = poseToHomogeneous2(H_cam_to_fc_, msg->pose);
+        previous_transform_stamp_ = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "Predicting Kalman filters up to timestamp: %.2f, using %d transforms.", input_stamp, idx + 1);
-    }
+        // Compute the relative transform from the previous pose to the current pose
+        double curr_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
+        double delta_time = curr_stamp - previous_transform_stamp_;
 
-    // Iterate over poses up to idx
-    for (int i = 0; i <= idx; ++i)
-    {
-        const Eigen::Matrix4d &relative_pose_transform = relative_transforms_[i];
-        RCLCPP_INFO_STREAM(this->get_logger(), "Predicting Transform: " << relative_pose_transform);
+        Eigen::Matrix4d H_cam_2_to_1;
+        std::tie(H_cam_2_to_1, previous_transform_) = getRelativeTransformInCam(H_cam_to_fc_, previous_transform_, msg->pose);
+        previous_transform_stamp_ = curr_stamp;
+        // RCLCPP_INFO(this->get_logger(), "Received pose at timestamp: %.2f, with relative translation [%.2f, %.2f, %.2f]", curr_stamp, H_cam_2_to_1(0, 3), H_cam_2_to_1(1, 3), H_cam_2_to_1(2, 3));
 
         if (direction_kalman_filter_->isInitialized())
         {
             double previous_yaw = direction_kalman_filter_->getYaw();
-            double curr_yaw = direction_kalman_filter_->predict(relative_pose_transform.block<3, 3>(0, 0));
+            double curr_yaw = direction_kalman_filter_->predict(H_cam_2_to_1.block<3, 3>(0, 0));
 
             if (position_kalman_filters_->isInitialized())
             {
-                RCLCPP_INFO(this->get_logger(), "Linear translation of relative transform: [%.2f, %.2f, %.2f], yaw change: %.2f degrees",
-                            relative_pose_transform(0, 3), relative_pose_transform(1, 3), relative_pose_transform(2, 3),
-                            (curr_yaw - previous_yaw) * 180.0 / M_PI);
-                position_kalman_filters_->predict(relative_pose_transform, previous_yaw, curr_yaw);
+                // RCLCPP_INFO(this->get_logger(), "Linear translation of relative transform: [%.2f, %.2f, %.2f], yaw change: %.2f degrees",
+                //             H_cam_2_to_1(0, 3), H_cam_2_to_1(1, 3), H_cam_2_to_1(2, 3),
+                //             (curr_yaw - previous_yaw) * 180.0 / M_PI);
+
+                position_kalman_filters_->predict(H_cam_2_to_1, previous_yaw, curr_yaw);
             }
         }
     }
-
-    // Remove old transforms
-    relative_transforms_.erase(relative_transforms_.begin(), relative_transforms_.begin() + idx + 1);
-    relative_transform_timestamps_.erase(relative_transform_timestamps_.begin(), relative_transform_timestamps_.begin() + idx + 1);
 }
 
 void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDetections::SharedPtr msg)
@@ -322,13 +200,6 @@ void WireTrackingNode::wireDetectionCallback(const wire_interfaces::msg::WireDet
         return;
 
     double wire_detection_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9;
-    if (!relative_transforms_.empty())
-    {
-        // Use the most recent relative transform
-        predict_kfs_up_to_timestamp(wire_detection_stamp);
-        RCLCPP_INFO(this->get_logger(), "Kalman Debug After Predict:");
-        debugPrintKFs();
-    }
 
     if (msg->avg_angle > 0.0 && msg->avg_angle < M_PI && !msg->wire_detections.empty())
     {
@@ -444,24 +315,17 @@ void WireTrackingNode::targetTimerCallback()
     {
         return;
     }
+
+    tracked_wire_id_ = position_kalman_filters_->getTargetID();
     if (tracked_wire_id_ == -1)
     {
-        tracked_wire_id_ = position_kalman_filters_->getTargetID();
-        if (tracked_wire_id_ == -1)
-        {
-            RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
-            return;
-        }
-    }
-    auto [wire_dh, kf_index] = position_kalman_filters_->getKFByID(tracked_wire_id_);
-    if (kf_index == -1)
-    {
-        RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filter found.");
+        RCLCPP_WARN(this->get_logger(), "No valid wire Kalman filters found.");
         return;
     }
 
+    RCLCPP_INFO(this->get_logger(), "Target ID: %i", tracked_wire_id_);
     double wire_yaw = direction_kalman_filter_->getYaw();
-    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {kf_index});
+    Eigen::Vector3d kf_xyz = position_kalman_filters_->getKFXYZs(wire_yaw, {tracked_wire_id_});
 
     wire_interfaces::msg::WireTarget target_msg;
     target_msg.header.stamp = this->now();
@@ -572,6 +436,21 @@ void WireTrackingNode::visualizeWireTracking(cv::Mat img = cv::Mat(), double sta
             {
                 cv::circle(img, center_px, 10, cv::Scalar(0, 255, 0), 2);
             }
+            
+            // Crosshair size in pixels
+            int cross_size = 10;
+
+            // Horizontal line
+            cv::line(img,
+                     cv::Point(center_x_ - cross_size, center_y_),
+                     cv::Point(center_x_ + cross_size, center_y_),
+                     cv::Scalar(0, 255, 0), 2); // green, thickness=2
+
+            // Vertical line
+            cv::line(img,
+                     cv::Point(center_x_, center_y_ - cross_size),
+                     cv::Point(center_x_, center_y_ + cross_size),
+                     cv::Scalar(0, 255, 0), 2); // green, thickness=2
 
             tracking_3d_pub_->publish(marker);
         }

@@ -82,4 +82,7 @@ RUN echo "alias sws='source ~/.bash_profile && source /root/dependencies_ws/inst
     echo "alias bws='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && colcon build --symlink-install'" >> ~/.bashrc && \
     echo "alias vel_test='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test vel_control_test.launch.xml'" >> ~/.bashrc && \
     echo "alias wire_test='source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /root/ros2_ws/install/setup.bash && ros2 launch control_test wire_control_test.launch.xml'" >> ~/.bashrc && \
-    echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc
+    echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc && \
+    echo "source /root/dependencies_ws/install/setup.bash" >> ~/.bashrc && \
+    echo "[ -f /root/ros2_ws/install/setup.bash ] && source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
+

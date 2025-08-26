@@ -1,3 +1,4 @@
+
 takeoff_height: 2.0 # m
 takeoff_wait_time: 10.0 # s
 target_timeout: 0.25
@@ -5,6 +6,7 @@ velocity_command_frequency: 15.0 # Hz
 
 x_wire_offset_from_camera_m: 0.5
 z_wire_offset_from_camera_m: 1.0
+yaw_wire_offset_from_camera_rad: 1.5708
 
 kp_xy: 0.25
 kd_xy: 0.1
