@@ -451,6 +451,15 @@ void WireTrackingNode::visualizeWireTracking(cv::Mat img = cv::Mat(), double sta
             tracking_3d_pub_->publish(marker);
         }
     }
+    else
+    {
+        // publish rgb image if no valid kfs
+        if (!img.empty())
+        {
+            sensor_msgs::msg::Image::SharedPtr img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img).toImageMsg();
+            img_msg->header.stamp.sec = static_cast<int32_t>(stamp);
+            img_msg->header.st
+    }
     // Visualize detections if there are some
     if (wire_detections != nullptr && !img.empty())
     {
@@ -513,9 +522,13 @@ void WireTrackingNode::debugPrintKFs()
 
 void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg)
 {
-    if (!initialized_)
+    if (!initialized_ || direction_kalman_filter_->isInitialized() == false || position_kalman_filters_->isInitialized() == false)
     {
-        return;
+        // publish the image to the 2D viz topic if the KFs are not initialized
+        if (wire_viz_2d_)
+        {
+            tracking_2d_pub_->publish(*rgb_msg);
+        }
     }
 
     // Convert timestamp to double (seconds)
@@ -543,6 +556,7 @@ void WireTrackingNode::rgbCallback(const sensor_msgs::msg::Image::SharedPtr rgb_
     // Insert while keeping the timestamps sorted
     rgb_timestamps_.push_back(stamp);
     rgb_images_.push_back(rgb);
+
 }
 
 int main(int argc, char **argv)
