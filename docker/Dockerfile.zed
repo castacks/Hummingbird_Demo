@@ -62,5 +62,19 @@ colcon build --parallel-workers $(nproc) --symlink-install \
   ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
   ' --no-warn-unused-cli' "
 
+COPY ./zed_wrapper/ /root/ros2_ws/src/
+WORKDIR /root/ros2_ws/
+RUN /bin/bash -c "source ~/.bash_profile && source /root/dependencies_ws/install/setup.bash && source /opt/ros/humble/install/setup.bash && \
+colcon build --parallel-workers $(nproc) --symlink-install \
+  --event-handlers console_direct+ --base-paths src \
+  --cmake-args -Wno-dev ' -DCMAKE_BUILD_TYPE=Release' \
+  '-DCMAKE_CXX_FLAGS_RELEASE=-O3 -march=native -ffast-math' \
+  ' -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs' \
+  ' -DCMAKE_CXX_FLAGS="-Wl,--allow-shlib-undefined"' \
+  ' --no-warn-unused-cli' "
+
+COPY docker/zed_entrypoint.sh /root/entrypoint.sh
+RUN chmod +x /root/entrypoint.sh
+
 WORKDIR /root/ros2_ws
 RUN echo "export ROS_DOMAIN_ID=68" >> ~/.bashrc

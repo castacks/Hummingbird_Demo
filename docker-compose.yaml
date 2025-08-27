@@ -34,12 +34,6 @@ services:
     depends_on:
     - base
     entrypoint: ["/root/entrypoint.sh"]
-    # command: >
-    #   bash -c "source ~/.bashrc && source /root/ros2_ws/install/setup.bash && \
-    #           ros2 launch image2rtsp image2rtsp.launch.py && \
-    #           sleep infinity"
-    # command: >
-    #   bash -c "sleep infinity"
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
@@ -67,14 +61,7 @@ services:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     depends_on:
     - base
-    command: >
-      bash -c "source /root/dependencies_ws/install/setup.bash && \
-               if [ ! -d '/root/ros2_ws/install' ]; then \
-               source ~/.bash_profile && colcon build --symlink-install --parallel-workers $(nproc); 
-               else echo 'Already built'; fi && \
-               source /root/ros2_ws/install/setup.bash && \
-               ros2 launch zed_wrapper zed_dual_camera.launch.py pose_cam_serial:='${POSE_CAM_SERIAL}' wire_cam_serial:='${WIRE_CAM_SERIAL}' && \ 
-               sleep infinity"
+    entrypoint: ["/root/entrypoint.sh"]
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
@@ -97,7 +84,7 @@ services:
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
-      - ./zed_wrapper/:/root/ros2_ws/:rw
+      - ./zed_wrapper/:/root/ros2_ws/src/:rw
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
