@@ -49,16 +49,17 @@ class ServoingNode(Node):
 
         # Publishers
         self.velocity_pub = self.create_publisher(PositionTarget, self.velocity_cmd_topic, 1)
-
-        self.velocity_timer = self.create_timer(1.0 / self.velocity_command_frequency, self.velocity_timer_callback)
+        self.velocity_callback_group = MutuallyExclusiveCallbackGroup()
+        self.velocity_timer = self.create_timer(1.0 / self.velocity_command_frequency, self.velocity_timer_callback, callback_group=self.velocity_callback_group)
 
         self.first_pass = True
         self.last_received_timestamp = None
         self.got_target = False
 
-        self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
-        self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
-        self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
+        self.services_callback_group = ReentrantCallbackGroup()
+        self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode', callback_group=self.services_callback_group)
+        self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming', callback_group=self.services_callback_group)
+        self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff', callback_group=self.services_callback_group)
 
         self.takeoff()
         self.get_logger().info("Servoing Node initialized and in flight")
@@ -124,7 +125,7 @@ class ServoingNode(Node):
         self.target_z = msg.target_z - self.z_wire_offset_from_camera_m
         adjusted_yaw = fold_angles_from_0_to_pi(msg.target_yaw)
         self.target_yaw = adjusted_yaw - self.yaw_wire_offset_from_camera_rad
-        self.get_logger().info(f"Processed wire target: x={self.target_x}, y={self.target_y}, z={self.target_z}, yaw={self.target_yaw}")
+        # self.get_logger().info(f"Processed wire target: x={self.target_x}, y={self.target_y}, z={self.target_z}, yaw={self.target_yaw}")
         self.got_target = True
         self.last_received_timestamp = time.perf_counter()
 
@@ -171,15 +172,6 @@ class ServoingNode(Node):
 
     def set_params(self):
         try:
-            self.declare_parameter('takeoff_height', 2.0)  # Height to take off to
-            self.takeoff_height = self.get_parameter('takeoff_height').get_parameter_value().double_value
-            self.declare_parameter('takeoff_wait_time', 5.0)  # Time to wait after takeoff before starting control
-            self.takeoff_wait_time = self.get_parameter('takeoff_wait_time').get_parameter_value().double_value
-            self.declare_parameter('target_timeout', 0.25)  # Time to wait before considering target lost
-            self.target_timeout = self.get_parameter('target_timeout').get_parameter_value().double_value
-            self.declare_parameter('velocity_command_frequency', 15.0)  # Hz
-            self.velocity_command_frequency = self.get_parameter('velocity_command_frequency').get_parameter_value().double_value
-
             # Subscribers
             self.declare_parameter('wire_target_topic', rclpy.Parameter.Type.STRING)
             self.wire_target_topic = self.get_parameter('wire_target_topic').get_parameter_value().string_value
@@ -209,6 +201,11 @@ class ServoingNode(Node):
             self.kd_yaw = self.servoing_config['kd_yaw']
             self.ki_yaw = self.servoing_config['ki_yaw']
             self.v_yaw_limit = self.servoing_config['v_yaw_limit']
+
+            self.takeoff_height = self.servoing_config['takeoff_height']
+            self.takeoff_wait_time = self.servoing_config['takeoff_wait_time']
+            self.target_timeout = self.servoing_config['target_timeout']
+            self.velocity_command_frequency = self.servoing_config['velocity_command_frequency']
 
         except Exception as e:
             self.get_logger().error(f"Error in declare_parameters: {e}")

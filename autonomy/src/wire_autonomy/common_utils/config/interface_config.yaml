@@ -5,7 +5,6 @@
     camera_info_sub_topic: "/wire_cam/zed_node/left/camera_info"
     rgb_image_sub_topic: "/wire_cam/zed_node/left/image_rect_color"
     depth_image_sub_topic: "/wire_cam/zed_node/depth/depth_registered"
-    # pose_sub_topic: "/vins/camera_pose"
     pose_sub_topic: "/mavros/local_position/pose"
 
     # internode publishers

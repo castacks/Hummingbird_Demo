@@ -43,14 +43,18 @@ def generate_launch_description():
             condition=IfCondition(PythonExpression(['"', EnvironmentVariable('RVIZ'), '" == "1"']))
         ),
         # Visual Servoing Node (launch if SERVO is true)
-        Node(
-            package='servoing',
-            executable='servoing_node',
-            name='servoing_node',
-            parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
-            condition=IfCondition(PythonExpression(['"', EnvironmentVariable('SERVO'), '" == "1"']))
+        TimerAction(
+            period=5.0,  # delay in seconds, adjust as needed
+            actions=[
+                Node(
+                    package='servoing',
+                    executable='servoing_node',
+                    name='servoing_node',
+                    parameters=[FindPackageShare('common_utils').find('common_utils') + '/interface_config.yaml'],
+                    condition=IfCondition(PythonExpression(['"', EnvironmentVariable('SERVO'), '" == "1"']))
+                )
+            ]
         ),
-        
         # MAVROS real Node (launch if MAVROS is set and SIMULATION is false)
         IncludeLaunchDescription(
             XMLLaunchDescriptionSource([FindPackageShare('mavros'), '/launch/apm.launch']),
