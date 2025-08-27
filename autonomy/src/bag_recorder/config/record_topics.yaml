@@ -17,8 +17,7 @@ sections:
       - /pincer/wire_target
       - /mavros/setpoint_raw/local
       - /pincer/depth_viz
-      - /pincer/pose_viz
-      - /pincer/depth_pc_viz
+      - /pincer/detections_3d_viz
       - /pincer/tracking_2d_viz
       - /pincer/tracking_3d_viz
 
