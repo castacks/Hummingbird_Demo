@@ -33,10 +33,13 @@ services:
         BASE_IMAGE: tharp789/hummingbird_demo:base-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH}
     depends_on:
     - base
-    command: >
-      bash -c "source /root/ros2_ws/install/setup.bash && \
-              ros2 launch image2rtsp dual_image2rtsp.launch.py && \
-              sleep infinity"
+    entrypoint: ["/root/entrypoint.sh"]
+    # command: >
+    #   bash -c "source ~/.bashrc && source /root/ros2_ws/install/setup.bash && \
+    #           ros2 launch image2rtsp image2rtsp.launch.py && \
+    #           sleep infinity"
+    # command: >
+    #   bash -c "sleep infinity"
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - DISPLAY=${DISPLAY}
@@ -53,7 +56,8 @@ services:
       - /tmp:/tmp 
       - /dev:/dev 
       - ./rti_sensor_qos_profile.xml:/root/rti_sensor_qos_profile.xml 
-        
+      - ./image2rtsp/:/root/ros2_ws/src/:rw
+
   zed_wrapper:
     image: tharp789/hummingbird_demo:zed-wrapper-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build: 
@@ -93,7 +97,7 @@ services:
       - /etc/systemd/system/zed_x_daemon.service:/etc/systemd/system/zed_x_daemon.service
       - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
-      - ./zed_wrapper/:/root/ros2_ws/
+      - ./zed_wrapper/:/root/ros2_ws/:rw
   
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 

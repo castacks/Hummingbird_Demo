@@ -158,6 +158,7 @@ void Image2rtsp::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg){
     GstBuffer *buf;
     GstCaps *caps; // image properties. see return of Image2rtsp::gst_caps_new_from_image
     char *gst_type, *gst_format = (char *)"";
+    RCLCPP_INFO(this->get_logger(), "Received image, size: %d, encoding: %s", msg->data.size(), msg->encoding.c_str());
     if (appsrc != NULL){
         // Set caps from message
         caps = gst_caps_new_from_image(msg);
