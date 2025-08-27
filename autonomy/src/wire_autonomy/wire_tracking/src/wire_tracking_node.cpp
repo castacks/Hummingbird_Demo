@@ -451,15 +451,7 @@ void WireTrackingNode::visualizeWireTracking(cv::Mat img = cv::Mat(), double sta
             tracking_3d_pub_->publish(marker);
         }
     }
-    else
-    {
-        // publish rgb image if no valid kfs
-        if (!img.empty())
-        {
-            sensor_msgs::msg::Image::SharedPtr img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img).toImageMsg();
-            img_msg->header.stamp.sec = static_cast<int32_t>(stamp);
-            img_msg->header.st
-    }
+
     // Visualize detections if there are some
     if (wire_detections != nullptr && !img.empty())
     {
