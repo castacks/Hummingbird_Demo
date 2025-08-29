@@ -27,8 +27,8 @@ services:
     volumes:
       - /tmp:/tmp 
       - /dev:/dev 
-      - ./iris_model:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
-      - ./iris_aero:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_gimbal
+      # - ./iris_model:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_standoffs
+      # - ./iris_aero:/root/ardu_ws/src/ardupilot_gazebo/models/iris_with_gimbal
       - ./iris_launch:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_bringup/launch/robots
       - ./params:/root/ardu_ws/src/ardupilot_gazebo/config
       - ./worlds:/root/ardu_ws/src/ardupilot_gz/ardupilot_gz_gazebo/worlds
