@@ -104,20 +104,16 @@ void PositionKalmanFilters::predict(
     double yaw_prev,
     double yaw_curr)
 {
-    // 1) Validate
     if (relative_H.rows() != 4 || relative_H.cols() != 4)
     {
         throw std::invalid_argument("predict: relative_H must be 4×4");
     }
-    // 2) Get current KF points in XYZ (3×N)
     Eigen::Matrix3Xd xyz = getKFXYZs(yaw_prev);
 
-    // 3) Apply transform: R * xyz + t
     Eigen::Matrix3d R = relative_H.block<3, 3>(0, 0);
     Eigen::Vector3d t = relative_H.block<3, 1>(0, 3);
     Eigen::Matrix3Xd xyz_t = (R * xyz).colwise() + t;
 
-    // 4) Reproject into (distance, height)
     kf_points_ = getDHFromXYZs(xyz_t, yaw_curr);
 
     // 5) Build the 2×2 Jacobian J
@@ -131,7 +127,6 @@ void PositionKalmanFilters::predict(
     J(1, 1) = R(2, 2);
 
     // 6) Update each covariance: P_new = J * P_old * Jᵀ + Q_
-    //    We store covariances as a 4×N flat matrix kf_covariances
     Eigen::Matrix<double, 4, 4> KJJ =
         Eigen::kroneckerProduct(J, J);
 
@@ -141,7 +136,6 @@ void PositionKalmanFilters::predict(
         Q_(0, 1), Q_(1, 1);
 
     // Now kf_covariances is a (4 × N) matrix, each column is vec(P_old).
-    // We can do all at once:
     kf_covariances_ = (KJJ * kf_covariances_).colwise() + q_flat;
 }
 

@@ -8,13 +8,7 @@ from scipy.spatial.transform import Rotation as R
 pio.renderers.default = "browser"
 
 # -------- Parameters --------
-files = ["/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_161536/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_161956/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_162403/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_162817/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_163522/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_164402/pose_data.csv",
-         "/home/tyler/Documents/field_tests/phantom_wire_tests/wire_tracking_20250822_164009/pose_data.csv"]
+files = ["/home/tyler/Documents/MSR/field_tests/250828_afca/split_data/wire_data_20250828_092730/pose_data.csv"]
 
 # CSV file with: timestamp,x,y,z,qx,qy,qz,qw
 final_output = []
@@ -130,7 +124,7 @@ for filename in files:
         title="3D Trajectory with Orientation"
     )
 
-    # fig.show()
+    fig.show()
 
 rows = []
 for entry in final_output:
