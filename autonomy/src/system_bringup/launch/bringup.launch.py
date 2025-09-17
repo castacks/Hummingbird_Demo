@@ -42,7 +42,7 @@ def generate_launch_description():
             ],
             condition=IfCondition(PythonExpression(['"', EnvironmentVariable('RVIZ'), '" == "1"']))
         ),
-        # Visual Servoing Node (launch if SERVO is true)
+        # Servoing Node (launch if SERVO is true)
         TimerAction(
             period=5.0,  # delay in seconds, adjust as needed
             actions=[
