@@ -85,7 +85,37 @@ services:
       - /usr/local/zed/resources/:/usr/local/zed/resources/
       - /usr/local/zed/settings/:/usr/local/zed/settings/
       - ./zed_wrapper/:/root/ros2_ws/src/:rw
-  
+
+  # PC autonomy
+  pc-autonomy:
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile.pc   # combined base+autonomy for PC
+    image: tharp789/hummingbird_demo:autonomy-pc
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - WIRE_MODE=${WIRE_MODE}
+      - WIRE_VIZ=${WIRE_VIZ}
+      - RECORD=${RECORD}
+      - RVIZ=${RVIZ}
+      - VO=${VO}
+      - SERVO=${SERVO}
+      - MAVROS=${MAVROS}
+      - SIMULATION=${SIMULATION}
+    network_mode: host
+    runtime: nvidia
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /tmp:/tmp
+      - /dev:/dev
+      - ./autonomy/:/root/ros2_ws/:rw
+      - ${STORAGE_PATH}:/root/data_collection/:rw
+
+  # Jetson autonomy
   autonomy:
     image: tharp789/hummingbird_demo:autonomy-${L4T_MAJOR}-${L4T_MINOR}-${L4T_PATCH} 
     build:
