@@ -158,12 +158,17 @@ class WireDetector:
         distance, depth_gradient_1d = wdu.project_image_to_axis(depth_gradient, perp_angle)
         depth_gradient_1d = np.abs(depth_gradient_1d)
         depth_gradient_1d = depth_gradient_1d / np.max(depth_gradient_1d)
-        dist_hist, bin_edges = np.histogram(distance, bins=np.arange(np.min(distance), np.max(distance), 1), weights=depth_gradient_1d)
-        bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
-        dist_hist = dist_hist / np.max(dist_hist)
+        weighted_sum, bin_edges = np.histogram(distance, bins=np.arange(np.min(distance), np.max(distance), 1), weights=depth_gradient_1d)
+        counts, _ = np.histogram(distance,bins=bin_edges)
+        
+        avg_per_bin = np.zeros_like(weighted_sum)
+        nonzero = counts > 0
+        avg_per_bin[nonzero] = weighted_sum[nonzero] / counts[nonzero]
 
-        threshold = self.grad_bin_avg_threshold
-        mask = dist_hist > threshold
+        bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+        avg_per_bin = avg_per_bin / np.max(avg_per_bin)
+
+        mask = avg_per_bin > self.grad_bin_avg_threshold
         mask_diff = np.diff(mask.astype(int))
         mask_diff = np.concatenate(([0], mask_diff))
 
